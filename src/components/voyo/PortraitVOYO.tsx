@@ -1372,7 +1372,7 @@ export const PortraitVOYO = () => {
         {/* ============================================ */}
         {/* LAYER 4: BOTTOM NAVIGATION (Always on Top) */}
         {/* ============================================ */}
-        <div className="absolute bottom-0 left-0 right-0 z-30">
+        <div className="absolute bottom-0 left-0 right-0 z-50">
           <VoyoBottomNav />
         </div>
 
