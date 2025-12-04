@@ -1,0 +1,194 @@
+@import "tailwindcss";
+
+/* VOYO Music Device - Neon Afro-Futurism Theme */
+:root {
+  /* Core Colors */
+  --voyo-bg-deep: #0a0a0f;
+  --voyo-bg-card: #12121a;
+  --voyo-bg-elevated: #1a1a24;
+
+  /* Neon Accent Colors */
+  --voyo-purple: #a855f7;
+  --voyo-purple-glow: rgba(168, 85, 247, 0.4);
+  --voyo-blue: #3b82f6;
+  --voyo-blue-glow: rgba(59, 130, 246, 0.4);
+  --voyo-red: #ef4444;
+  --voyo-red-glow: rgba(239, 68, 68, 0.4);
+  --voyo-pink: #ec4899;
+  --voyo-pink-glow: rgba(236, 72, 153, 0.4);
+  --voyo-cyan: #06b6d4;
+  --voyo-gold: #f59e0b;
+
+  /* OYÉ Zone Colors */
+  --oye-hot: #ef4444;
+  --oye-ai: #3b82f6;
+  --oye-discover: #a855f7;
+
+  /* Text */
+  --voyo-text: #ffffff;
+  --voyo-text-secondary: rgba(255, 255, 255, 0.7);
+  --voyo-text-muted: rgba(255, 255, 255, 0.4);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--voyo-bg-deep);
+  color: var(--voyo-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--voyo-purple);
+  border-radius: 2px;
+}
+
+/* Glow Effects */
+.glow-purple {
+  box-shadow: 0 0 20px var(--voyo-purple-glow), 0 0 40px var(--voyo-purple-glow);
+}
+
+.glow-blue {
+  box-shadow: 0 0 20px var(--voyo-blue-glow), 0 0 40px var(--voyo-blue-glow);
+}
+
+.glow-red {
+  box-shadow: 0 0 20px var(--voyo-red-glow), 0 0 40px var(--voyo-red-glow);
+}
+
+.glow-pink {
+  box-shadow: 0 0 20px var(--voyo-pink-glow), 0 0 40px var(--voyo-pink-glow);
+}
+
+/* Neon Text */
+.neon-text {
+  text-shadow: 0 0 10px currentColor, 0 0 20px currentColor, 0 0 40px currentColor;
+}
+
+/* Glass Effect */
+.glass {
+  background: rgba(18, 18, 26, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Card Blur Effect (for played tracks) */
+.blur-card {
+  filter: blur(2px) brightness(0.6);
+  transition: filter 0.3s ease;
+}
+
+.blur-card:hover {
+  filter: blur(0) brightness(1);
+}
+
+/* Smooth Transitions */
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hide scrollbar but allow scrolling */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Pulse Animation for reactions */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1);
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Float Animation for OYÉ reactions */
+@keyframes float-up {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-100px) scale(1.5);
+  }
+}
+
+.float-reaction {
+  animation: float-up 2s ease-out forwards;
+}
+
+/* Slide animations */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.slide-up {
+  animation: slide-up 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Snap Scrolling for roulette */
+.snap-x {
+  scroll-snap-type: x mandatory;
+}
+
+.snap-center {
+  scroll-snap-align: center;
+}
+
+/* Active/Playing indicator */
+@keyframes playing-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--voyo-purple-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+
+.playing-indicator {
+  animation: playing-pulse 2s ease-in-out infinite;
+}
