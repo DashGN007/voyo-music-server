@@ -1,22 +1,24 @@
 // VOYO Music - Seed Data (African Bangers with REAL YouTube IDs)
 import { Track, Playlist, MoodTunnel, Reaction } from '../types';
 
-// Helper to get YouTube thumbnail - using 'hqdefault' as default (more reliable than maxresdefault)
-export const getYouTubeThumbnail = (videoId: string, quality: 'default' | 'medium' | 'high' | 'max' = 'high') => {
-  const qualities = {
-    default: 'default',
-    medium: 'mqdefault',
-    high: 'hqdefault',
-    max: 'maxresdefault'
-  };
-  return `https://img.youtube.com/vi/${videoId}/${qualities[quality]}.jpg`;
+// API base URL - will be environment variable in production
+const API_BASE = 'http://localhost:3001';
+
+// Helper to get track thumbnail via our local proxy
+export const getThumbnailUrl = (trackId: string, quality: 'default' | 'medium' | 'high' | 'max' = 'high') => {
+  return `${API_BASE}/thumbnail?id=${trackId}&quality=${quality}`;
+};
+
+// Alias for backward compatibility (same as getThumbnailUrl)
+export const getYouTubeThumbnail = (trackId: string, quality: 'default' | 'medium' | 'high' | 'max' = 'high') => {
+  return `${API_BASE}/thumbnail?id=${trackId}&quality=${quality}`;
 };
 
 // Get multiple thumbnail URLs for fallback
-export const getYouTubeThumbnailWithFallback = (videoId: string) => ({
-  primary: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
-  fallback: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-  fallback2: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+export const getThumbnailWithFallback = (trackId: string) => ({
+  primary: `${API_BASE}/thumbnail?id=${trackId}&quality=max`,
+  fallback: `${API_BASE}/thumbnail?id=${trackId}&quality=high`,
+  fallback2: `${API_BASE}/thumbnail?id=${trackId}&quality=medium`,
 });
 
 // ============================================
@@ -72,216 +74,161 @@ export const MOOD_TUNNELS: MoodTunnel[] = [
 // TRACKS (REAL YouTube Video IDs - African Bangers)
 // ============================================
 
+// REAL WORKING Video IDs (verified Dec 2025)
 export const TRACKS: Track[] = [
   {
+    id: '0',
+    title: 'GINJA SESSIONS | Afrobeats, Dancehall, Amapiano Mix',
+    artist: 'Ethan Tomas',
+    album: 'GINJA SESSIONS',
+    trackId: 'mhd0RcE6XC4',
+    coverUrl: getThumbnailUrl('0'),
+    duration: 4103,
+    tags: ['afrobeats', 'dancehall', 'amapiano', 'mix', 'party'],
+    mood: 'hype',
+    region: 'NG',
+    oyeScore: 999999999,
+    createdAt: '2024-12-08',
+  },
+  {
     id: '1',
-    title: 'Unavailable',
+    title: 'UNAVAILABLE',
     artist: 'Davido ft. Musa Keys',
     album: 'Timeless',
-    youtubeVideoId: 'fPglLrjMzMs',
-    coverUrl: getYouTubeThumbnail('fPglLrjMzMs'),
-    duration: 182,
+    trackId: 'OSBan_sH_b8',
+    coverUrl: getThumbnailUrl('1'),
+    duration: 190,
     tags: ['afrobeats', 'amapiano', 'party'],
     mood: 'hype',
     region: 'NG',
-    oyeScore: 45000,
+    oyeScore: 141223051,
     createdAt: '2024-01-15',
   },
   {
     id: '2',
-    title: 'Rush',
-    artist: 'Ayra Starr',
-    album: '19 & Dangerous',
-    youtubeVideoId: 'GLZRY5Pv_cU',
-    coverUrl: getYouTubeThumbnail('GLZRY5Pv_cU'),
-    duration: 199,
-    tags: ['afrobeats', 'pop', 'dance'],
-    mood: 'dance',
-    region: 'NG',
-    oyeScore: 78000,
-    createdAt: '2023-06-20',
-  },
-  {
-    id: '3',
     title: 'Calm Down',
     artist: 'Rema ft. Selena Gomez',
     album: 'Rave & Roses',
-    youtubeVideoId: 'CQLsdm1ZYAw',
-    coverUrl: getYouTubeThumbnail('CQLsdm1ZYAw'),
-    duration: 234,
+    trackId: 'WcIcVapfqXw',
+    coverUrl: getThumbnailUrl('2'),
+    duration: 240,
     tags: ['afrobeats', 'pop', 'rnb'],
     mood: 'rnb',
     region: 'NG',
-    oyeScore: 120000,
+    oyeScore: 1267074719,
     createdAt: '2022-08-25',
   },
   {
+    id: '3',
+    title: 'City Boys',
+    artist: 'Burna Boy',
+    album: 'I Told Them...',
+    trackId: 'hLDQ88vAhIs',
+    coverUrl: getThumbnailUrl('3'),
+    duration: 154,
+    tags: ['afrobeats', 'street', 'hype'],
+    mood: 'hype',
+    region: 'NG',
+    oyeScore: 104335746,
+    createdAt: '2023-08-25',
+  },
+  {
     id: '4',
+    title: 'Rush',
+    artist: 'Ayra Starr',
+    album: '19 & Dangerous',
+    trackId: 'crtQSTYWtqE',
+    coverUrl: getThumbnailUrl('4'),
+    duration: 186,
+    tags: ['afrobeats', 'pop', 'dance'],
+    mood: 'dance',
+    region: 'NG',
+    oyeScore: 513773557,
+    createdAt: '2023-06-20',
+  },
+  {
+    id: '5',
+    title: 'Joha',
+    artist: 'Asake',
+    album: 'Work of Art',
+    trackId: 'fXl5dPuiJa0',
+    coverUrl: getThumbnailUrl('5'),
+    duration: 153,
+    tags: ['afrobeats', 'amapiano', 'party'],
+    mood: 'hype',
+    region: 'NG',
+    oyeScore: 42280341,
+    createdAt: '2023-09-15',
+  },
+  {
+    id: '6',
+    title: 'Essence',
+    artist: 'Wizkid ft. Tems',
+    album: 'Made in Lagos',
+    trackId: 'jipQpjUA_o8',
+    coverUrl: getThumbnailUrl('6'),
+    duration: 246,
+    tags: ['afrobeats', 'rnb', 'chill'],
+    mood: 'chill',
+    region: 'NG',
+    oyeScore: 236664390,
+    createdAt: '2020-10-30',
+  },
+  {
+    id: '7',
+    title: 'Commas',
+    artist: 'Ayra Starr',
+    album: 'The Year I Turned 21',
+    trackId: 'EhyzYPSHRQU',
+    coverUrl: getThumbnailUrl('7'),
+    duration: 157,
+    tags: ['afrobeats', 'pop'],
+    mood: 'afro',
+    region: 'NG',
+    oyeScore: 172897365,
+    createdAt: '2024-08-14',
+  },
+  {
+    id: '8',
     title: 'Last Last',
     artist: 'Burna Boy',
     album: 'Love, Damini',
-    youtubeVideoId: 'RQdxHi4_Pvc',
-    coverUrl: getYouTubeThumbnail('RQdxHi4_Pvc'),
+    trackId: 'RQdxHi4_Pvc',
+    coverUrl: getThumbnailUrl('8'),
     duration: 185,
     tags: ['afrobeats', 'heartbreak', 'party'],
     mood: 'heartbreak',
     region: 'NG',
-    oyeScore: 95000,
+    oyeScore: 95000000,
     createdAt: '2022-05-13',
   },
   {
-    id: '5',
-    title: 'Essence',
-    artist: 'Wizkid ft. Tems',
-    album: 'Made in Lagos',
-    youtubeVideoId: 'GVlQmOIkHaE',
-    coverUrl: getYouTubeThumbnail('GVlQmOIkHaE'),
-    duration: 266,
-    tags: ['afrobeats', 'rnb', 'chill'],
-    mood: 'chill',
-    region: 'NG',
-    oyeScore: 150000,
-    createdAt: '2020-10-30',
-  },
-  {
-    id: '6',
+    id: '9',
     title: 'Water',
     artist: 'Tyla',
-    album: 'Water',
-    youtubeVideoId: 'Y6etIBTA-nM',
-    coverUrl: getYouTubeThumbnail('Y6etIBTA-nM'),
+    album: 'TYLA',
+    trackId: 'Y6etIBTA-nM',
+    coverUrl: getThumbnailUrl('9'),
     duration: 193,
     tags: ['amapiano', 'rnb', 'dance'],
     mood: 'dance',
     region: 'ZA',
-    oyeScore: 200000,
+    oyeScore: 200000000,
     createdAt: '2023-07-28',
   },
   {
-    id: '7',
-    title: 'Buga',
-    artist: 'Kizz Daniel ft. Tekno',
-    album: 'Buga',
-    youtubeVideoId: 'RDKcVdqLpfU',
-    coverUrl: getYouTubeThumbnail('RDKcVdqLpfU'),
-    duration: 172,
-    tags: ['afrobeats', 'dance', 'party'],
-    mood: 'hype',
-    region: 'NG',
-    oyeScore: 180000,
-    createdAt: '2022-05-04',
-  },
-  {
-    id: '8',
-    title: 'Peru',
-    artist: 'Fireboy DML',
-    album: 'Playboy',
-    youtubeVideoId: 'twrn_SryMVI',
-    coverUrl: getYouTubeThumbnail('twrn_SryMVI'),
-    duration: 186,
-    tags: ['afrobeats', 'pop', 'chill'],
-    mood: 'chill',
-    region: 'NG',
-    oyeScore: 110000,
-    createdAt: '2021-07-20',
-  },
-  {
-    id: '9',
-    title: 'Jerusalema',
-    artist: 'Master KG ft. Nomcebo',
-    album: 'Jerusalema',
-    youtubeVideoId: '7K3lzsRQ5qM',
-    coverUrl: getYouTubeThumbnail('7K3lzsRQ5qM'),
-    duration: 362,
-    tags: ['amapiano', 'gospel', 'dance'],
-    mood: 'worship',
-    region: 'ZA',
-    oyeScore: 250000,
-    createdAt: '2019-12-13',
-  },
-  {
     id: '10',
-    title: 'Love Nwantiti',
-    artist: 'CKay',
+    title: 'Love Nwantiti (Remix)',
+    artist: 'CKay ft. Joeboy & Kuami Eugene',
     album: 'CKay the First',
-    youtubeVideoId: 'ONM9oE9R_uc',
-    coverUrl: getYouTubeThumbnail('ONM9oE9R_uc'),
-    duration: 138,
+    trackId: 'D-YDEyuDxWU',
+    coverUrl: getThumbnailUrl('10'),
+    duration: 217,
     tags: ['afrobeats', 'rnb', 'chill'],
     mood: 'rnb',
     region: 'NG',
-    oyeScore: 300000,
-    createdAt: '2019-07-26',
-  },
-  {
-    id: '11',
-    title: 'Sability',
-    artist: 'Ayra Starr',
-    album: '19 & Dangerous',
-    youtubeVideoId: 'rk4rr3l9LhE',
-    coverUrl: getYouTubeThumbnail('rk4rr3l9LhE'),
-    duration: 165,
-    tags: ['afrobeats', 'pop'],
-    mood: 'afro',
-    region: 'NG',
-    oyeScore: 52000,
-    createdAt: '2023-07-10',
-  },
-  {
-    id: '12',
-    title: 'Ye',
-    artist: 'Burna Boy',
-    album: 'Outside',
-    youtubeVideoId: 'T8c1DLJ-bPs',
-    coverUrl: getYouTubeThumbnail('T8c1DLJ-bPs'),
-    duration: 195,
-    tags: ['afrobeats', 'street', 'hype'],
-    mood: 'hype',
-    region: 'NG',
-    oyeScore: 75000,
-    createdAt: '2019-07-26',
-  },
-  {
-    id: '13',
-    title: 'Joha',
-    artist: 'Aya Nakamura',
-    album: 'AYA',
-    youtubeVideoId: 'vGj5Yfr4yzQ',
-    coverUrl: getYouTubeThumbnail('vGj5Yfr4yzQ'),
-    duration: 178,
-    tags: ['afropop', 'french', 'dance'],
-    mood: 'dance',
-    region: 'FR',
-    oyeScore: 92000,
-    createdAt: '2020-11-13',
-  },
-  {
-    id: '14',
-    title: 'Bloody Samaritan',
-    artist: 'Ayra Starr',
-    album: '19 & Dangerous',
-    youtubeVideoId: '3A9kPEPKlHM',
-    coverUrl: getYouTubeThumbnail('3A9kPEPKlHM'),
-    duration: 202,
-    tags: ['afrobeats', 'inspirational', 'chill'],
-    mood: 'chill',
-    region: 'NG',
-    oyeScore: 85000,
-    createdAt: '2020-08-14',
-  },
-  {
-    id: '15',
-    title: 'Loaded',
-    artist: 'Tiwa Savage ft. Asake',
-    album: 'Water & Garri',
-    youtubeVideoId: 'EZEiYMfNgmM',
-    coverUrl: getYouTubeThumbnail('EZEiYMfNgmM'),
-    duration: 210,
-    tags: ['afrobeats', 'amapiano', 'party'],
-    mood: 'hype',
-    region: 'NG',
-    oyeScore: 65000,
-    createdAt: '2022-09-15',
+    oyeScore: 300000000,
+    createdAt: '2021-07-26',
   },
 ];
 
@@ -293,7 +240,7 @@ export const PLAYLISTS: Playlist[] = [
   {
     id: 'pl1',
     title: 'Afro Bangers 2024',
-    coverUrl: getYouTubeThumbnail('fPglLrjMzMs'),
+    coverUrl: getThumbnailUrl('1'),
     trackIds: ['1', '2', '3', '7', '10'],
     type: 'CURATED',
     mood: 'afro',
@@ -302,8 +249,8 @@ export const PLAYLISTS: Playlist[] = [
   {
     id: 'pl2',
     title: 'Amapiano Vibes',
-    coverUrl: getYouTubeThumbnail('Y6etIBTA-nM'),
-    trackIds: ['6', '9', '15'],
+    coverUrl: getThumbnailUrl('9'),
+    trackIds: ['6', '9'],
     type: 'CURATED',
     mood: 'dance',
     createdAt: '2024-01-05',
@@ -311,8 +258,8 @@ export const PLAYLISTS: Playlist[] = [
   {
     id: 'pl3',
     title: 'Late Night Feels',
-    coverUrl: getYouTubeThumbnail('GVlQmOIkHaE'),
-    trackIds: ['4', '5', '8', '10', '14'],
+    coverUrl: getThumbnailUrl('6'),
+    trackIds: ['4', '5', '8', '10'],
     type: 'CURATED',
     mood: 'chill',
     createdAt: '2024-01-10',
@@ -363,4 +310,88 @@ export const getDiscoverTracks = (excludeIds: string[]): Track[] => {
   return TRACKS.filter((t) => !excludeIds.includes(t.id))
     .sort(() => Math.random() - 0.5)
     .slice(0, 5);
+};
+
+// ============================================
+// SMART DISCOVERY - Adaptive Recommendations
+// ============================================
+
+/**
+ * Get tracks by artist
+ */
+export const getTracksByArtist = (artist: string): Track[] => {
+  return TRACKS.filter((t) => t.artist.toLowerCase() === artist.toLowerCase());
+};
+
+/**
+ * Get tracks by multiple tags (OR logic - matches any tag)
+ */
+export const getTracksByTags = (tags: string[]): Track[] => {
+  if (!tags || tags.length === 0) return [];
+  const lowerTags = tags.map((t) => t.toLowerCase());
+  return TRACKS.filter((track) =>
+    track.tags.some((tag) => lowerTags.includes(tag.toLowerCase()))
+  );
+};
+
+/**
+ * Smart scoring algorithm for track similarity
+ * Returns tracks sorted by relevance to the reference track
+ */
+export const getRelatedTracks = (track: Track, limit: number = 5, excludeIds: string[] = []): Track[] => {
+  if (!track) return getRandomTracks(limit);
+
+  // Score each track based on similarity
+  const scored = TRACKS.filter((t) => t.id !== track.id && !excludeIds.includes(t.id))
+    .map((t) => {
+      let score = 0;
+
+      // +50 points: Same artist (strongest signal)
+      if (t.artist.toLowerCase() === track.artist.toLowerCase()) {
+        score += 50;
+      }
+
+      // +30 points: Same mood
+      if (t.mood && track.mood && t.mood === track.mood) {
+        score += 30;
+      }
+
+      // +10 points per matching tag
+      const matchingTags = t.tags.filter((tag) =>
+        track.tags.map((t) => t.toLowerCase()).includes(tag.toLowerCase())
+      );
+      score += matchingTags.length * 10;
+
+      // +5 points: Same region
+      if (t.region && track.region && t.region === track.region) {
+        score += 5;
+      }
+
+      // Bonus: Popular tracks get slight boost (oyeScore / 1M)
+      score += t.oyeScore / 1000000;
+
+      return { track: t, score };
+    });
+
+  // Sort by score descending
+  scored.sort((a, b) => b.score - a.score);
+
+  // If we have enough high-scoring tracks (score > 20), use them
+  const highScorers = scored.filter((s) => s.score > 20);
+  if (highScorers.length >= limit) {
+    return highScorers.slice(0, limit).map((s) => s.track);
+  }
+
+  // Otherwise mix high scorers with hot tracks to fill the gap
+  const needed = limit - highScorers.length;
+  const hotTracks = getHotTracks().filter(
+    (t) => t.id !== track.id &&
+    !excludeIds.includes(t.id) &&
+    !highScorers.some((s) => s.track.id === t.id)
+  );
+
+  return [
+    ...highScorers.map((s) => s.track),
+    ...hotTracks.slice(0, needed),
+  ].slice(0, limit);
 };

@@ -1,0 +1,377 @@
+/**
+ * VOYO Music - Preference Engine
+ * localStorage-first personalization system
+ *
+ * Tracks:
+ * - Listen duration (completion rate)
+ * - Skip patterns (context-aware)
+ * - Reactions (OYÉ score)
+ * - Explicit likes/dislikes
+ *
+ * Learns from behavior to personalize HOT and DISCOVERY zones
+ */
+
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+// ============================================
+// TYPES
+// ============================================
+
+export interface TrackPreference {
+  trackId: string;
+  // Listen behavior
+  totalListens: number;
+  totalDuration: number; // Total seconds listened
+  completions: number; // Times played >80%
+  skips: number; // Times skipped <20%
+
+  // User actions
+  reactions: number; // OYÉ reactions given
+  explicitLike?: boolean; // User explicitly liked/disliked
+
+  // Metadata
+  lastPlayedAt: string;
+  createdAt: string;
+}
+
+export interface ArtistPreference {
+  artist: string;
+  totalListens: number;
+  avgCompletion: number; // 0-100
+  reactions: number;
+  lastPlayedAt: string;
+}
+
+export interface TagPreference {
+  tag: string;
+  totalListens: number;
+  avgCompletion: number;
+  reactions: number;
+  lastPlayedAt: string;
+}
+
+export interface MoodPreference {
+  mood: string;
+  totalListens: number;
+  avgCompletion: number;
+  reactions: number;
+  lastPlayedAt: string;
+}
+
+export interface ListenSession {
+  trackId: string;
+  startedAt: string;
+  endedAt?: string;
+  duration: number;
+  completed: boolean; // >80% played
+  skipped: boolean; // <20% played
+  reactions: number;
+}
+
+interface PreferenceStore {
+  // Core preference data
+  trackPreferences: Record<string, TrackPreference>;
+  artistPreferences: Record<string, ArtistPreference>;
+  tagPreferences: Record<string, TagPreference>;
+  moodPreferences: Record<string, MoodPreference>;
+
+  // Active session tracking
+  currentSession: ListenSession | null;
+
+  // Actions
+  startListenSession: (trackId: string) => void;
+  endListenSession: (duration: number, reactions: number) => void;
+  recordSkip: (trackId: string, listenDuration: number) => void;
+  recordCompletion: (trackId: string, duration: number, reactions: number) => void;
+  recordReaction: (trackId: string) => void;
+  setExplicitLike: (trackId: string, liked: boolean) => void;
+
+  // Analytics
+  getTrackPreference: (trackId: string) => TrackPreference | null;
+  getTopArtists: (limit?: number) => ArtistPreference[];
+  getTopTags: (limit?: number) => TagPreference[];
+  getTopMoods: (limit?: number) => MoodPreference[];
+
+  // Clear data
+  clearPreferences: () => void;
+}
+
+// ============================================
+// HELPERS
+// ============================================
+
+const calculateCompletionRate = (pref: TrackPreference): number => {
+  if (pref.totalListens === 0) return 0;
+  return (pref.completions / pref.totalListens) * 100;
+};
+
+// ============================================
+// STORE
+// ============================================
+
+export const usePreferenceStore = create<PreferenceStore>()(
+  persist(
+    (set, get) => ({
+      // Initial State
+      trackPreferences: {},
+      artistPreferences: {},
+      tagPreferences: {},
+      moodPreferences: {},
+      currentSession: null,
+
+      // Start tracking a listen session
+      startListenSession: (trackId: string) => {
+        const now = new Date().toISOString();
+        console.log('[Prefs] Started session:', trackId);
+
+        set({
+          currentSession: {
+            trackId,
+            startedAt: now,
+            duration: 0,
+            completed: false,
+            skipped: false,
+            reactions: 0,
+          },
+        });
+      },
+
+      // End listen session (normal completion or navigation away)
+      endListenSession: (duration: number, reactions: number = 0) => {
+        const { currentSession } = get();
+        if (!currentSession) return;
+
+        const now = new Date().toISOString();
+        const completed = duration >= currentSession.duration * 0.8; // 80% threshold
+        const skipped = duration < currentSession.duration * 0.2; // 20% threshold
+
+        console.log('[Prefs] Ended session:', {
+          trackId: currentSession.trackId,
+          duration,
+          completed,
+          skipped,
+          reactions,
+        });
+
+        // Update session
+        set({
+          currentSession: {
+            ...currentSession,
+            endedAt: now,
+            duration,
+            completed,
+            skipped,
+            reactions,
+          },
+        });
+
+        // Record the listen
+        if (completed) {
+          get().recordCompletion(currentSession.trackId, duration, reactions);
+        } else if (skipped) {
+          get().recordSkip(currentSession.trackId, duration);
+        }
+
+        // Clear session
+        set({ currentSession: null });
+      },
+
+      // Record a skip (<20% played)
+      recordSkip: (trackId: string, listenDuration: number) => {
+        const now = new Date().toISOString();
+
+        set((state) => {
+          const existing = state.trackPreferences[trackId];
+
+          const updated: TrackPreference = existing
+            ? {
+                ...existing,
+                totalListens: existing.totalListens + 1,
+                totalDuration: existing.totalDuration + listenDuration,
+                skips: existing.skips + 1,
+                lastPlayedAt: now,
+              }
+            : {
+                trackId,
+                totalListens: 1,
+                totalDuration: listenDuration,
+                completions: 0,
+                skips: 1,
+                reactions: 0,
+                lastPlayedAt: now,
+                createdAt: now,
+              };
+
+          console.log('[Prefs] Skip recorded:', trackId, {
+            skips: updated.skips,
+            totalListens: updated.totalListens,
+          });
+
+          return {
+            trackPreferences: {
+              ...state.trackPreferences,
+              [trackId]: updated,
+            },
+          };
+        });
+      },
+
+      // Record a completion (>80% played)
+      recordCompletion: (trackId: string, duration: number, reactions: number = 0) => {
+        const now = new Date().toISOString();
+
+        set((state) => {
+          const existing = state.trackPreferences[trackId];
+
+          const updated: TrackPreference = existing
+            ? {
+                ...existing,
+                totalListens: existing.totalListens + 1,
+                totalDuration: existing.totalDuration + duration,
+                completions: existing.completions + 1,
+                reactions: existing.reactions + reactions,
+                lastPlayedAt: now,
+              }
+            : {
+                trackId,
+                totalListens: 1,
+                totalDuration: duration,
+                completions: 1,
+                skips: 0,
+                reactions,
+                lastPlayedAt: now,
+                createdAt: now,
+              };
+
+          console.log('[Prefs] Completion recorded:', trackId, {
+            completions: updated.completions,
+            totalListens: updated.totalListens,
+            completionRate: calculateCompletionRate(updated).toFixed(1) + '%',
+          });
+
+          return {
+            trackPreferences: {
+              ...state.trackPreferences,
+              [trackId]: updated,
+            },
+          };
+        });
+      },
+
+      // Record a reaction (OYÉ button pressed during playback)
+      recordReaction: (trackId: string) => {
+        set((state) => {
+          const existing = state.trackPreferences[trackId];
+          if (!existing) return state;
+
+          const updated: TrackPreference = {
+            ...existing,
+            reactions: existing.reactions + 1,
+          };
+
+          console.log('[Prefs] Reaction recorded:', trackId, {
+            reactions: updated.reactions,
+          });
+
+          // Also update current session if it matches
+          const updatedSession = state.currentSession?.trackId === trackId && state.currentSession
+            ? {
+                ...state.currentSession,
+                reactions: state.currentSession.reactions + 1,
+              }
+            : state.currentSession;
+
+          return {
+            trackPreferences: {
+              ...state.trackPreferences,
+              [trackId]: updated,
+            },
+            currentSession: updatedSession,
+          };
+        });
+      },
+
+      // Explicit like/dislike (user pressed thumbs up/down)
+      setExplicitLike: (trackId: string, liked: boolean) => {
+        const now = new Date().toISOString();
+
+        set((state) => {
+          const existing = state.trackPreferences[trackId];
+
+          const updated: TrackPreference = existing
+            ? {
+                ...existing,
+                explicitLike: liked,
+                lastPlayedAt: now,
+              }
+            : {
+                trackId,
+                totalListens: 0,
+                totalDuration: 0,
+                completions: 0,
+                skips: 0,
+                reactions: 0,
+                explicitLike: liked,
+                lastPlayedAt: now,
+                createdAt: now,
+              };
+
+          console.log('[Prefs] Explicit like set:', trackId, liked);
+
+          return {
+            trackPreferences: {
+              ...state.trackPreferences,
+              [trackId]: updated,
+            },
+          };
+        });
+      },
+
+      // Get track preference
+      getTrackPreference: (trackId: string) => {
+        return get().trackPreferences[trackId] || null;
+      },
+
+      // Get top artists by listen count
+      getTopArtists: (limit = 10) => {
+        const artists = Object.values(get().artistPreferences);
+        return artists
+          .sort((a, b) => b.totalListens - a.totalListens)
+          .slice(0, limit);
+      },
+
+      // Get top tags by listen count
+      getTopTags: (limit = 10) => {
+        const tags = Object.values(get().tagPreferences);
+        return tags
+          .sort((a, b) => b.totalListens - a.totalListens)
+          .slice(0, limit);
+      },
+
+      // Get top moods by listen count
+      getTopMoods: (limit = 10) => {
+        const moods = Object.values(get().moodPreferences);
+        return moods
+          .sort((a, b) => b.totalListens - a.totalListens)
+          .slice(0, limit);
+      },
+
+      // Clear all preferences (reset)
+      clearPreferences: () => {
+        console.log('[Prefs] Clearing all preferences');
+        set({
+          trackPreferences: {},
+          artistPreferences: {},
+          tagPreferences: {},
+          moodPreferences: {},
+          currentSession: null,
+        });
+      },
+    }),
+    {
+      name: 'voyo-preferences', // localStorage key
+      version: 1,
+    }
+  )
+);

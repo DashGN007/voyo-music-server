@@ -1,0 +1,252 @@
+/**
+ * VOYO Music - Backend API Service
+ * Communicates with local yt-dlp backend for YouTube streams
+ */
+
+const API_BASE = 'http://localhost:3001';
+
+export interface SearchResult {
+  id: string;
+  title: string;
+  artist: string;
+  duration: number;
+  thumbnail: string;
+  views: number;
+}
+
+export interface StreamResponse {
+  url: string;
+  audioUrl: string;
+  videoId: string;
+  type: 'audio' | 'video';
+}
+
+/**
+ * Search YouTube for music
+ */
+export async function searchMusic(query: string, limit: number = 10): Promise<SearchResult[]> {
+  try {
+    const response = await fetch(
+      `${API_BASE}/search?q=${encodeURIComponent(query)}&limit=${limit}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.results || [];
+  } catch (error) {
+    console.error('[API] Search error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get stream URL for a video
+ * @param videoId YouTube video ID
+ * @param type 'audio' for music mode, 'video' for video mode
+ */
+export async function getStream(videoId: string, type: 'audio' | 'video' = 'audio'): Promise<StreamResponse> {
+  try {
+    console.log(`[API] Getting ${type} stream for: ${videoId}`);
+    const response = await fetch(`${API_BASE}/stream?v=${videoId}&type=${type}`);
+
+    if (!response.ok) {
+      throw new Error(`Stream fetch failed: ${response.status}`);
+    }
+
+    const data: StreamResponse = await response.json();
+    console.log(`[API] Got ${type} stream URL for: ${videoId}`);
+    return data;
+  } catch (error) {
+    console.error('[API] Stream error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get audio stream URL (uses proxy to avoid CORS)
+ */
+export async function getAudioStream(videoId: string): Promise<string> {
+  // Use proxy endpoint - streams through our backend to avoid CORS
+  return `${API_BASE}/proxy?v=${videoId}&type=audio`;
+}
+
+/**
+ * Get video stream URL (uses proxy to avoid CORS)
+ */
+export async function getVideoStream(videoId: string): Promise<StreamResponse> {
+  // Return proxy URL that streams through our backend
+  return {
+    url: `${API_BASE}/proxy?v=${videoId}&type=video`,
+    audioUrl: `${API_BASE}/proxy?v=${videoId}&type=audio`,
+    videoId,
+    type: 'video'
+  };
+}
+
+/**
+ * Health check
+ */
+export async function healthCheck(): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE}/health`);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * OFFLINE MODE - Download Management
+ *
+ * These functions enable offline playback by downloading tracks locally.
+ * yt-dlp downloads are SLOW (10-30 seconds), so UI should not block.
+ */
+
+// In-memory cache of downloaded track IDs (loaded on app start)
+let downloadedTracksCache: Set<string> | null = null;
+
+/**
+ * Initialize the downloads cache (call on app start)
+ */
+export async function initDownloadsCache(): Promise<void> {
+  const tracks = await getDownloadedTracks();
+  downloadedTracksCache = new Set(tracks);
+  console.log(`[Downloads] Cache initialized with ${tracks.length} tracks`);
+}
+
+/**
+ * Check if a track is downloaded (uses cache for instant response)
+ */
+export async function isDownloaded(videoId: string): Promise<boolean> {
+  // Initialize cache if not already loaded
+  if (downloadedTracksCache === null) {
+    await initDownloadsCache();
+  }
+  return downloadedTracksCache?.has(videoId) || false;
+}
+
+/**
+ * Download a track for offline playback
+ * This triggers yt-dlp download on the backend (SLOW - 10-30 seconds)
+ */
+export async function downloadTrack(videoId: string): Promise<boolean> {
+  try {
+    console.log(`[API] Downloading track: ${videoId}`);
+    const response = await fetch(`${API_BASE}/download?v=${videoId}`);
+
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.success) {
+      // Update cache
+      if (downloadedTracksCache === null) {
+        await initDownloadsCache();
+      }
+      downloadedTracksCache?.add(videoId);
+      console.log(`[API] Download complete: ${videoId}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('[API] Download error:', error);
+    return false;
+  }
+}
+
+/**
+ * Get offline playback URL
+ * Returns local URL if downloaded, null if not available offline
+ */
+export async function getOfflineUrl(videoId: string): Promise<string | null> {
+  const downloaded = await isDownloaded(videoId);
+  if (downloaded) {
+    return `${API_BASE}/downloads/${videoId}.mp3`;
+  }
+  return null;
+}
+
+/**
+ * Delete a downloaded track
+ */
+export async function deleteDownload(videoId: string): Promise<boolean> {
+  try {
+    console.log(`[API] Deleting download: ${videoId}`);
+    const response = await fetch(`${API_BASE}/download?v=${videoId}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) {
+      throw new Error(`Delete failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.success) {
+      // Update cache
+      downloadedTracksCache?.delete(videoId);
+      console.log(`[API] Download deleted: ${videoId}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('[API] Delete error:', error);
+    return false;
+  }
+}
+
+/**
+ * Get all downloaded track IDs
+ */
+export async function getDownloadedTracks(): Promise<string[]> {
+  try {
+    const response = await fetch(`${API_BASE}/downloaded`);
+
+    if (!response.ok) {
+      throw new Error(`Fetch downloads failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.downloads || [];
+  } catch (error) {
+    console.error('[API] Get downloads error:', error);
+    return [];
+  }
+}
+
+/**
+ * SMART PLAYBACK INTEGRATION
+ *
+ * How AudioPlayer should use this:
+ *
+ * 1. Check if track is downloaded:
+ *    const offlineUrl = await getOfflineUrl(videoId);
+ *
+ * 2. If downloaded (offlineUrl !== null):
+ *    - Use offlineUrl for playback
+ *    - Benefits: instant start, no streaming, works offline
+ *
+ * 3. If not downloaded (offlineUrl === null):
+ *    - Use getAudioStream(videoId) as usual
+ *    - Falls back to proxy streaming
+ *
+ * Example AudioPlayer logic:
+ *
+ * async function playTrack(videoId: string) {
+ *   // Try offline first
+ *   const offlineUrl = await getOfflineUrl(videoId);
+ *
+ *   if (offlineUrl) {
+ *     console.log('Playing from offline storage');
+ *     audioElement.src = offlineUrl;
+ *   } else {
+ *     console.log('Streaming from YouTube');
+ *     audioElement.src = await getAudioStream(videoId);
+ *   }
+ *
+ *   audioElement.play();
+ * }
+ */

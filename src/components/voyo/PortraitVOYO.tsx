@@ -20,16 +20,15 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
-import { SkipBack, SkipForward, Play, Pause, Plus, Mic, Send, X, Volume2 } from 'lucide-react';
+import { SkipBack, SkipForward, Play, Pause, Plus, Send, X, Volume2 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
-import { getYouTubeThumbnail, TRACKS } from '../../data/tracks';
+import { getYouTubeThumbnail } from '../../data/tracks';
 import { Track, ReactionType, DJMode } from '../../types';
 
 // Import new VOYO Superapp components
 import { VoyoBottomNav } from './navigation/VoyoBottomNav';
 import { VoyoVerticalFeed } from './feed/VoyoVerticalFeed';
 import { CreatorUpload } from './upload/CreatorUpload';
-import { RecommendationZone } from '../recommendations/RecommendationZone';
 import { VoyoPortraitPlayer } from './VoyoPortraitPlayer';
 
 // DJ Mode Types (also exported from types/index.ts)
@@ -55,7 +54,7 @@ const DJ_RESPONSES: Record<string, string[]> = {
 // TIMELINE COMPONENT (Compact)
 // ============================================
 const Timeline = () => {
-  const { currentTrack, history, queue, setCurrentTrack } = usePlayerStore();
+  const { currentTrack, history, queue, hotTracks, setCurrentTrack } = usePlayerStore();
   const pastTracks = history.slice(-2).map(h => h.track).reverse();
   const queueTracks = queue.slice(0, 2).map(q => q.track);
 
@@ -69,7 +68,7 @@ const Timeline = () => {
       whileTap={{ scale: 0.95 }}
     >
       <img
-        src={getYouTubeThumbnail(track.youtubeVideoId, 'medium')}
+        src={getYouTubeThumbnail(track.trackId, 'medium')}
         alt={track.title}
         className="w-full h-full object-cover"
       />
@@ -81,12 +80,10 @@ const Timeline = () => {
       {pastTracks.map((track, i) => (
         <MiniCard key={`past-${i}`} track={track} />
       ))}
-      {pastTracks.length === 0 && (
-        <>
-          <div className="w-12 h-16 rounded-xl bg-white/5 border border-white/10" />
-          <div className="w-12 h-16 rounded-xl bg-white/5 border border-white/10" />
-        </>
-      )}
+      {/* Show hot tracks as suggestions when no history */}
+      {pastTracks.length === 0 && hotTracks.slice(0, 2).map((track, i) => (
+        <MiniCard key={`suggest-${i}`} track={track} />
+      ))}
       {currentTrack && <MiniCard track={currentTrack} isCurrent />}
       {queueTracks.map((track, i) => (
         <MiniCard key={`queue-${i}`} track={track} />
@@ -406,7 +403,7 @@ const CenterStageCard = () => {
       {/* Album Art */}
       <img
         src={imgError
-          ? getYouTubeThumbnail(currentTrack.youtubeVideoId, 'high')
+          ? getYouTubeThumbnail(currentTrack.trackId, 'high')
           : currentTrack.coverUrl
         }
         alt={currentTrack.title}
@@ -855,7 +852,7 @@ const NowPlayingCard = () => {
       }}
     >
       <img
-        src={getYouTubeThumbnail(currentTrack.youtubeVideoId, 'medium')}
+        src={getYouTubeThumbnail(currentTrack.trackId, 'medium')}
         alt={currentTrack.title}
         className="absolute inset-0 w-full h-full object-cover"
       />
@@ -933,7 +930,7 @@ const NextUpCard = () => {
       }}
     >
       <img
-        src={getYouTubeThumbnail(nextTrackInQueue.youtubeVideoId, 'medium')}
+        src={getYouTubeThumbnail(nextTrackInQueue.trackId, 'medium')}
         alt={nextTrackInQueue.title}
         className="absolute inset-0 w-full h-full object-cover"
       />
@@ -1170,7 +1167,7 @@ const BottomSection = () => {
     >
       <div className="w-16 h-16 rounded-xl overflow-hidden mb-1">
         <img
-          src={getYouTubeThumbnail(track.youtubeVideoId, 'medium')}
+          src={getYouTubeThumbnail(track.trackId, 'medium')}
           alt={track.title}
           className="w-full h-full object-cover"
         />
@@ -1230,7 +1227,7 @@ const BottomSection = () => {
 // MAIN EXPORT - PORTRAIT VOYO MODE (ORCHESTRATOR)
 // Now with MUSIC | FEED | CREATE tabs
 // ============================================
-export const PortraitVOYO = () => {
+export const PortraitVOYO = ({ onSearch }: { onSearch?: () => void }) => {
   const { isPlaying, togglePlay, refreshRecommendations, setVolume, volume, voyoActiveTab, setVoyoTab } = usePlayerStore();
 
   const [djMode, setDjMode] = useState<DJMode>('idle');
@@ -1329,8 +1326,9 @@ export const PortraitVOYO = () => {
         >
           <VoyoPortraitPlayer
             onVoyoFeed={() => setVoyoTab('feed')}
-            djMode={djMode === 'listening' || djMode === 'speaking'}
+            djMode={djMode === 'listening' || djMode === 'responding'}
             onToggleDJMode={handleListenMode}
+            onSearch={onSearch}
           />
         </motion.div>
 

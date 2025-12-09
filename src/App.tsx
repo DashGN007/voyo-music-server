@@ -11,14 +11,15 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, User, Home, Radio } from 'lucide-react';
+import { Search, User, Home, Radio, Sparkles } from 'lucide-react';
 import { PortraitVOYO } from './components/voyo/PortraitVOYO';
 import { LandscapeVOYO } from './components/voyo/LandscapeVOYO';
 import { VideoMode } from './components/voyo/VideoMode';
 import { DJSessionMode } from './components/voyo/DJSessionMode';
 import { ClassicMode } from './components/classic/ClassicMode';
-import { YouTubePlayer } from './components/player/YouTubePlayer';
-import { SearchOverlay } from './components/search/SearchOverlay';
+import { AudioPlayer } from './components/AudioPlayer';
+import { SearchOverlayV2 as SearchOverlay } from './components/search/SearchOverlayV2';
+import { AnimatedBackground, BackgroundPicker, BackgroundType, ReactionCanvas } from './components/backgrounds/AnimatedBackgrounds';
 import { usePlayerStore } from './store/playerStore';
 import { getYouTubeThumbnail } from './data/tracks';
 
@@ -53,13 +54,15 @@ function App() {
   const [bgError, setBgError] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>('voyo'); // Start with VOYO Superapp!
+  const [backgroundType, setBackgroundType] = useState<BackgroundType>('glow'); // Clean ambient glow
+  const [isBackgroundPickerOpen, setIsBackgroundPickerOpen] = useState(false);
   const isLandscape = useOrientation();
 
   // Get background image URL with fallback
   const getBackgroundUrl = () => {
     if (!currentTrack) return '';
     if (bgError) {
-      return getYouTubeThumbnail(currentTrack.youtubeVideoId, 'high');
+      return getYouTubeThumbnail(currentTrack.trackId, 'high');
     }
     return currentTrack.coverUrl;
   };
@@ -76,24 +79,37 @@ function App() {
   return (
     <div className="relative h-full w-full bg-[#0a0a0f] overflow-hidden">
       {/* Dynamic Background based on current track (only for VOYO modes) */}
-      {currentTrack && appMode !== 'video' && appMode !== 'classic' && (
-        <motion.div
-          className="absolute inset-0 z-0"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1 }}
-          key={currentTrack.id}
-        >
+      {appMode !== 'video' && appMode !== 'classic' && (
+        <div className="absolute inset-0 z-0">
           {/* Blurred album art background with fallback */}
-          <img
-            src={getBackgroundUrl()}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-20 scale-110"
-            onError={() => setBgError(true)}
-          />
+          {currentTrack && (
+            <motion.div
+              className="absolute inset-0"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 1 }}
+              key={currentTrack.id}
+            >
+              <img
+                src={getBackgroundUrl()}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-15 scale-110"
+                onError={() => setBgError(true)}
+              />
+            </motion.div>
+          )}
+
+          {/* ANIMATED BACKGROUND - User's chosen vibe */}
+          <AnimatedBackground type={backgroundType} mood="vibe" />
+
           {/* Gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/90 via-[#0a0a0f]/70 to-[#0a0a0f]" />
-        </motion.div>
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/80 via-[#0a0a0f]/50 to-[#0a0a0f]/90" />
+        </div>
+      )}
+
+      {/* REACTION CANVAS - Reactions float up when tapped */}
+      {appMode !== 'video' && appMode !== 'classic' && (
+        <ReactionCanvas />
       )}
 
       {/* Main Content */}
@@ -190,6 +206,17 @@ function App() {
 
               {/* Navigation Buttons */}
               <div className="flex items-center gap-2">
+                {/* Vibe/Background Picker Button */}
+                <motion.button
+                  className="p-2 rounded-full bg-purple-500/20 hover:bg-purple-500/30 transition-colors border border-purple-500/30"
+                  onClick={() => setIsBackgroundPickerOpen(true)}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  title="Choose Vibe"
+                >
+                  <Sparkles className="w-5 h-5 text-purple-400" />
+                </motion.button>
+
                 {/* Classic Mode Button */}
                 <motion.button
                   className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
@@ -227,7 +254,7 @@ function App() {
               {isLandscape ? (
                 <LandscapeVOYO onVideoMode={handleVideoModeEnter} />
               ) : (
-                <PortraitVOYO />
+                <PortraitVOYO onSearch={() => setIsSearchOpen(true)} />
               )}
             </div>
           </motion.div>
@@ -243,11 +270,19 @@ function App() {
         </div>
       )}
 
-      {/* YouTube Player (hidden in audio mode, visible in video mode) */}
-      <YouTubePlayer />
+      {/* Audio Player - Piped API direct streams (handles actual playback) */}
+      <AudioPlayer />
 
       {/* Search Overlay - Powered by Piped API */}
       <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+
+      {/* Background/Vibe Picker - Choose your animated background */}
+      <BackgroundPicker
+        current={backgroundType}
+        onSelect={setBackgroundType}
+        isOpen={isBackgroundPickerOpen}
+        onClose={() => setIsBackgroundPickerOpen(false)}
+      />
     </div>
   );
 }

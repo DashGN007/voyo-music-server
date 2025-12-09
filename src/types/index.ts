@@ -30,7 +30,7 @@ export interface Track {
   title: string;
   artist: string;
   album?: string;
-  youtubeVideoId: string;
+  trackId: string;
   coverUrl: string;
   duration: number;
   tags: string[];

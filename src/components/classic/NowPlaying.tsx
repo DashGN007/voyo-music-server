@@ -11,7 +11,7 @@
  * - Heart to like
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown,
@@ -106,7 +106,7 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
               transition={{ delay: 0.1 }}
             >
               <img
-                src={getYouTubeThumbnail(currentTrack.youtubeVideoId, 'high')}
+                src={getYouTubeThumbnail(currentTrack.trackId, 'high')}
                 alt={currentTrack.title}
                 className="w-full h-full object-cover"
               />

@@ -15,9 +15,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import {
-  Play, Pause, SkipForward, SkipBack, Volume2,
-  MessageCircle, Heart, Share2, Flame, Zap,
-  Music, Headphones, Radio
+  Play, Pause, SkipForward, SkipBack,
+  MessageCircle, Flame,
+  Radio
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import { getYouTubeThumbnail } from '../../data/tracks';
@@ -31,6 +31,9 @@ interface FloatingReaction {
   text?: string;
   x: number;
   emoji: string;
+  // Pre-computed animation values
+  xOffset1: number;
+  xOffset2: number;
 }
 
 interface LiveComment {
@@ -312,7 +315,7 @@ const FloatingReactions = ({ reactions }: { reactions: FloatingReaction[] }) => 
               opacity: [1, 1, 0],
               y: -200,
               scale: [0.5, 1.2, 1],
-              x: [0, (Math.random() - 0.5) * 50, (Math.random() - 0.5) * 80]
+              x: [0, reaction.xOffset1, reaction.xOffset2]
             }}
             exit={{ opacity: 0 }}
             transition={{ duration: 2.5, ease: 'easeOut' }}
@@ -439,7 +442,7 @@ const TrackInfoDisplay = () => {
           transition={{ duration: 2, repeat: Infinity }}
         >
           <img
-            src={getYouTubeThumbnail(currentTrack.youtubeVideoId, 'medium')}
+            src={getYouTubeThumbnail(currentTrack.trackId, 'medium')}
             alt={currentTrack.title}
             className="w-full h-full object-cover"
           />
@@ -544,8 +547,11 @@ export const DJSessionMode = () => {
   const handleReaction = (type: FloatingReaction['type'], emoji: string, text?: string) => {
     const id = Date.now() + Math.random();
     const x = 10 + Math.random() * 80;
+    // Pre-compute animation offsets
+    const xOffset1 = (Math.random() - 0.5) * 50;
+    const xOffset2 = (Math.random() - 0.5) * 80;
 
-    setFloatingReactions(prev => [...prev, { id, type, emoji, text, x }]);
+    setFloatingReactions(prev => [...prev, { id, type, emoji, text, x, xOffset1, xOffset2 }]);
 
     // Remove after animation
     setTimeout(() => {

@@ -13,7 +13,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Bell, TrendingUp, Award, Music } from 'lucide-react';
-import { usePlayerStore } from '../../store/playerStore';
 import { getYouTubeThumbnail, TRACKS } from '../../data/tracks';
 import { Track } from '../../types';
 
@@ -36,7 +35,7 @@ const getArtistCards = () => {
       artistMap.set(track.artist, {
         name: track.artist,
         tracks: [],
-        image: getYouTubeThumbnail(track.youtubeVideoId, 'high'),
+        image: getYouTubeThumbnail(track.trackId, 'high'),
       });
     }
     artistMap.get(track.artist)!.tracks.push(track);

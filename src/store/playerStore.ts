@@ -1,7 +1,19 @@
 // VOYO Music - Global Player State (Zustand)
 import { create } from 'zustand';
 import { Track, ViewMode, QueueItem, HistoryItem, MoodType, Reaction, VoyoTab } from '../types';
-import { TRACKS, getRandomTracks, getHotTracks, getDiscoverTracks } from '../data/tracks';
+import {
+  TRACKS,
+  getRandomTracks,
+  getHotTracks,
+  getDiscoverTracks,
+  getRelatedTracks,
+  getTracksByArtist,
+  getTracksByTags,
+} from '../data/tracks';
+import {
+  getPersonalizedHotTracks,
+  getPersonalizedDiscoveryTracks,
+} from '../services/personalization';
 
 interface PlayerStore {
   // Current Track State
@@ -13,6 +25,11 @@ interface PlayerStore {
   volume: number;
   viewMode: ViewMode;
   isVideoMode: boolean;
+  seekPosition: number | null; // When set, AudioPlayer should seek to this position
+
+  // Playback Modes
+  shuffleMode: boolean;
+  repeatMode: 'off' | 'all' | 'one';
 
   // Queue & History
   queue: QueueItem[];
@@ -46,9 +63,12 @@ interface PlayerStore {
   setCurrentTime: (time: number) => void;
   setDuration: (duration: number) => void;
   seekTo: (time: number) => void;
+  clearSeekPosition: () => void;
   setVolume: (volume: number) => void;
   nextTrack: () => void;
   prevTrack: () => void;
+  toggleShuffle: () => void;
+  cycleRepeat: () => void;
 
   // Actions - View Mode
   cycleViewMode: () => void;
@@ -67,6 +87,8 @@ interface PlayerStore {
   // Actions - Recommendations
   refreshRecommendations: () => void;
   toggleAiMode: () => void;
+  updateDiscoveryForTrack: (track: Track) => void;
+  refreshDiscoveryForCurrent: () => void;
 
   // Actions - Mood
   setMood: (mood: MoodType | null) => void;
@@ -89,8 +111,11 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   currentTime: 0,
   duration: 0,
   volume: 80,
+  seekPosition: null,
   viewMode: 'card',
   isVideoMode: false,
+  shuffleMode: false,
+  repeatMode: 'off',
 
   queue: TRACKS.slice(1, 4).map((track) => ({
     track,
@@ -124,6 +149,9 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       get().addToHistory(state.currentTrack, state.currentTime);
     }
     set({ currentTrack: track, isPlaying: true, progress: 0, currentTime: 0 });
+
+    // AUTO-TRIGGER: Update smart discovery for this track
+    get().updateDiscoveryForTrack(track);
   },
 
   togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
@@ -134,12 +162,25 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
 
   setDuration: (duration) => set({ duration }),
 
-  seekTo: (time) => set({ currentTime: time }),
+  seekTo: (time) => set({ seekPosition: time, currentTime: time }),
+  clearSeekPosition: () => set({ seekPosition: null }),
 
   setVolume: (volume) => set({ volume }),
 
   nextTrack: () => {
     const state = get();
+
+    // Handle repeat one mode - replay the same track
+    if (state.repeatMode === 'one' && state.currentTrack) {
+      set({
+        isPlaying: true,
+        progress: 0,
+        currentTime: 0,
+      });
+      return;
+    }
+
+    // Check queue first
     if (state.queue.length > 0) {
       const [next, ...rest] = state.queue;
       if (state.currentTrack) {
@@ -148,6 +189,53 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       set({
         currentTrack: next.track,
         queue: rest,
+        isPlaying: true,
+        progress: 0,
+        currentTime: 0,
+      });
+      return;
+    }
+
+    // Queue is empty - check repeat all mode
+    if (state.repeatMode === 'all' && state.history.length > 0) {
+      // Restart from the first track in history
+      const firstTrack = state.history[0].track;
+      if (state.currentTrack) {
+        get().addToHistory(state.currentTrack, state.currentTime);
+      }
+      set({
+        currentTrack: firstTrack,
+        isPlaying: true,
+        progress: 0,
+        currentTime: 0,
+      });
+      return;
+    }
+
+    // Pick next track - shuffle mode or regular discovery
+    const availableTracks = state.discoverTracks.length > 0
+      ? state.discoverTracks
+      : state.hotTracks.length > 0
+      ? state.hotTracks
+      : TRACKS;
+
+    if (availableTracks.length > 0) {
+      let nextTrack;
+
+      if (state.shuffleMode) {
+        // ROULETTE MODE: Pick random track with animation trigger
+        const randomIndex = Math.floor(Math.random() * availableTracks.length);
+        nextTrack = availableTracks[randomIndex];
+      } else {
+        // Regular mode: Pick random from available
+        nextTrack = availableTracks[Math.floor(Math.random() * availableTracks.length)];
+      }
+
+      if (state.currentTrack) {
+        get().addToHistory(state.currentTrack, state.currentTime);
+      }
+      set({
+        currentTrack: nextTrack,
         isPlaying: true,
         progress: 0,
         currentTime: 0,
@@ -241,14 +329,45 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       ...state.history.slice(-5).map((h) => h.track.id),
     ].filter(Boolean) as string[];
 
+    // Use personalized recommendations if AI mode is enabled
+    const hotTracks = state.isAiMode
+      ? getPersonalizedHotTracks(5)
+      : getHotTracks();
+
     set({
-      hotTracks: getHotTracks(),
+      hotTracks,
       aiPicks: getRandomTracks(5),
       discoverTracks: getDiscoverTracks(excludeIds),
     });
   },
 
   toggleAiMode: () => set((state) => ({ isAiMode: !state.isAiMode })),
+
+  // SMART DISCOVERY: Update discovery based on current track
+  updateDiscoveryForTrack: (track) => {
+    if (!track) return;
+
+    const state = get();
+    const excludeIds = [
+      track.id,
+      ...state.queue.map((q) => q.track.id),
+    ].filter(Boolean) as string[];
+
+    // Use personalized discovery if AI mode is enabled
+    const relatedTracks = state.isAiMode
+      ? getPersonalizedDiscoveryTracks(track, 5, excludeIds)
+      : getRelatedTracks(track, 5, excludeIds);
+
+    set({ discoverTracks: relatedTracks });
+  },
+
+  // Manually refresh discovery for current track
+  refreshDiscoveryForCurrent: () => {
+    const state = get();
+    if (state.currentTrack) {
+      get().updateDiscoveryForTrack(state.currentTrack);
+    }
+  },
 
   // Mood Actions
   setMood: (mood) => set({ currentMood: mood }),
@@ -264,6 +383,15 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       reactions: [...state.reactions, newReaction],
       oyeScore: state.oyeScore + reaction.multiplier,
     }));
+
+    // Record reaction in preferences (if there's a current track)
+    const { currentTrack } = get();
+    if (currentTrack) {
+      // Import at runtime to avoid circular dependencies
+      import('./preferenceStore').then(({ usePreferenceStore }) => {
+        usePreferenceStore.getState().recordReaction(currentTrack.id);
+      });
+    }
 
     // Auto-remove after animation (2s)
     setTimeout(() => {
@@ -290,5 +418,17 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   stopRoulette: (track) => {
     set({ isRouletteMode: false });
     get().setCurrentTrack(track);
+  },
+
+  // Playback Mode Actions
+  toggleShuffle: () => set((state) => ({ shuffleMode: !state.shuffleMode })),
+
+  cycleRepeat: () => {
+    set((state) => {
+      const modes: Array<'off' | 'all' | 'one'> = ['off', 'all', 'one'];
+      const currentIndex = modes.indexOf(state.repeatMode);
+      const nextIndex = (currentIndex + 1) % modes.length;
+      return { repeatMode: modes[nextIndex] };
+    });
   },
 }));

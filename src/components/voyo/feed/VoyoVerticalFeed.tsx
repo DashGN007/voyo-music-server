@@ -5,7 +5,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, MessageCircle, Share2, Music2, Zap, Bookmark, MoreHorizontal, Volume2, VolumeX } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Music2, Zap, Bookmark, Volume2, VolumeX } from 'lucide-react';
 import { FeedItem } from '../../../types';
 
 // Mock clips for demo - Real content will come from API
@@ -51,27 +51,44 @@ const MOCK_CLIPS: FeedItem[] = [
   },
 ];
 
-// Floating OYÉ Reaction Component
-const FloatingOye = ({ id, onComplete }: { id: number; onComplete: () => void }) => (
+// Floating OYÉ Reaction - pre-computed random values
+interface FloatingOyeData {
+  id: number;
+  rightPos: number;
+  yOffset: number;
+  xOffset: number;
+  duration: number;
+}
+
+const FloatingOye = ({ data, onComplete }: { data: FloatingOyeData; onComplete: () => void }) => (
   <motion.div
     className="fixed text-2xl pointer-events-none z-50"
     style={{
-      right: `${15 + Math.random() * 10}%`,
+      right: `${data.rightPos}%`,
       bottom: '20%',
     }}
     initial={{ opacity: 1, y: 0, scale: 0.5 }}
     animate={{
       opacity: [1, 1, 0],
-      y: -200 - Math.random() * 100,
+      y: -200 - data.yOffset,
       scale: [0.5, 1.2, 0.8],
-      x: (Math.random() - 0.5) * 50,
+      x: data.xOffset,
     }}
-    transition={{ duration: 2 + Math.random(), ease: 'easeOut' }}
+    transition={{ duration: data.duration, ease: 'easeOut' }}
     onAnimationComplete={onComplete}
   >
     ⚡
   </motion.div>
 );
+
+// Helper to create FloatingOyeData with pre-computed random values
+const createFloatingOyeData = (): FloatingOyeData => ({
+  id: Date.now() + Math.random(),
+  rightPos: 15 + Math.random() * 10,
+  yOffset: Math.random() * 100,
+  xOffset: (Math.random() - 0.5) * 50,
+  duration: 2 + Math.random(),
+});
 
 // Single Feed Item Component
 const FeedItemCard = ({
@@ -89,7 +106,7 @@ const FeedItemCard = ({
   const [isLiked, setIsLiked] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [oyeCount, setOyeCount] = useState(0);
-  const [floatingOyes, setFloatingOyes] = useState<number[]>([]);
+  const [floatingOyes, setFloatingOyes] = useState<FloatingOyeData[]>([]);
 
   // Play/pause based on active state
   useEffect(() => {
@@ -106,13 +123,14 @@ const FeedItemCard = ({
   // Handle OYÉ reaction
   const handleOye = () => {
     setOyeCount((prev) => prev + 1);
-    // Add multiple floating reactions
-    const newOyes = Array.from({ length: 3 + Math.floor(Math.random() * 3) }, () => Date.now() + Math.random());
+    // Add multiple floating reactions with pre-computed random values
+    const count = 3 + Math.floor(Math.random() * 3);
+    const newOyes = Array.from({ length: count }, () => createFloatingOyeData());
     setFloatingOyes((prev) => [...prev, ...newOyes]);
   };
 
   const removeFloatingOye = (id: number) => {
-    setFloatingOyes((prev) => prev.filter((oyeId) => oyeId !== id));
+    setFloatingOyes((prev) => prev.filter((oye) => oye.id !== id));
   };
 
   return (
@@ -275,8 +293,8 @@ const FeedItemCard = ({
 
       {/* Floating OYÉ Reactions */}
       <AnimatePresence>
-        {floatingOyes.map((id) => (
-          <FloatingOye key={id} id={id} onComplete={() => removeFloatingOye(id)} />
+        {floatingOyes.map((oye) => (
+          <FloatingOye key={oye.id} data={oye} onComplete={() => removeFloatingOye(oye.id)} />
         ))}
       </AnimatePresence>
     </div>

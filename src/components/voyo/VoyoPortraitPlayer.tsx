@@ -1,460 +1,531 @@
 /**
- * VOYO Portrait Player - OG Vision EXACT
+ * VOYO Portrait Player - CLEAN V2 STYLE
  *
- * TOP SECTION:
- * - LEFT: 2 small album cards (stacked vertically or side by side)
- * - CENTER: BIG now playing card (the hero)
- * - RIGHT: 1 small card + "+" add button
- *
- * PLAY CONTROLS: Large circular button with purple gradient ring
- * REACTIONS: OYO⚡ | OYÉÉ | Wazzguán | 🔥Fireee
- * BOTTOM: HOT | VOYO | DISCOVERY with track cards
+ * LAYOUT (Top to Bottom):
+ * 1. TOP: History (left 2 cards) | Queue + Add (right)
+ * 2. CENTER: Big artwork with title overlay
+ * 3. PLAY CONTROLS: Neon purple ring
+ * 4. REACTIONS: Clean pill buttons with HOLD-TO-CHARGE OYÉ MULTIPLIER
+ * 5. BOTTOM: 3-column vertical grid (HOT | VOYO FEED | DISCOVERY)
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, SkipBack, SkipForward, Plus, Zap } from 'lucide-react';
+import {
+  Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus
+} from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
-import { getYouTubeThumbnail } from '../../data/tracks';
-import { Track } from '../../types';
+import { getThumbnailUrl } from '../../data/tracks';
+import { Track, ReactionType } from '../../types';
 
 // Spring configs
 const springs = {
-  gentle: { type: 'spring', stiffness: 120, damping: 14 },
-  snappy: { type: 'spring', stiffness: 400, damping: 30 },
-  bouncy: { type: 'spring', stiffness: 300, damping: 10 },
+  gentle: { type: 'spring' as const, stiffness: 120, damping: 14 },
+  snappy: { type: 'spring' as const, stiffness: 400, damping: 30 },
 };
 
 // ============================================
-// SMALL TRACK CARD
+// VOYO BRAND TINT - Purple overlay that fades on hover
 // ============================================
-const SmallCard = ({
-  track,
-  onTap,
-  label
-}: {
-  track: Track;
-  onTap: () => void;
-  label?: string;
-}) => (
+const VoyoBrandTint = ({ isPlayed }: { isPlayed?: boolean }) => (
+  <div
+    className={`absolute inset-0 pointer-events-none transition-opacity duration-300 group-hover:opacity-0 ${
+      isPlayed ? 'opacity-60' : 'opacity-40'
+    }`}
+    style={{
+      background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.4) 0%, rgba(219, 39, 119, 0.3) 100%)',
+      mixBlendMode: 'overlay',
+    }}
+  />
+);
+
+// ============================================
+// SMALL CARD (History/Queue - with VOYO brand tint)
+// ============================================
+const SmallCard = ({ track, onTap, isPlayed }: { track: Track; onTap: () => void; isPlayed?: boolean }) => (
   <motion.button
-    className="flex flex-col items-center"
+    className="flex flex-col gap-2 w-[70px] flex-shrink-0 group"
     onClick={onTap}
-    whileHover={{ scale: 1.05, y: -2 }}
+    whileHover={{ scale: 1.05 }}
     whileTap={{ scale: 0.95 }}
-    transition={springs.snappy}
   >
-    <div
-      className="w-16 h-16 rounded-xl overflow-hidden mb-1.5"
-      style={{
-        boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-        border: '1px solid rgba(255,255,255,0.08)',
-      }}
-    >
+    <div className="w-[70px] h-[70px] rounded-2xl overflow-hidden relative border border-white/5">
       <img
-        src={getYouTubeThumbnail(track.youtubeVideoId, 'medium')}
+        src={getThumbnailUrl(track.trackId, 'medium')}
         alt={track.title}
-        className="w-full h-full object-cover"
+        className={`w-full h-full object-cover transition-all duration-300 ${
+          isPlayed ? 'opacity-60' : 'opacity-90 group-hover:opacity-100 group-hover:scale-105'
+        }`}
       />
+      {/* VOYO Brand Tint - fades on hover */}
+      <VoyoBrandTint isPlayed={isPlayed} />
+      {/* Played checkmark overlay */}
+      {isPlayed && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-5 h-5 rounded-full bg-purple-500/80 flex items-center justify-center shadow-lg">
+            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
+      )}
     </div>
-    <p className="text-white text-[10px] font-medium truncate w-16 text-center">
-      {track.title}
-    </p>
-    <p className="text-white/50 text-[8px] truncate w-16 text-center">
-      {track.artist}
-    </p>
+    <div className="text-left">
+      <h4 className={`text-[10px] font-bold truncate leading-tight ${isPlayed ? 'text-gray-400' : 'text-white'}`}>{track.title}</h4>
+      <p className="text-[9px] text-gray-500 truncate">{track.artist}</p>
+    </div>
   </motion.button>
 );
 
 // ============================================
-// ADD BUTTON
+// DASH PLACEHOLDER (Empty state for queue/history)
 // ============================================
-const AddButton = () => (
+const DashPlaceholder = ({ onClick, label }: { onClick?: () => void; label: string }) => (
   <motion.button
-    className="flex flex-col items-center"
-    whileHover={{ scale: 1.1 }}
+    onClick={onClick}
+    className="w-[70px] h-[70px] rounded-2xl bg-gradient-to-br from-purple-900/30 to-pink-900/20 border border-purple-500/20 flex flex-col items-center justify-center gap-1 hover:border-purple-500/40 transition-colors"
+    whileHover={{ scale: 1.05 }}
     whileTap={{ scale: 0.95 }}
-    transition={springs.snappy}
   >
-    <div
-      className="w-16 h-16 rounded-xl flex items-center justify-center"
-      style={{
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.1)',
-      }}
-    >
-      <Plus className="w-6 h-6 text-white/40" />
-    </div>
+    <span className="text-[10px] font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+      DASH
+    </span>
+    <Plus size={14} className="text-purple-400/60" />
+    <span className="text-[7px] text-gray-500 uppercase tracking-wider">{label}</span>
   </motion.button>
 );
 
 // ============================================
-// BIG CENTER CARD (NOW PLAYING - THE HERO)
+// STREAM CARD (Horizontal scroll - HOT/DISCOVERY - with VOYO brand tint)
 // ============================================
-const BigCenterCard = ({ track, isPlaying }: { track: Track; isPlaying: boolean }) => {
-  return (
-    <motion.div
-      className="relative w-full rounded-2xl overflow-hidden"
-      style={{
-        aspectRatio: '1/1.1',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)',
-      }}
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={springs.gentle}
-    >
-      {/* Album Art */}
+const StreamCard = ({ track, onTap, isPlayed }: { track: Track; onTap: () => void; isPlayed?: boolean }) => (
+  <motion.button
+    className="flex-shrink-0 flex flex-col items-center w-16 group"
+    onClick={onTap}
+    whileHover={{ scale: 1.08, y: -2 }}
+    whileTap={{ scale: 0.95 }}
+  >
+    <div className="w-14 h-14 rounded-xl overflow-hidden mb-1.5 relative border border-white/5 shadow-md">
       <img
-        src={getYouTubeThumbnail(track.youtubeVideoId, 'high')}
+        src={getThumbnailUrl(track.trackId, 'medium')}
         alt={track.title}
-        className="w-full h-full object-cover"
+        className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-110 ${
+          isPlayed ? 'opacity-60' : 'opacity-90 group-hover:opacity-100'
+        }`}
       />
-
-      {/* Gradient Overlay */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.3) 40%, transparent 70%)',
-        }}
-      />
-
-      {/* Track Info */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 text-center">
-        <motion.h2
-          className="text-white font-bold text-lg mb-0.5"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          {track.title}
-        </motion.h2>
-        <motion.p
-          className="text-white/60 text-sm"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          {track.artist}
-        </motion.p>
-      </div>
-    </motion.div>
-  );
-};
+      {/* VOYO Brand Tint - fades on hover */}
+      <VoyoBrandTint isPlayed={isPlayed} />
+      {/* Played checkmark overlay */}
+      {isPlayed && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-4 h-4 rounded-full bg-purple-500/80 flex items-center justify-center shadow-lg">
+            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
+      )}
+    </div>
+    <h4 className={`text-[9px] font-bold truncate w-full text-center ${isPlayed ? 'text-gray-400' : 'text-white'}`}>{track.title}</h4>
+    <p className="text-[7px] text-gray-500 truncate w-full text-center uppercase">{track.artist}</p>
+  </motion.button>
+);
 
 // ============================================
-// PLAY CONTROLS - LARGE CIRCULAR WITH PURPLE RING
+// BIG CENTER CARD (NOW PLAYING - Large artwork with VOYO brand tint)
+// ============================================
+const BigCenterCard = ({ track }: { track: Track }) => (
+  <motion.div
+    className="relative w-52 h-52 md:w-60 md:h-60 rounded-[2rem] overflow-hidden border border-white/10 z-20 group"
+    style={{ boxShadow: '0 20px 60px -15px rgba(0,0,0,0.8), 0 0 40px rgba(147,51,234,0.15)' }}
+    initial={{ scale: 0.9, opacity: 0 }}
+    animate={{ scale: 1, opacity: 1 }}
+    transition={springs.gentle}
+    whileHover={{ scale: 1.02 }}
+  >
+    <img
+      src={getThumbnailUrl(track.trackId, 'high')}
+      alt={track.title}
+      className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
+    />
+    {/* VOYO Brand Tint - subtle on main card, fades on hover */}
+    <div
+      className="absolute inset-0 pointer-events-none transition-opacity duration-500 opacity-30 group-hover:opacity-0"
+      style={{
+        background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.3) 0%, rgba(219, 39, 119, 0.2) 100%)',
+        mixBlendMode: 'overlay',
+      }}
+    />
+    {/* Title overlay at bottom - IMPROVED with truncation and better font */}
+    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent p-4 pt-20">
+      <h1
+        className="text-lg font-extrabold text-white mb-1 line-clamp-2 leading-tight"
+        style={{
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          textShadow: '0 2px 8px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.5)'
+        }}
+      >
+        {track.title}
+      </h1>
+      <p
+        className="text-purple-200 text-xs font-semibold tracking-wider uppercase truncate"
+        style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}
+      >
+        {track.artist}
+      </p>
+    </div>
+    {/* Subtle glow border on hover */}
+    <div className="absolute inset-0 rounded-[2rem] border-2 border-purple-500/0 group-hover:border-purple-500/30 transition-colors duration-500 pointer-events-none" />
+  </motion.div>
+);
+
+// ============================================
+// PLAY CONTROLS - SPINNING VINYL DISK PLAY BUTTON
 // ============================================
 const PlayControls = ({
   isPlaying,
   onToggle,
   onPrev,
   onNext,
+  currentTime,
+  duration,
+  isScrubbing,
+  onScrubStart,
+  onScrubEnd,
+  trackArt,
+  scrubDirection,
 }: {
   isPlaying: boolean;
   onToggle: () => void;
   onPrev: () => void;
   onNext: () => void;
+  currentTime: number;
+  duration: number;
+  isScrubbing: boolean;
+  onScrubStart: (direction: 'forward' | 'backward') => void;
+  onScrubEnd: () => void;
+  trackArt?: string;
+  scrubDirection: 'forward' | 'backward' | null;
 }) => {
-  return (
-    <motion.div
-      className="flex items-center justify-center gap-4"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2, ...springs.gentle }}
-    >
-      {/* Previous */}
-      <motion.button
-        onClick={onPrev}
-        className="p-3"
-        whileHover={{ scale: 1.15 }}
-        whileTap={{ scale: 0.9 }}
-        transition={springs.snappy}
-      >
-        <SkipBack className="w-7 h-7 text-white/80" fill="white" fillOpacity={0.8} />
-      </motion.button>
+  // Format time display
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
-      {/* Play/Pause - Large with purple gradient ring */}
-      <motion.button
-        onClick={onToggle}
-        className="relative w-28 h-28 rounded-full flex items-center justify-center"
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        transition={springs.snappy}
-      >
-        {/* Purple gradient ring */}
-        <motion.div
-          className="absolute inset-0 rounded-full"
-          style={{
-            background: 'conic-gradient(from 180deg, #a855f7 0%, #ec4899 50%, #a855f7 100%)',
-            padding: '3px',
-          }}
-          animate={isPlaying ? { rotate: 360 } : {}}
-          transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-        >
-          <div className="w-full h-full rounded-full bg-[#0a0a0f]" />
-        </motion.div>
-
-        {/* Inner content with waveform/icon */}
-        <div className="relative z-10 flex items-center justify-center">
-          {isPlaying ? (
-            <div className="flex items-center gap-1">
-              {/* Waveform bars */}
-              {[1, 2, 3, 4, 5].map((i) => (
-                <motion.div
-                  key={i}
-                  className="w-1 bg-white/80 rounded-full"
-                  animate={{
-                    height: ['8px', '24px', '8px'],
-                  }}
-                  transition={{
-                    duration: 0.6,
-                    repeat: Infinity,
-                    delay: i * 0.1,
-                    ease: 'easeInOut'
-                  }}
-                />
-              ))}
-              {/* Pause icon overlaid */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Pause className="w-10 h-10 text-white" fill="white" />
-              </div>
-            </div>
-          ) : (
-            <Play className="w-10 h-10 text-white ml-1" fill="white" />
-          )}
-        </div>
-      </motion.button>
-
-      {/* Next */}
-      <motion.button
-        onClick={onNext}
-        className="p-3"
-        whileHover={{ scale: 1.15 }}
-        whileTap={{ scale: 0.9 }}
-        transition={springs.snappy}
-      >
-        <SkipForward className="w-7 h-7 text-white/80" fill="white" fillOpacity={0.8} />
-      </motion.button>
-    </motion.div>
-  );
-};
-
-// ============================================
-// REACTIONS
-// ============================================
-const ReactionButtons = () => {
-  const reactions = [
-    { id: 'oyo', label: 'OYO', icon: <Zap className="w-4 h-4 text-yellow-400" />, hasIcon: true },
-    { id: 'oye', label: 'OYÉÉ', icon: null, hasIcon: false },
-    { id: 'wazzguan', label: 'Wazzguán', icon: null, hasIcon: false },
-    { id: 'fire', label: 'Fireee', icon: <span>🔥</span>, hasIcon: true },
-  ];
+  // Calculate spin animation based on state
+  const getSpinAnimation = () => {
+    if (isScrubbing) {
+      // Fast spin during scrub in the direction
+      return {
+        rotate: scrubDirection === 'forward' ? [0, 360] : [0, -360],
+        transition: { duration: 0.4, repeat: Infinity, ease: 'linear' }
+      };
+    }
+    if (isPlaying) {
+      // Slow vinyl spin during playback
+      return {
+        rotate: [0, 360],
+        transition: { duration: 3, repeat: Infinity, ease: 'linear' }
+      };
+    }
+    return { rotate: 0 };
+  };
 
   return (
-    <motion.div
-      className="flex items-center justify-center gap-3 px-4"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3, ...springs.gentle }}
-    >
-      {reactions.map((r) => (
-        <motion.button
-          key={r.id}
-          className="px-4 py-2.5 rounded-full flex items-center gap-1.5"
-          style={{
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.12)',
-          }}
-          whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.1)' }}
-          whileTap={{ scale: 0.95 }}
-          transition={springs.snappy}
-        >
-          {r.hasIcon && r.icon}
-          <span className="text-white text-sm font-medium">{r.label}</span>
-        </motion.button>
-      ))}
-    </motion.div>
-  );
-};
-
-// ============================================
-// BOTTOM SECTION - HOT | VOYO | DISCOVERY
-// ============================================
-const BottomSection = ({
-  hotTracks,
-  discoverTracks,
-  onTrackSelect,
-  onVoyoFeed
-}: {
-  hotTracks: Track[];
-  discoverTracks: Track[];
-  onTrackSelect: (track: Track) => void;
-  onVoyoFeed: () => void;
-}) => {
-  const [activeTab, setActiveTab] = useState<'hot' | 'voyo' | 'discovery'>('voyo');
-
-  const MiniCard = ({ track }: { track: Track }) => (
-    <motion.button
-      className="flex flex-col items-center"
-      onClick={() => onTrackSelect(track)}
-      whileHover={{ scale: 1.08, y: -2 }}
-      whileTap={{ scale: 0.95 }}
-      transition={springs.snappy}
-    >
-      <div
-        className="w-16 h-16 rounded-xl overflow-hidden mb-1.5"
-        style={{
-          boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
-          border: '1px solid rgba(255,255,255,0.06)',
-        }}
-      >
-        <img
-          src={getYouTubeThumbnail(track.youtubeVideoId, 'medium')}
-          alt={track.title}
-          className="w-full h-full object-cover"
-        />
-      </div>
-      <p className="text-white text-[10px] font-medium truncate w-16 text-center">{track.title}</p>
-      <p className="text-white/50 text-[8px] truncate w-16 text-center">{track.artist}</p>
-    </motion.button>
-  );
-
-  return (
-    <motion.div
-      className="rounded-t-3xl pt-4 pb-2 px-4"
-      style={{
-        background: 'linear-gradient(180deg, rgba(20,20,28,0.98) 0%, rgba(10,10,14,1) 100%)',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
-      }}
-      initial={{ y: 50, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ delay: 0.2, ...springs.gentle }}
-    >
-      {/* Tabs - HOT | VOYO | DISCOVERY */}
-      <div className="flex items-center justify-center gap-8 mb-4">
-        {(['hot', 'voyo', 'discovery'] as const).map((tab) => (
-          <motion.button
-            key={tab}
-            className="relative py-1"
-            onClick={() => setActiveTab(tab)}
-            whileTap={{ scale: 0.95 }}
+    <div className="relative flex items-center justify-center w-full mb-6 z-30">
+      {/* RED DOT TIME INDICATOR - Only shows when scrubbing */}
+      <AnimatePresence>
+        {isScrubbing && (
+          <motion.div
+            className="absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-2"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
           >
-            <span className={`
-              font-bold uppercase tracking-wide transition-all duration-200
-              ${tab === 'voyo' ? 'text-lg' : 'text-sm'}
-              ${activeTab === tab ? 'text-white' : 'text-white/30'}
-            `}>
-              {tab}
+            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+            <span className="text-white font-mono text-sm tabular-nums">
+              {formatTime(currentTime)} / {formatTime(duration)}
             </span>
-            {activeTab === tab && tab !== 'voyo' && (
-              <motion.div
-                className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full"
-                style={{ background: 'linear-gradient(90deg, #a855f7, #ec4899)' }}
-                layoutId="bottomTabIndicator"
-                transition={springs.snappy}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Prev - HOLD TO REWIND */}
+      <motion.button
+        className="absolute left-[20%] text-white/50 hover:text-white transition-colors"
+        onClick={onPrev}
+        onMouseDown={() => onScrubStart('backward')}
+        onMouseUp={onScrubEnd}
+        onMouseLeave={onScrubEnd}
+        onTouchStart={() => onScrubStart('backward')}
+        onTouchEnd={onScrubEnd}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+      >
+        <SkipBack size={24} fill="currentColor" />
+      </motion.button>
+
+      {/* SPINNING VINYL DISK PLAY BUTTON */}
+      <div className="relative w-20 h-20 flex items-center justify-center">
+        {/* Glow - intensifies when playing */}
+        <motion.div
+          className="absolute inset-0 rounded-full blur-xl"
+          animate={{
+            backgroundColor: isPlaying ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.15)',
+            scale: isPlaying ? 1.2 : 1,
+          }}
+          transition={{ duration: 0.3 }}
+        />
+
+        {/* Spinning Vinyl Disk */}
+        <motion.button
+          className="absolute inset-0 rounded-full overflow-hidden border-2 border-white/20 shadow-lg"
+          onClick={onToggle}
+          animate={getSpinAnimation()}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          style={{
+            background: isPlaying || isScrubbing
+              ? 'transparent'
+              : 'linear-gradient(to bottom, #1a1a2e, #0f0f16)'
+          }}
+        >
+          {/* Vinyl grooves background */}
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: `repeating-radial-gradient(
+                circle at center,
+                #1a1a2e 0px,
+                #1a1a2e 2px,
+                #0f0f16 2px,
+                #0f0f16 4px
+              )`
+            }}
+          />
+
+          {/* Album art - only visible when playing/scrubbing */}
+          <AnimatePresence>
+            {(isPlaying || isScrubbing) && trackArt && (
+              <motion.img
+                src={trackArt}
+                alt=""
+                className="absolute inset-2 w-[calc(100%-16px)] h-[calc(100%-16px)] object-cover rounded-full"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.2 }}
               />
             )}
-          </motion.button>
-        ))}
-      </div>
+          </AnimatePresence>
 
-      {/* Content Row */}
-      <div className="flex items-start justify-between gap-2">
-        {/* HOT Tracks (left) */}
-        <div className="flex gap-3">
-          {hotTracks.slice(0, 2).map((track) => (
-            <MiniCard key={track.id} track={track} />
-          ))}
-        </div>
-
-        {/* VOYO FEED (center) */}
-        <motion.button
-          className="flex-shrink-0"
-          onClick={onVoyoFeed}
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.95 }}
-          transition={springs.bouncy}
-        >
-          <div
-            className="w-16 h-16 rounded-2xl flex flex-col items-center justify-center"
-            style={{
-              background: 'linear-gradient(135deg, rgba(168,85,247,0.15) 0%, rgba(236,72,153,0.1) 100%)',
-              border: '2px dashed rgba(168,85,247,0.4)',
-            }}
-          >
-            <span className="text-white font-black text-[10px]">VOYO</span>
-            <span className="text-white/40 text-[8px]">FEED</span>
+          {/* Center hole (vinyl style) */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#0a0a0f] border border-white/30 z-10 flex items-center justify-center">
+            {/* Play/Pause icon in center */}
+            {isPlaying ? (
+              <Pause size={10} className="text-white/70" />
+            ) : (
+              <Play size={10} className="text-white/70 ml-0.5" />
+            )}
           </div>
+
+          {/* Shine effect */}
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
         </motion.button>
-
-        {/* DISCOVERY Tracks (right) */}
-        <div className="flex gap-3">
-          {discoverTracks.slice(0, 2).map((track) => (
-            <MiniCard key={track.id} track={track} />
-          ))}
-        </div>
       </div>
 
-      {/* Bottom row - more tracks */}
-      <div className="flex items-center justify-between mt-4 px-2">
-        {hotTracks.slice(2, 3).map((track) => (
-          <motion.button
-            key={track.id}
-            className="flex items-center gap-3"
-            onClick={() => onTrackSelect(track)}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <div className="w-14 h-14 rounded-xl overflow-hidden">
-              <img
-                src={getYouTubeThumbnail(track.youtubeVideoId, 'medium')}
-                alt={track.title}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="text-left">
-              <p className="text-white text-sm font-medium">{track.title}</p>
-              <p className="text-white/50 text-xs">{track.artist}</p>
-            </div>
-          </motion.button>
-        ))}
-        {discoverTracks.slice(2, 3).map((track) => (
-          <motion.button
-            key={track.id}
-            className="flex items-center gap-3"
-            onClick={() => onTrackSelect(track)}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <div className="w-14 h-14 rounded-xl overflow-hidden">
-              <img
-                src={getYouTubeThumbnail(track.youtubeVideoId, 'medium')}
-                alt={track.title}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="text-left">
-              <p className="text-white text-sm font-medium">{track.title}</p>
-              <p className="text-white/50 text-xs">{track.artist}</p>
-            </div>
-          </motion.button>
-        ))}
-      </div>
-    </motion.div>
+      {/* Next - HOLD TO FAST FORWARD */}
+      <motion.button
+        className="absolute right-[20%] text-white/50 hover:text-white transition-colors"
+        onClick={onNext}
+        onMouseDown={() => onScrubStart('forward')}
+        onMouseUp={onScrubEnd}
+        onMouseLeave={onScrubEnd}
+        onTouchStart={() => onScrubStart('forward')}
+        onTouchEnd={onScrubEnd}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+      >
+        <SkipForward size={24} fill="currentColor" />
+      </motion.button>
+    </div>
   );
 };
 
 // ============================================
-// MAIN COMPONENT
+// REACTIONS BAR - HOLD-TO-CHARGE OYÉ MULTIPLIER
+// ============================================
+const ReactionBar = ({
+  onReaction
+}: {
+  onReaction: (type: ReactionType, emoji: string, text: string, multiplier: number) => void
+}) => {
+  const [charging, setCharging] = useState<string | null>(null);
+  const [chargeStart, setChargeStart] = useState<number>(0);
+  const [currentMultiplier, setCurrentMultiplier] = useState<number>(1);
+
+  const handlePressStart = (type: string) => {
+    setCharging(type);
+    setChargeStart(Date.now());
+    setCurrentMultiplier(1);
+  };
+
+  const handlePressEnd = (type: ReactionType, emoji: string, text: string) => {
+    if (!charging) return;
+
+    const holdDuration = Date.now() - chargeStart;
+    let multiplier = 1;
+
+    // Calculate multiplier based on hold duration
+    if (holdDuration < 200) multiplier = 1;
+    else if (holdDuration < 500) multiplier = 2;
+    else if (holdDuration < 1000) multiplier = 5;
+    else multiplier = 10; // EXPLOSION!
+
+    onReaction(type, emoji, text, multiplier);
+    setCharging(null);
+    setCurrentMultiplier(1);
+  };
+
+  // Update multiplier display while holding
+  useEffect(() => {
+    if (!charging) return;
+
+    const interval = setInterval(() => {
+      const holdDuration = Date.now() - chargeStart;
+      let multiplier = 1;
+      if (holdDuration >= 1000) multiplier = 10;
+      else if (holdDuration >= 500) multiplier = 5;
+      else if (holdDuration >= 200) multiplier = 2;
+      setCurrentMultiplier(multiplier);
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [charging, chargeStart]);
+
+  const isCharging = (type: string) => charging === type;
+  const getScale = (type: string) => isCharging(type) ? 1 + (currentMultiplier - 1) * 0.05 : 1;
+  const getGlow = (type: string, baseGlow: string) =>
+    isCharging(type) ? `0 0 ${15 + currentMultiplier * 5}px rgba(99,102,241,${0.3 + currentMultiplier * 0.1})` : baseGlow;
+
+  return (
+    <div className="flex gap-3 mb-4 z-30 relative">
+      {/* OYO */}
+      <motion.button
+        className="h-8 px-4 rounded-full bg-[#1e1b4b] border border-indigo-500/30 text-indigo-300 text-xs font-bold flex items-center gap-2 hover:bg-indigo-900/40 transition-colors relative"
+        style={{
+          scale: getScale('oyo'),
+          boxShadow: getGlow('oyo', '0 0 15px rgba(99,102,241,0.3)')
+        }}
+        onMouseDown={() => handlePressStart('oyo')}
+        onMouseUp={() => handlePressEnd('oyo', '👋', 'OYO')}
+        onMouseLeave={() => { if (charging === 'oyo') handlePressEnd('oyo', '👋', 'OYO'); }}
+        onTouchStart={() => handlePressStart('oyo')}
+        onTouchEnd={() => handlePressEnd('oyo', '👋', 'OYO')}
+      >
+        OYO <Zap size={10} fill="currentColor" />
+        {isCharging('oyo') && currentMultiplier > 1 && (
+          <motion.span
+            className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-400 font-bold text-base"
+            initial={{ opacity: 0, y: 5, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+          >
+            {currentMultiplier}x{currentMultiplier === 10 ? '!' : ''}
+          </motion.span>
+        )}
+      </motion.button>
+
+      {/* OYÉ */}
+      <motion.button
+        className="h-8 px-4 rounded-full bg-white/5 border border-white/10 text-gray-300 text-xs font-bold hover:bg-white/10 transition-colors relative"
+        style={{
+          scale: getScale('oye'),
+          boxShadow: isCharging('oye') ? `0 0 ${15 + currentMultiplier * 5}px rgba(168,85,247,${0.3 + currentMultiplier * 0.1})` : ''
+        }}
+        onMouseDown={() => handlePressStart('oye')}
+        onMouseUp={() => handlePressEnd('oye', '🎉', 'OYÉÉ')}
+        onMouseLeave={() => { if (charging === 'oye') handlePressEnd('oye', '🎉', 'OYÉÉ'); }}
+        onTouchStart={() => handlePressStart('oye')}
+        onTouchEnd={() => handlePressEnd('oye', '🎉', 'OYÉÉ')}
+      >
+        OYÉÉ
+        {isCharging('oye') && currentMultiplier > 1 && (
+          <motion.span
+            className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-400 font-bold text-base"
+            initial={{ opacity: 0, y: 5, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+          >
+            {currentMultiplier}x{currentMultiplier === 10 ? '!' : ''}
+          </motion.span>
+        )}
+      </motion.button>
+
+      {/* Wazzguán */}
+      <motion.button
+        className="h-8 px-4 rounded-full bg-white/5 border border-white/10 text-gray-300 text-xs font-bold hover:bg-white/10 transition-colors relative"
+        style={{
+          scale: getScale('wazzguan'),
+          boxShadow: isCharging('wazzguan') ? `0 0 ${15 + currentMultiplier * 5}px rgba(34,197,94,${0.3 + currentMultiplier * 0.1})` : ''
+        }}
+        onMouseDown={() => handlePressStart('wazzguan')}
+        onMouseUp={() => handlePressEnd('wazzguan', '🤙', 'Wazzguán')}
+        onMouseLeave={() => { if (charging === 'wazzguan') handlePressEnd('wazzguan', '🤙', 'Wazzguán'); }}
+        onTouchStart={() => handlePressStart('wazzguan')}
+        onTouchEnd={() => handlePressEnd('wazzguan', '🤙', 'Wazzguán')}
+      >
+        Wazzguán
+        {isCharging('wazzguan') && currentMultiplier > 1 && (
+          <motion.span
+            className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-400 font-bold text-base"
+            initial={{ opacity: 0, y: 5, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+          >
+            {currentMultiplier}x{currentMultiplier === 10 ? '!' : ''}
+          </motion.span>
+        )}
+      </motion.button>
+
+      {/* Fire */}
+      <motion.button
+        className="h-8 px-4 rounded-full bg-[#431407] border border-orange-500/30 text-orange-300 text-xs font-bold flex items-center gap-2 hover:bg-orange-900/40 transition-colors relative"
+        style={{
+          scale: getScale('fire'),
+          boxShadow: getGlow('fire', '0 0 15px rgba(249,115,22,0.2)')
+        }}
+        onMouseDown={() => handlePressStart('fire')}
+        onMouseUp={() => handlePressEnd('fire', '🔥', 'Fireee')}
+        onMouseLeave={() => { if (charging === 'fire') handlePressEnd('fire', '🔥', 'Fireee'); }}
+        onTouchStart={() => handlePressStart('fire')}
+        onTouchEnd={() => handlePressEnd('fire', '🔥', 'Fireee')}
+      >
+        <Flame size={10} fill="currentColor" /> Fireee
+        {isCharging('fire') && currentMultiplier > 1 && (
+          <motion.span
+            className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-400 font-bold text-base"
+            initial={{ opacity: 0, y: 5, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+          >
+            {currentMultiplier}x{currentMultiplier === 10 ? '!' : ''}
+          </motion.span>
+        )}
+      </motion.button>
+    </div>
+  );
+};
+
+// ============================================
+// MAIN COMPONENT - Clean V2 Style (matching screenshot)
 // ============================================
 export const VoyoPortraitPlayer = ({
   onVoyoFeed,
-  djMode = false,
-  onToggleDJMode
+  onSearch,
 }: {
   onVoyoFeed: () => void;
   djMode?: boolean;
   onToggleDJMode?: () => void;
+  onSearch?: () => void;
 }) => {
   const {
     currentTrack,
@@ -463,114 +534,302 @@ export const VoyoPortraitPlayer = ({
     history,
     hotTracks,
     discoverTracks,
-    togglePlayPause,
-    skipToNext,
-    skipToPrevious,
+    togglePlay,
+    nextTrack,
+    prevTrack,
     setCurrentTrack,
+    addReaction,
+    reactions,
+    currentTime,
+    duration,
+    seekTo,
   } = usePlayerStore();
 
-  // Get tracks for left/right sides
-  const leftTracks = history.slice(-2).map(h => h.track).reverse();
-  const rightTracks = queue.slice(0, 1).map(q => q.track);
+  // SCRUB STATE - Hold prev/next to scrub time
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [scrubDirection, setScrubDirection] = useState<'forward' | 'backward' | null>(null);
+  const scrubInterval = useRef<NodeJS.Timeout | null>(null);
+  const scrubHoldTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // Fill with hot/discover if needed
-  const displayLeftTracks = leftTracks.length >= 2
-    ? leftTracks
-    : [...leftTracks, ...hotTracks.slice(0, 2 - leftTracks.length)];
+  // Refs to avoid stale closures in interval
+  const currentTimeRef = useRef(currentTime);
+  const durationRef = useRef(duration);
+  useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
+  useEffect(() => { durationRef.current = duration; }, [duration]);
 
-  const displayRightTracks = rightTracks.length >= 1
-    ? rightTracks
-    : discoverTracks.slice(0, 1);
+  // Handle scrub start (after 200ms hold to differentiate from tap)
+  const handleScrubStart = useCallback((direction: 'forward' | 'backward') => {
+    // Set a timer - if held for 200ms, start scrubbing
+    scrubHoldTimer.current = setTimeout(() => {
+      setIsScrubbing(true);
+      setScrubDirection(direction);
+
+      // Start continuous seeking - uses refs for fresh values
+      scrubInterval.current = setInterval(() => {
+        const step = direction === 'forward' ? 3 : -3; // 3 seconds per tick
+        const newTime = Math.max(0, Math.min(durationRef.current, currentTimeRef.current + step));
+        seekTo(newTime);
+      }, 100); // Update every 100ms
+    }, 200);
+  }, [seekTo]);
+
+  // Handle scrub end
+  const handleScrubEnd = useCallback(() => {
+    // Clear hold timer
+    if (scrubHoldTimer.current) {
+      clearTimeout(scrubHoldTimer.current);
+      scrubHoldTimer.current = null;
+    }
+
+    // Clear scrub interval
+    if (scrubInterval.current) {
+      clearInterval(scrubInterval.current);
+      scrubInterval.current = null;
+    }
+
+    setIsScrubbing(false);
+    setScrubDirection(null);
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (scrubInterval.current) clearInterval(scrubInterval.current);
+      if (scrubHoldTimer.current) clearTimeout(scrubHoldTimer.current);
+    };
+  }, []);
+
+  // Get actual history tracks (these are "played")
+  const historyTracks = history.slice(-2).map(h => h.track).reverse();
+
+  // Get actual queue tracks
+  const queueTracks = queue.slice(0, 1).map(q => q.track);
+
+  // Track IDs that have been played (for overlay)
+  const playedTrackIds = new Set(history.map(h => h.track.id));
+
+  // Handle reaction with store integration
+  const handleReaction = (type: ReactionType, emoji: string, text: string, multiplier: number) => {
+    addReaction({
+      type,
+      text,
+      emoji,
+      x: Math.random() * 80 + 10, // Random position between 10-90%
+      y: 50,
+      multiplier,
+      userId: 'user-1', // Default user
+    });
+  };
 
   return (
-    <motion.div
-      className="flex flex-col h-full pb-20 relative overflow-hidden"
-      style={{
-        background: 'linear-gradient(180deg, #0a0a0f 0%, #0f0f15 50%, #08080c 100%)',
-      }}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-    >
-      {/* TOP SECTION - Cards Layout */}
-      <div className="px-4 pt-4 pb-3">
-        <div
-          className="rounded-2xl p-4"
-          style={{
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(255,255,255,0.05)',
-          }}
-        >
-          <div className="flex items-end justify-between gap-3">
-            {/* LEFT - 2 small cards */}
-            <div className="flex gap-2">
-              {displayLeftTracks.slice(0, 2).map((track, i) => (
-                <SmallCard
-                  key={track.id + i}
-                  track={track}
-                  onTap={() => setCurrentTrack(track)}
-                />
-              ))}
-            </div>
+    <div className="relative h-full w-full bg-[#020203] text-white font-sans overflow-hidden flex flex-col">
 
-            {/* CENTER - BIG card */}
-            <div className="flex-1 max-w-[180px]">
-              {currentTrack ? (
-                <BigCenterCard track={currentTrack} isPlaying={isPlaying} />
-              ) : (
-                <div
-                  className="w-full rounded-2xl flex items-center justify-center"
-                  style={{
-                    aspectRatio: '1/1.1',
-                    background: 'rgba(255,255,255,0.03)',
-                    border: '1px dashed rgba(255,255,255,0.1)',
-                  }}
-                >
-                  <Play className="w-10 h-10 text-white/20" />
-                </div>
-              )}
-            </div>
+      {/* Background Ambience */}
+      <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-indigo-900/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.04] mix-blend-overlay pointer-events-none" />
 
-            {/* RIGHT - 1 small card + add button */}
-            <div className="flex gap-2">
-              {displayRightTracks.map((track, i) => (
-                <SmallCard
-                  key={track.id + i}
-                  track={track}
-                  onTap={() => setCurrentTrack(track)}
-                />
-              ))}
-              <AddButton />
-            </div>
-          </div>
+      {/* --- TOP SECTION (History/Queue) --- */}
+      <div className="pt-8 px-6 flex justify-between items-start z-20 h-[18%]">
+
+        {/* Left: History (played tracks with overlay) */}
+        <div className="flex gap-3">
+          {historyTracks.length > 0 ? (
+            historyTracks.slice(0, 2).map((track, i) => (
+              <SmallCard
+                key={track.id + i}
+                track={track}
+                onTap={() => setCurrentTrack(track)}
+                isPlayed={true}
+              />
+            ))
+          ) : (
+            // Empty state - show DASH placeholders
+            <>
+              <DashPlaceholder onClick={onSearch} label="history" />
+              <DashPlaceholder onClick={onSearch} label="history" />
+            </>
+          )}
+        </div>
+
+        {/* Right: Queue + Add */}
+        <div className="flex gap-3">
+          {queueTracks.length > 0 ? (
+            queueTracks.map((track, i) => (
+              <SmallCard
+                key={track.id + i}
+                track={track}
+                onTap={() => setCurrentTrack(track)}
+                isPlayed={playedTrackIds.has(track.id)}
+              />
+            ))
+          ) : (
+            // Empty queue - show DASH placeholder
+            <DashPlaceholder onClick={onSearch} label="queue" />
+          )}
+          <button
+            onClick={onSearch}
+            className="w-[70px] h-[70px] rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
+          >
+            <Plus size={24} className="text-gray-500" />
+          </button>
         </div>
       </div>
 
-      {/* PLAY CONTROLS */}
-      <div className="py-6">
+      {/* --- CENTER SECTION (Hero + Engine) --- */}
+      <div className="flex-1 flex flex-col items-center relative z-10 -mt-2">
+
+        {/* 1. Main Artwork */}
+        {currentTrack ? (
+          <BigCenterCard track={currentTrack} />
+        ) : (
+          <div className="w-48 h-48 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center">
+            <Play size={32} className="text-white/20" />
+          </div>
+        )}
+
+        {/* FLOATING REACTIONS OVERLAY */}
+        <div className="absolute inset-0 pointer-events-none">
+          <AnimatePresence>
+            {reactions.map(reaction => (
+              <motion.div
+                key={reaction.id}
+                className="absolute"
+                style={{ left: `${reaction.x}%`, bottom: '30%' }}
+                initial={{ opacity: 1, y: 0, scale: 0.5 }}
+                animate={{
+                  opacity: 0,
+                  y: -100,
+                  scale: reaction.multiplier >= 10 ? 2.5 : 1.5
+                }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 2 }}
+              >
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-3xl">{reaction.emoji}</span>
+                  {reaction.multiplier > 1 && (
+                    <span className={`font-bold ${reaction.multiplier >= 10 ? 'text-2xl text-yellow-300' : 'text-lg text-yellow-400'}`}>
+                      {reaction.multiplier}x{reaction.multiplier >= 10 ? '!!!' : ''}
+                    </span>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+
+        {/* 2. THE ENGINE (Play Control) - SPINNING VINYL DISK + HOLD TO SCRUB */}
         <PlayControls
           isPlaying={isPlaying}
-          onToggle={togglePlayPause}
-          onPrev={skipToPrevious}
-          onNext={skipToNext}
+          onToggle={togglePlay}
+          onPrev={prevTrack}
+          onNext={nextTrack}
+          currentTime={currentTime}
+          duration={duration}
+          isScrubbing={isScrubbing}
+          onScrubStart={handleScrubStart}
+          onScrubEnd={handleScrubEnd}
+          trackArt={currentTrack ? getThumbnailUrl(currentTrack.trackId, 'medium') : undefined}
+          scrubDirection={scrubDirection}
         />
+
+        {/* 3. REACTIONS */}
+        <ReactionBar onReaction={handleReaction} />
       </div>
 
-      {/* REACTIONS */}
-      <div className="py-2">
-        <ReactionButtons />
+      {/* --- BOTTOM SECTION: DASHBOARD --- */}
+      <div className="h-[40%] w-full bg-[#08080a]/95 backdrop-blur-2xl rounded-t-[2.5rem] border-t border-white/5 relative z-40 flex flex-col pt-5 shadow-[0_-20px_60px_-10px_rgba(0,0,0,1)]">
+
+        {/* Stream Labels */}
+        <div className="flex justify-between px-6 mb-3">
+          <span className="text-[10px] font-bold tracking-[0.2em] text-rose-500 uppercase flex items-center gap-1">
+            <Flame size={10} /> HOT
+          </span>
+          <span className="text-[10px] font-bold tracking-[0.2em] text-cyan-500 uppercase">DISCOVERY</span>
+        </div>
+
+        {/* Horizontal Scroll Deck */}
+        <div className="flex items-center relative px-2">
+
+          {/* LEFT: HOT Stream (Horizontal Scroll) */}
+          <div className="flex-1 overflow-x-auto no-scrollbar pl-4 pr-2 flex gap-3">
+            {hotTracks.slice(0, 6).map(track => (
+              <StreamCard
+                key={track.id}
+                track={track}
+                onTap={() => setCurrentTrack(track)}
+                isPlayed={playedTrackIds.has(track.id)}
+              />
+            ))}
+          </div>
+
+          {/* CENTER: VOYO FEED Button */}
+          <div className="flex-shrink-0 px-3 relative">
+            <div className="w-[1px] h-20 absolute left-0 top-1/2 -translate-y-1/2 bg-gradient-to-b from-transparent via-white/10 to-transparent" />
+            <div className="w-[1px] h-20 absolute right-0 top-1/2 -translate-y-1/2 bg-gradient-to-b from-transparent via-white/10 to-transparent" />
+            <motion.button
+              onClick={onVoyoFeed}
+              whileTap={{ scale: 0.9 }}
+              className="w-16 h-16 rounded-full bg-gradient-to-b from-[#1e1b4b] to-[#0f0f16] border border-indigo-500/30 flex flex-col items-center justify-center gap-0.5 group shadow-[0_0_25px_rgba(99,102,241,0.15)]"
+            >
+              <span className="text-[9px] font-bold text-indigo-400 tracking-widest">VOYO</span>
+              <span className="text-[7px] font-mono text-gray-500 tracking-widest">FEED</span>
+            </motion.button>
+          </div>
+
+          {/* RIGHT: DISCOVERY Stream (Horizontal Scroll) */}
+          <div className="flex-1 overflow-x-auto no-scrollbar pl-2 pr-4 flex gap-3">
+            {discoverTracks.slice(0, 6).map(track => (
+              <StreamCard
+                key={track.id}
+                track={track}
+                onTap={() => setCurrentTrack(track)}
+                isPlayed={playedTrackIds.has(track.id)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* PLAYLIST RECOMMENDATION BAR */}
+        <div className="mt-4 px-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-bold tracking-[0.15em] text-purple-400 uppercase">Your Playlists</span>
+            <span className="text-[8px] text-gray-500">See all</span>
+          </div>
+          <div className="overflow-x-auto no-scrollbar flex gap-3 pb-3">
+            {/* Playlist Cards */}
+            {[
+              { id: 'pl1', title: 'Afro Heat 2024', count: 45, color: 'from-orange-500/30 to-red-500/20' },
+              { id: 'pl2', title: 'Chill Vibes', count: 32, color: 'from-cyan-500/30 to-blue-500/20' },
+              { id: 'pl3', title: 'Party Mode', count: 58, color: 'from-purple-500/30 to-pink-500/20' },
+              { id: 'pl4', title: 'Workout', count: 24, color: 'from-green-500/30 to-emerald-500/20' },
+            ].map(pl => (
+              <motion.button
+                key={pl.id}
+                className={`flex-shrink-0 w-28 h-14 rounded-xl bg-gradient-to-br ${pl.color} border border-white/5 flex items-center justify-center relative overflow-hidden`}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <div className="text-center">
+                  <div className="text-[10px] font-bold text-white">{pl.title}</div>
+                  <div className="text-[8px] text-white/50">{pl.count} tracks</div>
+                </div>
+              </motion.button>
+            ))}
+            {/* Add New */}
+            <button
+              onClick={onSearch}
+              className="flex-shrink-0 w-28 h-14 rounded-xl bg-white/5 border border-dashed border-white/10 flex items-center justify-center gap-1 hover:bg-white/10 transition-colors"
+            >
+              <Plus size={12} className="text-gray-500" />
+              <span className="text-[9px] text-gray-500 font-bold">New</span>
+            </button>
+          </div>
+        </div>
+
       </div>
 
-      {/* SPACER */}
-      <div className="flex-1" />
-
-      {/* BOTTOM SECTION */}
-      <BottomSection
-        hotTracks={hotTracks}
-        discoverTracks={discoverTracks}
-        onTrackSelect={setCurrentTrack}
-        onVoyoFeed={onVoyoFeed}
-      />
-    </motion.div>
+    </div>
   );
 };
 

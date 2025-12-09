@@ -47,7 +47,7 @@ const MiniPlayer = ({ onClick }: { onClick: () => void }) => {
         {/* Thumbnail */}
         <div className="relative w-12 h-12 rounded-xl overflow-hidden">
           <img
-            src={getYouTubeThumbnail(currentTrack.youtubeVideoId, 'medium')}
+            src={getYouTubeThumbnail(currentTrack.trackId, 'medium')}
             alt={currentTrack.title}
             className="w-full h-full object-cover"
           />

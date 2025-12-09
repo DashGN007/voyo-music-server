@@ -1,2 +1,2 @@
 // VOYO Music - Services
-export * from './piped';
+export * from './api';

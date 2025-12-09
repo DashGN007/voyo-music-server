@@ -23,12 +23,18 @@ interface FloatingReaction {
   emoji: string;
   x: number;
   startY: number;
+  yOffset: number;  // Pre-computed random offset
+  xOffset: number;  // Pre-computed random offset
+  duration: number; // Pre-computed duration
 }
 
-const FloatingReactionEmoji = ({ emoji, x, startY, onComplete }: {
+const FloatingReactionEmoji = ({ emoji, x, startY, yOffset, xOffset, duration, onComplete }: {
   emoji: string;
   x: number;
   startY: number;
+  yOffset: number;
+  xOffset: number;
+  duration: number;
   onComplete: () => void;
 }) => (
   <motion.div
@@ -37,12 +43,12 @@ const FloatingReactionEmoji = ({ emoji, x, startY, onComplete }: {
     initial={{ opacity: 1, y: 0, scale: 0.5 }}
     animate={{
       opacity: [1, 1, 1, 0],
-      y: -300 - Math.random() * 200,
+      y: -300 - yOffset,
       scale: [0.5, 1.2, 1, 0.8],
-      x: (Math.random() - 0.5) * 100,
+      x: xOffset,
     }}
     transition={{
-      duration: 3 + Math.random() * 2,
+      duration: duration,
       ease: 'easeOut',
     }}
     onAnimationComplete={onComplete}
@@ -100,6 +106,10 @@ export const VideoMode = ({ onExit }: VideoModeProps) => {
       emoji: emoji || REACTION_EMOJIS[Math.floor(Math.random() * REACTION_EMOJIS.length)],
       x: 70 + Math.random() * 25, // Right side
       startY: 10 + Math.random() * 20,
+      // Pre-compute random values for animation at creation time
+      yOffset: Math.random() * 200,
+      xOffset: (Math.random() - 0.5) * 100,
+      duration: 3 + Math.random() * 2,
     };
     setFloatingReactions(prev => [...prev, newReaction]);
   }, []);
@@ -186,7 +196,7 @@ export const VideoMode = ({ onExit }: VideoModeProps) => {
       >
         {/* Album art as background with blur effect */}
         <img
-          src={getYouTubeThumbnail(currentTrack.youtubeVideoId, 'high')}
+          src={getYouTubeThumbnail(currentTrack.trackId, 'high')}
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
         />
@@ -217,6 +227,9 @@ export const VideoMode = ({ onExit }: VideoModeProps) => {
             emoji={reaction.emoji}
             x={reaction.x}
             startY={reaction.startY}
+            yOffset={reaction.yOffset}
+            xOffset={reaction.xOffset}
+            duration={reaction.duration}
             onComplete={() => removeReaction(reaction.id)}
           />
         ))}

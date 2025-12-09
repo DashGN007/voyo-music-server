@@ -52,7 +52,7 @@ const SongRow = ({
       whileTap={{ scale: 0.95 }}
     >
       <img
-        src={getYouTubeThumbnail(track.youtubeVideoId, 'medium')}
+        src={getYouTubeThumbnail(track.trackId, 'medium')}
         alt={track.title}
         className="w-full h-full object-cover"
       />

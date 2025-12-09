@@ -9,11 +9,11 @@
  * - Triple-tap center circle to enter Video Mode
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
-import { SkipBack, SkipForward, Play, Pause, Plus, Volume2 } from 'lucide-react';
+import { SkipBack, SkipForward, Play, Plus, Volume2 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
-import { getYouTubeThumbnail, TRACKS } from '../../data/tracks';
+import { getYouTubeThumbnail } from '../../data/tracks';
 import { Track } from '../../types';
 
 // Timeline Card (horizontal scroll)
@@ -37,7 +37,7 @@ const TimelineCard = ({
     layout
   >
     <img
-      src={getYouTubeThumbnail(track.youtubeVideoId, 'medium')}
+      src={getYouTubeThumbnail(track.trackId, 'medium')}
       alt={track.title}
       className="w-full h-full object-cover"
     />
@@ -69,7 +69,7 @@ const WaveformBars = ({ isPlaying }: { isPlaying: boolean }) => {
                 height: maxHeight * 0.4,
               }}
               transition={isPlaying ? {
-                duration: 0.6 + Math.random() * 0.4,
+                duration: 0.6 + (i % 5) * 0.08,  // Deterministic variation based on index
                 repeat: Infinity,
                 delay: i * 0.02,
                 ease: "easeInOut",
@@ -188,7 +188,7 @@ const MiniCard = ({ track, onClick }: { track: Track; onClick: () => void }) => 
   >
     <div className="w-16 h-16 rounded-lg overflow-hidden mb-1">
       <img
-        src={getYouTubeThumbnail(track.youtubeVideoId, 'medium')}
+        src={getYouTubeThumbnail(track.trackId, 'medium')}
         alt={track.title}
         className="w-full h-full object-cover"
       />
@@ -204,7 +204,6 @@ interface LandscapeVOYOProps {
 export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
   const {
     currentTrack,
-    isPlaying,
     history,
     queue,
     hotTracks,
@@ -212,6 +211,7 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
     nextTrack,
     prevTrack,
     setCurrentTrack,
+    addReaction,
     volume
   } = usePlayerStore();
 
@@ -227,13 +227,10 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
           <TimelineCard key={`past-${i}`} track={track} onClick={() => setCurrentTrack(track)} />
         ))}
 
-        {/* Placeholders if no history */}
-        {pastTracks.length === 0 && (
-          <>
-            <div className="w-20 h-16 rounded-xl bg-white/5 border border-white/10" />
-            <div className="w-20 h-16 rounded-xl bg-white/5 border border-white/10" />
-          </>
-        )}
+        {/* Show hot tracks as suggestions if no history */}
+        {pastTracks.length === 0 && hotTracks.slice(0, 2).map((track, i) => (
+          <TimelineCard key={`suggest-${i}`} track={track} onClick={() => setCurrentTrack(track)} />
+        ))}
 
         {/* Current track */}
         {currentTrack && (
@@ -269,15 +266,17 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
             className="px-4 py-2 rounded-full bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 text-white text-sm font-semibold"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            onClick={() => addReaction({ type: 'oyo', multiplier: 1, trackId: currentTrack?.id || '' })}
           >
-            OYO
+            OYO 🔥
           </motion.button>
           <motion.button
             className="px-4 py-2 rounded-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-white text-sm font-semibold"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            onClick={() => addReaction({ type: 'oye', multiplier: 1, trackId: currentTrack?.id || '' })}
           >
-            OYÉÉ
+            OYÉÉ 💜
           </motion.button>
         </div>
 
@@ -310,15 +309,17 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
             className="px-4 py-2 rounded-full bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 text-white text-sm font-semibold"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            onClick={() => addReaction({ type: 'wave', multiplier: 1, trackId: currentTrack?.id || '' })}
           >
-            Wazzguán
+            Wazzguán 👋
           </motion.button>
           <motion.button
             className="px-4 py-2 rounded-full bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 text-white text-sm font-semibold"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            onClick={() => addReaction({ type: 'fire', multiplier: 1, trackId: currentTrack?.id || '' })}
           >
-            Fireee
+            Fireee 🔥
           </motion.button>
         </div>
       </div>
