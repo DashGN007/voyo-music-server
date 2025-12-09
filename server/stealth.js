@@ -67,12 +67,16 @@ export function decodeVoyoId(voyoId) {
  * Replaces 'id' with 'voyoId' and removes YouTube URLs
  *
  * @param {Object} result - Raw search result from yt-dlp
- * @param {string} baseUrl - Base URL for thumbnails (default: http://localhost:3001)
+ * @param {string} baseUrl - Base URL for thumbnails (auto-detected based on environment)
  * @returns {Object} Sanitized result with VOYO ID
  */
 export function sanitizeSearchResult(result) {
   const voyoId = encodeVoyoId(result.id);
-  const API_BASE = 'http://localhost:3001';
+
+  // Auto-detect API_BASE: production Railway URL or localhost
+  const API_BASE = process.env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+    : (process.env.API_BASE || 'http://localhost:3001');
 
   return {
     voyoId,

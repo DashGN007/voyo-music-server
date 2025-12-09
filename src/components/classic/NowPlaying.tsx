@@ -27,7 +27,7 @@ import {
   Volume2
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
-import { getYouTubeThumbnail } from '../../data/tracks';
+import { getTrackThumbnailUrl } from '../../utils/imageHelpers';
 
 interface NowPlayingProps {
   isOpen: boolean;
@@ -100,15 +100,21 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
           {/* Album Art */}
           <div className="flex-1 flex items-center justify-center px-8 py-8">
             <motion.div
-              className="relative w-full max-w-sm aspect-square rounded-2xl overflow-hidden shadow-2xl"
+              className="relative w-full max-w-sm aspect-square rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-purple-900/30 to-pink-900/20"
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.1 }}
+              key={currentTrack.id}
             >
               <img
-                src={getYouTubeThumbnail(currentTrack.trackId, 'high')}
+                src={getTrackThumbnailUrl(currentTrack, 'high')}
                 alt={currentTrack.title}
                 className="w-full h-full object-cover"
+                loading="eager"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.opacity = '0';
+                }}
               />
               {/* Vinyl effect overlay */}
               <motion.div

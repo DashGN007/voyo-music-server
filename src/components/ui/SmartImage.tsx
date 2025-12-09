@@ -1,0 +1,204 @@
+/**
+ * VOYO Music - SmartImage Component
+ * Bulletproof image loading with fallback chains, skeleton loading, and caching
+ * NEVER shows broken images
+ */
+
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  getThumbnailFallbackChain,
+  generatePlaceholder,
+  preloadImage,
+} from '../../utils/imageUtils';
+import { getCachedThumbnail, cacheThumbnail } from '../../hooks/useThumbnailCache';
+
+export interface SmartImageProps {
+  src: string;
+  alt: string;
+  className?: string;
+  fallbackSrc?: string;
+  placeholderColor?: string;
+  trackId?: string; // For YouTube thumbnail fallback chain
+  lazy?: boolean; // Enable lazy loading
+  onLoad?: () => void;
+  onError?: () => void;
+}
+
+type LoadState = 'loading' | 'loaded' | 'error';
+
+export const SmartImage: React.FC<SmartImageProps> = ({
+  src,
+  alt,
+  className = '',
+  fallbackSrc,
+  placeholderColor = '#1a1a1a',
+  trackId,
+  lazy = true,
+  onLoad,
+  onError,
+}) => {
+  const [loadState, setLoadState] = useState<LoadState>('loading');
+  const [currentSrc, setCurrentSrc] = useState<string>('');
+  const [isInView, setIsInView] = useState(!lazy);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Intersection Observer for lazy loading
+  useEffect(() => {
+    if (!lazy || isInView) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsInView(true);
+          }
+        });
+      },
+      {
+        rootMargin: '50px', // Start loading 50px before entering viewport
+      }
+    );
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [lazy, isInView]);
+
+  // Load image with fallback chain
+  useEffect(() => {
+    if (!isInView) return;
+
+    let cancelled = false;
+
+    const loadImage = async () => {
+      setLoadState('loading');
+
+      // Step 1: Check cache if trackId provided
+      if (trackId) {
+        const cachedUrl = getCachedThumbnail(trackId);
+        if (cachedUrl) {
+          const success = await preloadImage(cachedUrl);
+          if (success && !cancelled) {
+            setCurrentSrc(cachedUrl);
+            setLoadState('loaded');
+            onLoad?.();
+            return;
+          }
+        }
+      }
+
+      // Step 2: Try primary src
+      if (src) {
+        const success = await preloadImage(src);
+        if (success && !cancelled) {
+          setCurrentSrc(src);
+          setLoadState('loaded');
+          if (trackId) cacheThumbnail(trackId, src);
+          onLoad?.();
+          return;
+        }
+      }
+
+      // Step 3: Try fallback chain if trackId provided
+      if (trackId) {
+        const fallbackChain = getThumbnailFallbackChain(trackId);
+        for (const fallbackUrl of fallbackChain) {
+          const success = await preloadImage(fallbackUrl);
+          if (success && !cancelled) {
+            setCurrentSrc(fallbackUrl);
+            setLoadState('loaded');
+            cacheThumbnail(trackId, fallbackUrl);
+            onLoad?.();
+            return;
+          }
+        }
+      }
+
+      // Step 4: Try explicit fallbackSrc
+      if (fallbackSrc) {
+        const success = await preloadImage(fallbackSrc);
+        if (success && !cancelled) {
+          setCurrentSrc(fallbackSrc);
+          setLoadState('loaded');
+          onLoad?.();
+          return;
+        }
+      }
+
+      // Step 5: Generate placeholder
+      if (!cancelled) {
+        const placeholderSrc = generatePlaceholder(alt || 'Track', 400);
+        setCurrentSrc(placeholderSrc);
+        setLoadState('loaded');
+        onError?.();
+      }
+    };
+
+    loadImage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [src, fallbackSrc, trackId, alt, isInView, onLoad, onError]);
+
+  return (
+    <div ref={containerRef} className={`relative overflow-hidden ${className}`}>
+      {/* Skeleton Loading State */}
+      <AnimatePresence>
+        {loadState === 'loading' && (
+          <motion.div
+            className="absolute inset-0 z-10"
+            style={{ backgroundColor: placeholderColor }}
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {/* Animated skeleton gradient */}
+            <motion.div
+              className="absolute inset-0"
+              style={{
+                background: `linear-gradient(
+                  90deg,
+                  transparent 0%,
+                  rgba(255, 255, 255, 0.05) 50%,
+                  transparent 100%
+                )`,
+              }}
+              animate={{
+                x: ['-100%', '100%'],
+              }}
+              transition={{
+                duration: 1.5,
+                repeat: Infinity,
+                ease: 'linear',
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Actual Image */}
+      {currentSrc && (
+        <motion.img
+          ref={imgRef}
+          src={currentSrc}
+          alt={alt}
+          className={`w-full h-full object-cover ${className}`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: loadState === 'loaded' ? 1 : 0 }}
+          transition={{ duration: 0.3 }}
+          loading={lazy ? 'lazy' : 'eager'}
+          draggable={false}
+        />
+      )}
+    </div>
+  );
+};
+
+export default SmartImage;

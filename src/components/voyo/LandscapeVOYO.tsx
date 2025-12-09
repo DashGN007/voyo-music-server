@@ -9,12 +9,13 @@
  * - Triple-tap center circle to enter Video Mode
  */
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import { SkipBack, SkipForward, Play, Plus, Volume2 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import { getYouTubeThumbnail } from '../../data/tracks';
 import { Track } from '../../types';
+import { SmartImage } from '../ui/SmartImage';
 
 // Timeline Card (horizontal scroll)
 const TimelineCard = ({
@@ -36,10 +37,12 @@ const TimelineCard = ({
     whileTap={{ scale: 0.95 }}
     layout
   >
-    <img
+    <SmartImage
       src={getYouTubeThumbnail(track.trackId, 'medium')}
       alt={track.title}
       className="w-full h-full object-cover"
+      trackId={track.trackId}
+      lazy={true}
     />
     <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
     <div className="absolute bottom-1 left-1 right-1">
@@ -179,23 +182,59 @@ const PlayCircle = ({ onTripleTap }: { onTripleTap: () => void }) => {
 };
 
 // Mini Track Card for bottom rows
-const MiniCard = ({ track, onClick }: { track: Track; onClick: () => void }) => (
-  <motion.button
-    className="flex-shrink-0 w-16"
-    onClick={onClick}
-    whileHover={{ scale: 1.05 }}
-    whileTap={{ scale: 0.95 }}
-  >
-    <div className="w-16 h-16 rounded-lg overflow-hidden mb-1">
-      <img
-        src={getYouTubeThumbnail(track.trackId, 'medium')}
-        alt={track.title}
-        className="w-full h-full object-cover"
-      />
-    </div>
-    <p className="text-white text-[9px] font-medium truncate">{track.title}</p>
-  </motion.button>
-);
+const MiniCard = ({ track, onClick }: { track: Track; onClick: () => void }) => {
+  const addToQueue = usePlayerStore(state => state.addToQueue);
+  const [showQueueFeedback, setShowQueueFeedback] = useState(false);
+
+  return (
+    <motion.div
+      className="flex-shrink-0 w-16 relative"
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.2}
+      onDragEnd={(_, info) => {
+        if (info.offset.x > 100) {
+          addToQueue(track);
+          setShowQueueFeedback(true);
+          setTimeout(() => setShowQueueFeedback(false), 1500);
+        }
+      }}
+      whileTap={{ cursor: 'grabbing' }}
+    >
+      {/* Queue Feedback Indicator */}
+      <AnimatePresence>
+        {showQueueFeedback && (
+          <motion.div
+            className="absolute -top-8 left-1/2 -translate-x-1/2 z-50 bg-purple-500 text-white text-[9px] font-bold px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap"
+            initial={{ opacity: 0, y: 10, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.8 }}
+          >
+            Added to Queue
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.button
+        className="w-full"
+        onClick={onClick}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+      >
+        <div className="w-16 h-16 rounded-lg overflow-hidden mb-1">
+          <SmartImage
+            src={getYouTubeThumbnail(track.trackId, 'medium')}
+            alt={track.title}
+            className="w-full h-full object-cover"
+            trackId={track.trackId}
+            lazy={true}
+          />
+        </div>
+        <p className="text-white text-[9px] font-medium truncate">{track.title}</p>
+      </motion.button>
+    </motion.div>
+  );
+};
 
 interface LandscapeVOYOProps {
   onVideoMode: () => void;
@@ -266,7 +305,7 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
             className="px-4 py-2 rounded-full bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 text-white text-sm font-semibold"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => addReaction({ type: 'oyo', multiplier: 1, trackId: currentTrack?.id || '' })}
+            onClick={() => addReaction({ type: 'oyo', multiplier: 1, text: 'OYO', emoji: '🔥', x: 50, y: 50, userId: 'user' })}
           >
             OYO 🔥
           </motion.button>
@@ -274,7 +313,7 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
             className="px-4 py-2 rounded-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-white text-sm font-semibold"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => addReaction({ type: 'oye', multiplier: 1, trackId: currentTrack?.id || '' })}
+            onClick={() => addReaction({ type: 'oye', multiplier: 1, text: 'OYÉÉ', emoji: '💜', x: 50, y: 50, userId: 'user' })}
           >
             OYÉÉ 💜
           </motion.button>
@@ -309,7 +348,7 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
             className="px-4 py-2 rounded-full bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 text-white text-sm font-semibold"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => addReaction({ type: 'wave', multiplier: 1, trackId: currentTrack?.id || '' })}
+            onClick={() => addReaction({ type: 'wazzguan', multiplier: 1, text: 'Wazzguán', emoji: '👋', x: 50, y: 50, userId: 'user' })}
           >
             Wazzguán 👋
           </motion.button>
@@ -317,7 +356,7 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
             className="px-4 py-2 rounded-full bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 text-white text-sm font-semibold"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => addReaction({ type: 'fire', multiplier: 1, trackId: currentTrack?.id || '' })}
+            onClick={() => addReaction({ type: 'fire', multiplier: 1, text: 'Fireee', emoji: '🔥', x: 50, y: 50, userId: 'user' })}
           >
             Fireee 🔥
           </motion.button>

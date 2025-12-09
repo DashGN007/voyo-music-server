@@ -1153,28 +1153,108 @@ const DJTextInput = ({ isOpen, onClose, onSubmit }: DJTextInputProps) => {
 
 // ============================================
 // BOTTOM SECTION - HOT | VOYO | DISCOVERY
+// Now with MOBILE TAP-TO-TEASER (30s preview) + DRAG-TO-QUEUE
 // ============================================
 const BottomSection = () => {
   const [activeTab, setActiveTab] = useState<'hot' | 'voyo' | 'discovery'>('voyo');
-  const { hotTracks, discoverTracks, setCurrentTrack } = usePlayerStore();
+  const { hotTracks, discoverTracks, setCurrentTrack, addToQueue } = usePlayerStore();
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
 
-  const MiniCard = ({ track }: { track: Track }) => (
-    <motion.button
-      className="flex-shrink-0 w-16"
-      onClick={() => setCurrentTrack(track)}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-    >
-      <div className="w-16 h-16 rounded-xl overflow-hidden mb-1">
-        <img
-          src={getYouTubeThumbnail(track.trackId, 'medium')}
-          alt={track.title}
-          className="w-full h-full object-cover"
-        />
-      </div>
-      <p className="text-white text-[10px] font-medium truncate">{track.title}</p>
-    </motion.button>
-  );
+  // Detect touch device
+  useEffect(() => {
+    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  }, []);
+
+  const MiniCard = ({ track }: { track: Track }) => {
+    const [showQueueFeedback, setShowQueueFeedback] = useState(false);
+    const [showTeaserFeedback, setShowTeaserFeedback] = useState(false);
+    const [wasDragged, setWasDragged] = useState(false);
+
+    // Handle tap - on mobile plays teaser, on desktop plays full
+    const handleTap = () => {
+      if (wasDragged) {
+        setWasDragged(false);
+        return;
+      }
+
+      // On mobile: tap = teaser preview indicator (30s)
+      if (isTouchDevice) {
+        setShowTeaserFeedback(true);
+        setTimeout(() => setShowTeaserFeedback(false), 2000);
+      }
+      // Both mobile and desktop set the current track
+      setCurrentTrack(track);
+    };
+
+    return (
+      <motion.div
+        className="flex-shrink-0 w-16 relative"
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.2}
+        onDragStart={() => setWasDragged(true)}
+        onDragEnd={(_, info) => {
+          if (info.offset.x > 100) {
+            addToQueue(track);
+            setShowQueueFeedback(true);
+            setTimeout(() => setShowQueueFeedback(false), 1500);
+          }
+          setTimeout(() => setWasDragged(false), 100);
+        }}
+        whileTap={{ cursor: 'grabbing' }}
+      >
+        {/* Queue Feedback Indicator */}
+        <AnimatePresence>
+          {showQueueFeedback && (
+            <motion.div
+              className="absolute -top-8 left-1/2 -translate-x-1/2 z-50 bg-purple-500 text-white text-[9px] font-bold px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap"
+              initial={{ opacity: 0, y: 10, scale: 0.8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.8 }}
+            >
+              Added to Queue
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Teaser Feedback Indicator */}
+        <AnimatePresence>
+          {showTeaserFeedback && (
+            <motion.div
+              className="absolute -top-8 left-1/2 -translate-x-1/2 z-50 bg-cyan-500 text-white text-[9px] font-bold px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap flex items-center gap-1"
+              initial={{ opacity: 0, y: 10, scale: 0.8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.8 }}
+            >
+              <Play size={10} fill="white" /> 30s Preview
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <motion.button
+          className="w-full"
+          onClick={handleTap}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <div className="w-16 h-16 rounded-xl overflow-hidden mb-1 relative">
+            <img
+              src={getYouTubeThumbnail(track.trackId, 'medium')}
+              alt={track.title}
+              className="w-full h-full object-cover"
+            />
+            {/* Mobile hint indicator */}
+            {isTouchDevice && (
+              <div className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full bg-cyan-500/80 flex items-center justify-center">
+                <Play size={6} fill="white" className="text-white" />
+              </div>
+            )}
+          </div>
+          <p className="text-white text-[10px] font-medium truncate">{track.title}</p>
+        </motion.button>
+      </motion.div>
+    );
+  };
 
   return (
     <div className="px-4 py-2">

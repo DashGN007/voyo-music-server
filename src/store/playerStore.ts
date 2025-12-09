@@ -14,6 +14,11 @@ import {
   getPersonalizedHotTracks,
   getPersonalizedDiscoveryTracks,
 } from '../services/personalization';
+import { BitrateLevel, BufferStatus } from '../services/audioEngine';
+
+// Network quality types
+type NetworkQuality = 'slow' | 'medium' | 'fast' | 'unknown';
+type PrefetchStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 interface PlayerStore {
   // Current Track State
@@ -26,6 +31,13 @@ interface PlayerStore {
   viewMode: ViewMode;
   isVideoMode: boolean;
   seekPosition: number | null; // When set, AudioPlayer should seek to this position
+
+  // Streaming Optimization (Spotify-beating features)
+  networkQuality: NetworkQuality;
+  streamQuality: BitrateLevel;  // Use BitrateLevel from audioEngine
+  bufferHealth: number; // 0-100 percentage
+  bufferStatus: BufferStatus;  // 'healthy' | 'warning' | 'emergency'
+  prefetchStatus: Map<string, PrefetchStatus>; // trackId -> status
 
   // Playback Modes
   shuffleMode: boolean;
@@ -101,6 +113,13 @@ interface PlayerStore {
   // Actions - Roulette
   startRoulette: () => void;
   stopRoulette: (track: Track) => void;
+
+  // Actions - Streaming Optimization
+  setNetworkQuality: (quality: NetworkQuality) => void;
+  setStreamQuality: (quality: BitrateLevel) => void;
+  setBufferHealth: (health: number, status: BufferStatus) => void;
+  setPrefetchStatus: (trackId: string, status: PrefetchStatus) => void;
+  detectNetworkQuality: () => void;
 }
 
 export const usePlayerStore = create<PlayerStore>((set, get) => ({
@@ -116,6 +135,13 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   isVideoMode: false,
   shuffleMode: false,
   repeatMode: 'off',
+
+  // Streaming Optimization Initial State
+  networkQuality: 'unknown',
+  streamQuality: 'high',
+  bufferHealth: 100,
+  bufferStatus: 'healthy',
+  prefetchStatus: new Map(),
 
   queue: TRACKS.slice(1, 4).map((track) => ({
     track,
@@ -430,5 +456,70 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       const nextIndex = (currentIndex + 1) % modes.length;
       return { repeatMode: modes[nextIndex] };
     });
+  },
+
+  // Streaming Optimization Actions
+  setNetworkQuality: (quality) => set({ networkQuality: quality }),
+
+  setStreamQuality: (quality) => set({ streamQuality: quality }),
+
+  setBufferHealth: (health, status) => set({
+    bufferHealth: Math.max(0, Math.min(100, health)),
+    bufferStatus: status
+  }),
+
+  setPrefetchStatus: (trackId, status) => {
+    set((state) => {
+      const newMap = new Map(state.prefetchStatus);
+      newMap.set(trackId, status);
+      return { prefetchStatus: newMap };
+    });
+  },
+
+  // Detect network quality using Navigator API
+  detectNetworkQuality: () => {
+    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+
+    if (connection) {
+      const effectiveType = connection.effectiveType;
+      const downlink = connection.downlink; // Mbps
+
+      let quality: NetworkQuality = 'unknown';
+      let streamQuality: BitrateLevel = 'high';
+
+      if (effectiveType === '4g' && downlink > 5) {
+        quality = 'fast';
+        streamQuality = 'high';
+      } else if (effectiveType === '4g' || effectiveType === '3g') {
+        quality = 'medium';
+        streamQuality = 'medium';
+      } else if (effectiveType === '2g' || effectiveType === 'slow-2g') {
+        quality = 'slow';
+        streamQuality = 'low';
+      } else if (downlink) {
+        // Fallback to downlink speed
+        if (downlink > 5) {
+          quality = 'fast';
+          streamQuality = 'high';
+        } else if (downlink > 1) {
+          quality = 'medium';
+          streamQuality = 'medium';
+        } else {
+          quality = 'slow';
+          streamQuality = 'low';
+        }
+      }
+
+      set({ networkQuality: quality, streamQuality });
+      console.log(`[Network] Detected: ${quality}, Stream quality: ${streamQuality}`);
+
+      // Listen for changes
+      connection.addEventListener?.('change', () => {
+        get().detectNetworkQuality();
+      });
+    } else {
+      // No Network Information API - assume fast
+      set({ networkQuality: 'fast', streamQuality: 'high' });
+    }
   },
 }));

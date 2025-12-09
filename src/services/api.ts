@@ -3,7 +3,10 @@
  * STEALTH MODE: Uses VOYO IDs to hide YouTube traces
  */
 
-const API_BASE = 'http://localhost:3001';
+// Use production backend in production, localhost in dev
+const API_BASE = import.meta.env.PROD
+  ? 'https://voyo-music-server-production.up.railway.app'
+  : 'http://localhost:3001';
 
 export interface SearchResult {
   voyoId: string;  // STEALTH: VOYO ID (vyo_XXXXX) instead of YouTube ID
@@ -22,7 +25,29 @@ export interface StreamResponse {
 }
 
 /**
- * Search VOYO Music library (STEALTH: Returns VOYO IDs)
+ * Search VOYO Music library - YouTube only (STEALTH: Returns VOYO IDs)
+ */
+export async function searchYouTube(query: string, limit: number = 10): Promise<SearchResult[]> {
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/search?q=${encodeURIComponent(query)}&limit=${limit}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.results || [];
+  } catch (error) {
+    console.error('[API] YouTube search error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Search VOYO Music library - Combined seed data + YouTube
+ * Returns seed data matches first, then YouTube results
  */
 export async function searchMusic(query: string, limit: number = 10): Promise<SearchResult[]> {
   try {

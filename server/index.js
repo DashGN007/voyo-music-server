@@ -21,20 +21,136 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = 3001;
-const YT_DLP_PATH = process.env.YT_DLP_PATH || `${process.env.HOME}/.local/bin/yt-dlp`;
+const PORT = process.env.PORT || 3001;
+const YT_DLP_PATH = process.env.YT_DLP_PATH || 'yt-dlp'; // Use system yt-dlp in production
 const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
 
-// Cache for stream URLs (they expire, so cache for 4 hours - YouTube URLs are valid for ~6 hours)
+// ========================================
+// PRODUCTION-GRADE CACHING SYSTEM
+// ========================================
+
+// Stream URL cache (4 hours - YouTube URLs valid for ~6 hours)
 const streamCache = new Map();
-const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours (was 1 hour)
+const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 
 // In-flight requests to prevent duplicate yt-dlp calls
 const inFlightRequests = new Map();
 
-// Cache for thumbnails (24 hours - images don't expire)
+// Thumbnail cache (24 hours - images don't expire)
 const thumbnailCache = new Map();
 const THUMBNAIL_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+// Prefetch cache - warmed up streams ready to go
+const prefetchCache = new Map(); // trackId -> { timestamp, warmed: boolean }
+const PREFETCH_TTL = 30 * 60 * 1000; // 30 minutes
+
+// Cache statistics for monitoring
+const cacheStats = {
+  streamHits: 0,
+  streamMisses: 0,
+  thumbnailHits: 0,
+  thumbnailMisses: 0,
+  prefetchRequests: 0,
+  activeStreams: 0,
+  startTime: Date.now()
+};
+
+// ========================================
+// ANTI-BLOCKING PROTECTION SYSTEM
+// Designed for scale while being a good YouTube citizen
+// ========================================
+
+// Rate limiting per IP (prevents abuse, shows YouTube we're responsible)
+const ipRequestCounts = new Map(); // IP -> { count, windowStart }
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute window
+const RATE_LIMIT_MAX_REQUESTS = 60; // 60 requests per minute per IP (generous)
+const RATE_LIMIT_YT_DLP = 10; // Max 10 yt-dlp calls per minute per IP (actual YouTube hits)
+
+// Global yt-dlp rate limiting (across all users)
+let globalYtDlpCalls = 0;
+let globalYtDlpWindowStart = Date.now();
+const GLOBAL_YT_DLP_LIMIT = 300; // 300 yt-dlp calls per minute globally (5 per second)
+
+// Request queue for yt-dlp (prevents thundering herd)
+const ytDlpQueue = [];
+let ytDlpProcessing = false;
+const YT_DLP_CONCURRENCY = 3; // Max 3 concurrent yt-dlp processes
+let activeYtDlpProcesses = 0;
+
+// User-Agent rotation (look like different clients)
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0',
+];
+
+function getRandomUserAgent() {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
+// Check and update rate limit for an IP
+function checkRateLimit(ip, isYtDlp = false) {
+  const now = Date.now();
+  const key = ip || 'unknown';
+
+  // Get or create IP tracking
+  let ipData = ipRequestCounts.get(key);
+  if (!ipData || now - ipData.windowStart > RATE_LIMIT_WINDOW) {
+    ipData = { count: 0, ytDlpCount: 0, windowStart: now };
+    ipRequestCounts.set(key, ipData);
+  }
+
+  // Check general rate limit
+  if (ipData.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return { allowed: false, reason: 'rate_limit_exceeded', retryAfter: Math.ceil((ipData.windowStart + RATE_LIMIT_WINDOW - now) / 1000) };
+  }
+
+  // Check yt-dlp specific rate limit
+  if (isYtDlp && ipData.ytDlpCount >= RATE_LIMIT_YT_DLP) {
+    return { allowed: false, reason: 'yt_dlp_rate_limit', retryAfter: Math.ceil((ipData.windowStart + RATE_LIMIT_WINDOW - now) / 1000) };
+  }
+
+  // Check global yt-dlp limit
+  if (isYtDlp) {
+    if (now - globalYtDlpWindowStart > RATE_LIMIT_WINDOW) {
+      globalYtDlpCalls = 0;
+      globalYtDlpWindowStart = now;
+    }
+    if (globalYtDlpCalls >= GLOBAL_YT_DLP_LIMIT) {
+      return { allowed: false, reason: 'global_yt_dlp_limit', retryAfter: Math.ceil((globalYtDlpWindowStart + RATE_LIMIT_WINDOW - now) / 1000) };
+    }
+    globalYtDlpCalls++;
+    ipData.ytDlpCount++;
+  }
+
+  ipData.count++;
+  return { allowed: true };
+}
+
+// Get client IP from request
+function getClientIP(req) {
+  return req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+         req.headers['x-real-ip'] ||
+         req.socket?.remoteAddress ||
+         'unknown';
+}
+
+// Clean up old IP tracking entries (run periodically)
+function cleanupRateLimitData() {
+  const now = Date.now();
+  for (const [ip, data] of ipRequestCounts.entries()) {
+    if (now - data.windowStart > RATE_LIMIT_WINDOW * 2) {
+      ipRequestCounts.delete(ip);
+    }
+  }
+}
+
+// Run cleanup every 5 minutes
+setInterval(cleanupRateLimitData, 5 * 60 * 1000);
+
+// ========================================
 
 // CORS headers
 const corsHeaders = {
@@ -44,19 +160,23 @@ const corsHeaders = {
 };
 
 /**
- * Get stream URL using yt-dlp
+ * Get stream URL using yt-dlp with quality selection
  * @param {string} videoId - YouTube video ID
  * @param {string} type - 'audio' or 'video'
+ * @param {string} quality - 'low', 'medium', 'high' (audio only)
  */
-async function getStreamUrl(videoId, type = 'audio') {
-  const cacheKey = `${videoId}-${type}`;
+async function getStreamUrl(videoId, type = 'audio', quality = 'high') {
+  const cacheKey = `${videoId}-${type}-${quality}`;
 
   // Check cache first
   const cached = streamCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     console.log(`[Cache Hit] ${cacheKey}`);
+    cacheStats.streamHits++;
     return cached;
   }
+
+  cacheStats.streamMisses++;
 
   // Check if there's already a request in flight for this video
   if (inFlightRequests.has(cacheKey)) {
@@ -67,19 +187,38 @@ async function getStreamUrl(videoId, type = 'audio') {
   // Create promise for this request
   const requestPromise = new Promise((resolve, reject) => {
     const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    console.log(`[yt-dlp] Fetching ${type} URL for: ${videoId}`);
+    console.log(`[yt-dlp] Fetching ${type} (${quality}) URL for: ${videoId}`);
 
-    // Format selection:
-    // - audio: prefer webm opus, fallback to bestaudio
-    // - video: best video+audio combined
-    const format = type === 'video'
-      ? 'bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best'
-      : 'bestaudio[ext=webm]/bestaudio';  // webm preferred, fallback to any audio
+    // Format selection with quality tiers:
+    let format;
+    if (type === 'video') {
+      format = 'bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best';
+    } else {
+      // Audio quality selection based on bitrate
+      switch (quality) {
+        case 'low':
+          format = 'bestaudio[abr<=64]/bestaudio';
+          break;
+        case 'medium':
+          format = 'bestaudio[abr<=128]/bestaudio';
+          break;
+        case 'high':
+        default:
+          format = 'bestaudio[ext=webm]/bestaudio';
+          break;
+      }
+    }
+
+    // Anti-blocking: Use random User-Agent and add delay jitter
+    const userAgent = getRandomUserAgent();
 
     const ytdlp = spawn(YT_DLP_PATH, [
       '-f', format,
       '-g',  // Get URL only
       '--no-warnings',
+      '--user-agent', userAgent,
+      '--sleep-requests', '0.5',  // 500ms between requests to YouTube
+      '--no-check-certificates',  // Skip certificate validation (faster)
       ytUrl
     ], {
       env: { ...process.env, PATH: `${process.env.HOME}/.deno/bin:${process.env.HOME}/.local/bin:${process.env.PATH}` }
@@ -146,8 +285,11 @@ async function getThumbnail(videoId, quality = 'high') {
   const cached = thumbnailCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < THUMBNAIL_CACHE_TTL) {
     console.log(`[Thumbnail Cache Hit] ${cacheKey}`);
+    cacheStats.thumbnailHits++;
     return cached.data;
   }
+
+  cacheStats.thumbnailMisses++;
 
   return new Promise((resolve, reject) => {
     // Quality mapping
@@ -364,6 +506,7 @@ const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const pathname = parsedUrl.pathname;
   const query = parsedUrl.query;
+  const clientIP = getClientIP(req);
 
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -372,24 +515,108 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Health check
+  // Rate limit check for all requests (except health check)
+  if (pathname !== '/health') {
+    const isYtDlpRequest = ['/cdn/stream', '/proxy', '/stream', '/search', '/api/search'].some(p => pathname.startsWith(p));
+    const rateLimit = checkRateLimit(clientIP, isYtDlpRequest && !streamCache.has(query.v));
+
+    if (!rateLimit.allowed) {
+      console.log(`[Rate Limit] Blocked ${clientIP}: ${rateLimit.reason}`);
+      res.writeHead(429, {
+        ...corsHeaders,
+        'Content-Type': 'application/json',
+        'Retry-After': rateLimit.retryAfter
+      });
+      res.end(JSON.stringify({
+        error: 'Too many requests',
+        reason: rateLimit.reason,
+        retryAfter: rateLimit.retryAfter
+      }));
+      return;
+    }
+  }
+
+  // ========================================
+  // PRODUCTION MONITORING ENDPOINTS
+  // ========================================
+
+  // Enhanced health check with detailed metrics
   if (pathname === '/health') {
+    const uptime = process.uptime();
+    const memory = process.memoryUsage();
+
+    const hitRate = cacheStats.streamHits + cacheStats.streamMisses > 0
+      ? ((cacheStats.streamHits / (cacheStats.streamHits + cacheStats.streamMisses)) * 100).toFixed(2)
+      : 0;
+
     res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', service: 'voyo-backend' }));
+    res.end(JSON.stringify({
+      status: 'healthy',
+      service: 'voyo-backend',
+      uptime: Math.floor(uptime),
+      uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
+      memory: {
+        rss: `${Math.round(memory.rss / 1024 / 1024)}MB`,
+        heapUsed: `${Math.round(memory.heapUsed / 1024 / 1024)}MB`,
+        heapTotal: `${Math.round(memory.heapTotal / 1024 / 1024)}MB`
+      },
+      cache: {
+        streamCacheSize: streamCache.size,
+        thumbnailCacheSize: thumbnailCache.size,
+        prefetchCacheSize: prefetchCache.size,
+        streamHitRate: `${hitRate}%`,
+        stats: cacheStats
+      },
+      rateLimit: {
+        activeIPs: ipRequestCounts.size,
+        globalYtDlpCalls: globalYtDlpCalls,
+        globalYtDlpLimit: GLOBAL_YT_DLP_LIMIT,
+        perIPLimit: RATE_LIMIT_MAX_REQUESTS,
+        perIPYtDlpLimit: RATE_LIMIT_YT_DLP
+      },
+      timestamp: new Date().toISOString()
+    }));
     return;
   }
 
-  // Get stream URL (audio or video)
-  if (pathname === '/stream' && query.v) {
+  // Prefetch warming endpoint - warm up stream URL before needed
+  if (pathname === '/prefetch' && query.v) {
     try {
-      const type = query.type === 'video' ? 'video' : 'audio';
-      const result = await getStreamUrl(query.v, type);
-      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      const videoId = query.v;
+      const quality = query.quality || 'high';
+      const type = query.type || 'audio';
+
+      console.log(`[Prefetch] Warming ${videoId} (${quality})`);
+      cacheStats.prefetchRequests++;
+
+      // Mark as warming
+      prefetchCache.set(videoId, {
+        timestamp: Date.now(),
+        warmed: false,
+        quality
+      });
+
+      // Start warming in background (don't await)
+      getStreamUrl(videoId, type, quality)
+        .then(() => {
+          prefetchCache.set(videoId, {
+            timestamp: Date.now(),
+            warmed: true,
+            quality
+          });
+          console.log(`[Prefetch] Warmed ${videoId}`);
+        })
+        .catch(err => {
+          console.error(`[Prefetch] Failed for ${videoId}:`, err.message);
+          prefetchCache.delete(videoId);
+        });
+
+      // Respond immediately (non-blocking)
+      res.writeHead(202, { ...corsHeaders, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
-        url: result.url,
-        audioUrl: result.audioUrl,
-        videoId: query.v,
-        type: result.type
+        status: 'warming',
+        videoId,
+        message: 'Stream warming initiated'
       }));
     } catch (err) {
       res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
@@ -398,19 +625,42 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // PROXY endpoint - streams audio through our server to avoid CORS
+  // Get stream URL (audio or video) with quality selection
+  if (pathname === '/stream' && query.v) {
+    try {
+      const type = query.type === 'video' ? 'video' : 'audio';
+      const quality = query.quality || 'high'; // low, medium, high
+      const result = await getStreamUrl(query.v, type, quality);
+      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        url: result.url,
+        audioUrl: result.audioUrl,
+        videoId: query.v,
+        type: result.type,
+        quality
+      }));
+    } catch (err) {
+      res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  // PROXY endpoint - streams audio through our server with range support
   if (pathname === '/proxy' && query.v) {
     try {
       const type = query.type === 'video' ? 'video' : 'audio';
-      const result = await getStreamUrl(query.v, type);
+      const quality = query.quality || 'high'; // low, medium, high
+      const result = await getStreamUrl(query.v, type, quality);
       const streamUrl = type === 'audio' ? result.audioUrl : result.url;
 
-      console.log(`[Proxy] Streaming ${type} for ${query.v}`);
+      console.log(`[Proxy] Streaming ${type} (${quality}) for ${query.v}`);
+      cacheStats.activeStreams++;
 
       // Parse the googlevideo URL
       const parsedStream = new URL(streamUrl);
 
-      // Forward request to googlevideo
+      // Forward request to googlevideo with range support
       const proxyReq = https.request({
         hostname: parsedStream.hostname,
         path: parsedStream.pathname + parsedStream.search,
@@ -421,7 +671,6 @@ const server = http.createServer(async (req, res) => {
         }
       }, (proxyRes) => {
         // Forward headers with CORS
-        // Use audio/webm since we're forcing webm opus format
         let contentType = 'audio/webm; codecs=opus';
         const origType = proxyRes.headers['content-type'] || '';
         if (origType.includes('mp4') || origType.includes('m4a')) contentType = 'audio/mp4';
@@ -430,20 +679,32 @@ const server = http.createServer(async (req, res) => {
         const headers = {
           ...corsHeaders,
           'Content-Type': contentType,
-          'Content-Length': proxyRes.headers['content-length'],
           'Accept-Ranges': 'bytes',
         };
 
+        // Forward Content-Length if present
+        if (proxyRes.headers['content-length']) {
+          headers['Content-Length'] = proxyRes.headers['content-length'];
+        }
+
+        // Forward Content-Range for partial content (206 responses)
         if (proxyRes.headers['content-range']) {
           headers['Content-Range'] = proxyRes.headers['content-range'];
         }
 
+        // Use appropriate status code (206 for range requests, 200 for full)
         res.writeHead(proxyRes.statusCode, headers);
         proxyRes.pipe(res);
+
+        // Track when stream ends
+        proxyRes.on('end', () => {
+          cacheStats.activeStreams--;
+        });
       });
 
       proxyReq.on('error', (err) => {
         console.error('[Proxy] Error:', err);
+        cacheStats.activeStreams--;
         res.writeHead(500, corsHeaders);
         res.end(JSON.stringify({ error: 'Proxy failed' }));
       });
@@ -692,15 +953,17 @@ const server = http.createServer(async (req, res) => {
       }
 
       const type = query.type === 'video' ? 'video' : 'audio';
-      const result = await getStreamUrl(youtubeId, type);
+      const quality = query.quality || 'high'; // Support quality selection
+      const result = await getStreamUrl(youtubeId, type, quality);
       const streamUrl = type === 'audio' ? result.audioUrl : result.url;
 
-      console.log(`[CDN/Stream] Streaming ${type} for ${youtubeId}`);
+      console.log(`[CDN/Stream] Streaming ${type} (${quality}) for ${youtubeId}`);
+      cacheStats.activeStreams++;
 
       // Parse the googlevideo URL
       const parsedStream = new URL(streamUrl);
 
-      // Forward request to googlevideo
+      // Forward request to googlevideo with full range support
       const proxyReq = https.request({
         hostname: parsedStream.hostname,
         path: parsedStream.pathname + parsedStream.search,
@@ -719,20 +982,32 @@ const server = http.createServer(async (req, res) => {
         const headers = {
           ...corsHeaders,
           'Content-Type': contentType,
-          'Content-Length': proxyRes.headers['content-length'],
           'Accept-Ranges': 'bytes',
         };
 
+        // Forward Content-Length if present
+        if (proxyRes.headers['content-length']) {
+          headers['Content-Length'] = proxyRes.headers['content-length'];
+        }
+
+        // Forward Content-Range for partial content (206 responses)
         if (proxyRes.headers['content-range']) {
           headers['Content-Range'] = proxyRes.headers['content-range'];
         }
 
+        // Use appropriate status code (206 for range requests, 200 for full)
         res.writeHead(proxyRes.statusCode, headers);
         proxyRes.pipe(res);
+
+        // Track when stream ends
+        proxyRes.on('end', () => {
+          cacheStats.activeStreams--;
+        });
       });
 
       proxyReq.on('error', (err) => {
         console.error('[CDN/Stream] Error:', err);
+        cacheStats.activeStreams--;
         res.writeHead(500, corsHeaders);
         res.end(JSON.stringify({ error: getVoyoError('STREAM_UNAVAILABLE') }));
       });
@@ -760,15 +1035,20 @@ server.listen(PORT, () => {
   // Clear caches on startup to ensure fresh URLs
   streamCache.clear();
   thumbnailCache.clear();
+  prefetchCache.clear();
+
   console.log(`🎵 VOYO Backend running on http://localhost:${PORT}`);
-  console.log(`\n   🥷 STEALTH MODE ACTIVE - Zero YouTube traces\n`);
-  console.log(`   📡 STEALTH ENDPOINTS (VOYO IDs):`);
-  console.log(`   - GET /cdn/stream/vyo_XXXXX          → Stream audio (STEALTH)`);
-  console.log(`   - GET /cdn/art/vyo_XXXXX             → Album art (STEALTH)`);
-  console.log(`   - GET /api/search?q=QUERY            → Search with VOYO IDs`);
+  console.log(`\n   🚀 PRODUCTION-GRADE STREAMING ACTIVE\n`);
+  console.log(`   📊 MONITORING:`);
+  console.log(`   - GET /health                        → Health check + cache metrics`);
+  console.log(`   - GET /prefetch?v=ID&quality=LEVEL   → Warm up stream (202 async)`);
+  console.log(`\n   🥷 STEALTH ENDPOINTS (VOYO IDs):`);
+  console.log(`   - GET /cdn/stream/vyo_XXXXX?quality=LEVEL  → Stream audio (STEALTH)`);
+  console.log(`   - GET /cdn/art/vyo_XXXXX                   → Album art (STEALTH)`);
+  console.log(`   - GET /api/search?q=QUERY                  → Search with VOYO IDs`);
   console.log(`\n   🔧 LEGACY ENDPOINTS (YouTube IDs):`);
-  console.log(`   - GET /proxy?v=VIDEO_ID              → Stream audio/video`);
-  console.log(`   - GET /stream?v=VIDEO_ID             → Get raw stream URL`);
+  console.log(`   - GET /proxy?v=ID&quality=LEVEL      → Stream audio/video`);
+  console.log(`   - GET /stream?v=ID&quality=LEVEL     → Get raw stream URL`);
   console.log(`   - GET /search?q=QUERY                → Search YouTube`);
   console.log(`   - GET /thumbnail?id=VIDEO_ID         → Proxy thumbnails`);
   console.log(`\n   💾 OFFLINE PLAYBACK:`);
@@ -776,5 +1056,5 @@ server.listen(PORT, () => {
   console.log(`   - DELETE /download?v=VIDEO_ID        → Delete downloaded track`);
   console.log(`   - GET /downloaded                    → List downloaded IDs`);
   console.log(`   - GET /downloads/VIDEO_ID.mp3        → Serve downloaded file`);
-  console.log(`\n   ❤️  GET /health                        → Health check`);
+  console.log(`\n   🎚️  QUALITY LEVELS: low (64kbps) | medium (128kbps) | high (best)`);
 });

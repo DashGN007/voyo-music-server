@@ -1,24 +1,31 @@
 // VOYO Music - Seed Data (African Bangers with REAL YouTube IDs)
 import { Track, Playlist, MoodTunnel, Reaction } from '../types';
 
-// API base URL - will be environment variable in production
-const API_BASE = 'http://localhost:3001';
+// YouTube thumbnail quality mappings
+const YOUTUBE_QUALITY_MAP = {
+  default: 'default',      // 120x90
+  medium: 'mqdefault',     // 320x180
+  high: 'hqdefault',       // 480x360
+  max: 'maxresdefault',    // 1280x720 (may not exist for all videos)
+};
 
-// Helper to get track thumbnail via our local proxy
+// Helper to get YouTube thumbnail URL directly
 export const getThumbnailUrl = (trackId: string, quality: 'default' | 'medium' | 'high' | 'max' = 'high') => {
-  return `${API_BASE}/thumbnail?id=${trackId}&quality=${quality}`;
+  const ytQuality = YOUTUBE_QUALITY_MAP[quality];
+  return `https://i.ytimg.com/vi/${trackId}/${ytQuality}.jpg`;
 };
 
 // Alias for backward compatibility (same as getThumbnailUrl)
 export const getYouTubeThumbnail = (trackId: string, quality: 'default' | 'medium' | 'high' | 'max' = 'high') => {
-  return `${API_BASE}/thumbnail?id=${trackId}&quality=${quality}`;
+  const ytQuality = YOUTUBE_QUALITY_MAP[quality];
+  return `https://i.ytimg.com/vi/${trackId}/${ytQuality}.jpg`;
 };
 
 // Get multiple thumbnail URLs for fallback
 export const getThumbnailWithFallback = (trackId: string) => ({
-  primary: `${API_BASE}/thumbnail?id=${trackId}&quality=max`,
-  fallback: `${API_BASE}/thumbnail?id=${trackId}&quality=high`,
-  fallback2: `${API_BASE}/thumbnail?id=${trackId}&quality=medium`,
+  primary: `https://i.ytimg.com/vi/${trackId}/maxresdefault.jpg`,
+  fallback: `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg`,
+  fallback2: `https://i.ytimg.com/vi/${trackId}/mqdefault.jpg`,
 });
 
 // ============================================
@@ -82,7 +89,7 @@ export const TRACKS: Track[] = [
     artist: 'Ethan Tomas',
     album: 'GINJA SESSIONS',
     trackId: 'mhd0RcE6XC4',
-    coverUrl: getThumbnailUrl('0'),
+    coverUrl: getThumbnailUrl('mhd0RcE6XC4'),
     duration: 4103,
     tags: ['afrobeats', 'dancehall', 'amapiano', 'mix', 'party'],
     mood: 'hype',
@@ -96,7 +103,7 @@ export const TRACKS: Track[] = [
     artist: 'Davido ft. Musa Keys',
     album: 'Timeless',
     trackId: 'OSBan_sH_b8',
-    coverUrl: getThumbnailUrl('1'),
+    coverUrl: getThumbnailUrl('OSBan_sH_b8'),
     duration: 190,
     tags: ['afrobeats', 'amapiano', 'party'],
     mood: 'hype',
@@ -110,7 +117,7 @@ export const TRACKS: Track[] = [
     artist: 'Rema ft. Selena Gomez',
     album: 'Rave & Roses',
     trackId: 'WcIcVapfqXw',
-    coverUrl: getThumbnailUrl('2'),
+    coverUrl: getThumbnailUrl('WcIcVapfqXw'),
     duration: 240,
     tags: ['afrobeats', 'pop', 'rnb'],
     mood: 'rnb',
@@ -124,7 +131,7 @@ export const TRACKS: Track[] = [
     artist: 'Burna Boy',
     album: 'I Told Them...',
     trackId: 'hLDQ88vAhIs',
-    coverUrl: getThumbnailUrl('3'),
+    coverUrl: getThumbnailUrl('hLDQ88vAhIs'),
     duration: 154,
     tags: ['afrobeats', 'street', 'hype'],
     mood: 'hype',
@@ -138,7 +145,7 @@ export const TRACKS: Track[] = [
     artist: 'Ayra Starr',
     album: '19 & Dangerous',
     trackId: 'crtQSTYWtqE',
-    coverUrl: getThumbnailUrl('4'),
+    coverUrl: getThumbnailUrl('crtQSTYWtqE'),
     duration: 186,
     tags: ['afrobeats', 'pop', 'dance'],
     mood: 'dance',
@@ -152,7 +159,7 @@ export const TRACKS: Track[] = [
     artist: 'Asake',
     album: 'Work of Art',
     trackId: 'fXl5dPuiJa0',
-    coverUrl: getThumbnailUrl('5'),
+    coverUrl: getThumbnailUrl('fXl5dPuiJa0'),
     duration: 153,
     tags: ['afrobeats', 'amapiano', 'party'],
     mood: 'hype',
@@ -166,7 +173,7 @@ export const TRACKS: Track[] = [
     artist: 'Wizkid ft. Tems',
     album: 'Made in Lagos',
     trackId: 'jipQpjUA_o8',
-    coverUrl: getThumbnailUrl('6'),
+    coverUrl: getThumbnailUrl('jipQpjUA_o8'),
     duration: 246,
     tags: ['afrobeats', 'rnb', 'chill'],
     mood: 'chill',
@@ -180,7 +187,7 @@ export const TRACKS: Track[] = [
     artist: 'Ayra Starr',
     album: 'The Year I Turned 21',
     trackId: 'EhyzYPSHRQU',
-    coverUrl: getThumbnailUrl('7'),
+    coverUrl: getThumbnailUrl('EhyzYPSHRQU'),
     duration: 157,
     tags: ['afrobeats', 'pop'],
     mood: 'afro',
@@ -194,7 +201,7 @@ export const TRACKS: Track[] = [
     artist: 'Burna Boy',
     album: 'Love, Damini',
     trackId: 'RQdxHi4_Pvc',
-    coverUrl: getThumbnailUrl('8'),
+    coverUrl: getThumbnailUrl('RQdxHi4_Pvc'),
     duration: 185,
     tags: ['afrobeats', 'heartbreak', 'party'],
     mood: 'heartbreak',
@@ -207,8 +214,8 @@ export const TRACKS: Track[] = [
     title: 'Water',
     artist: 'Tyla',
     album: 'TYLA',
-    trackId: 'Y6etIBTA-nM',
-    coverUrl: getThumbnailUrl('9'),
+    trackId: 'XoiOOiuH8iI',
+    coverUrl: getThumbnailUrl('XoiOOiuH8iI'),
     duration: 193,
     tags: ['amapiano', 'rnb', 'dance'],
     mood: 'dance',
@@ -222,7 +229,7 @@ export const TRACKS: Track[] = [
     artist: 'CKay ft. Joeboy & Kuami Eugene',
     album: 'CKay the First',
     trackId: 'D-YDEyuDxWU',
-    coverUrl: getThumbnailUrl('10'),
+    coverUrl: getThumbnailUrl('D-YDEyuDxWU'),
     duration: 217,
     tags: ['afrobeats', 'rnb', 'chill'],
     mood: 'rnb',
@@ -240,7 +247,7 @@ export const PLAYLISTS: Playlist[] = [
   {
     id: 'pl1',
     title: 'Afro Bangers 2024',
-    coverUrl: getThumbnailUrl('1'),
+    coverUrl: getThumbnailUrl('OSBan_sH_b8'),  // UNAVAILABLE track
     trackIds: ['1', '2', '3', '7', '10'],
     type: 'CURATED',
     mood: 'afro',
@@ -249,7 +256,7 @@ export const PLAYLISTS: Playlist[] = [
   {
     id: 'pl2',
     title: 'Amapiano Vibes',
-    coverUrl: getThumbnailUrl('9'),
+    coverUrl: getThumbnailUrl('XoiOOiuH8iI'),  // Water by Tyla
     trackIds: ['6', '9'],
     type: 'CURATED',
     mood: 'dance',
@@ -258,7 +265,7 @@ export const PLAYLISTS: Playlist[] = [
   {
     id: 'pl3',
     title: 'Late Night Feels',
-    coverUrl: getThumbnailUrl('6'),
+    coverUrl: getThumbnailUrl('jipQpjUA_o8'),  // Essence
     trackIds: ['4', '5', '8', '10'],
     type: 'CURATED',
     mood: 'chill',

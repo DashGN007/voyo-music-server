@@ -9,12 +9,13 @@
  * - Tap to play, opens Classic Now Playing
  */
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Search, Heart, Music, Clock, MoreVertical } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, Heart, Music, Clock, MoreVertical, Play, ListPlus } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import { getYouTubeThumbnail, TRACKS } from '../../data/tracks';
 import { Track } from '../../types';
+import { getAudioStream } from '../../services/api';
 
 // Filter tabs
 const FILTERS = [
@@ -24,80 +25,227 @@ const FILTERS = [
   { id: 'recent', label: 'Recent' },
 ];
 
-// Song Row Component
+// Song Row Component with Hover Preview
 const SongRow = ({
   track,
   index,
   isLiked = false,
   onClick,
-  onLike
+  onLike,
+  onAddToQueue
 }: {
   track: Track;
   index: number;
   isLiked?: boolean;
   onClick: () => void;
   onLike: () => void;
-}) => (
-  <motion.div
-    className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors rounded-xl"
-    initial={{ opacity: 0, x: -20 }}
-    animate={{ opacity: 1, x: 0 }}
-    transition={{ delay: index * 0.03 }}
-  >
-    {/* Thumbnail */}
-    <motion.button
-      className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0"
-      onClick={onClick}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
+  onAddToQueue: () => void;
+}) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [teaserState, setTeaserState] = useState<'idle' | 'playing' | 'played'>('idle');
+  const teaserAudioRef = useRef<HTMLAudioElement | null>(null);
+  const teaserTimeoutRef = useRef<number | null>(null);
+  const hasInteractedRef = useRef(false);
+  const { currentTrack, isPlaying: mainIsPlaying, addToQueue } = usePlayerStore();
+
+  // Detect if device has hover capability (desktop)
+  const hasHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+  // Cleanup teaser on unmount
+  useEffect(() => {
+    return () => {
+      if (teaserAudioRef.current) {
+        teaserAudioRef.current.pause();
+        teaserAudioRef.current.src = '';
+      }
+      if (teaserTimeoutRef.current) {
+        clearTimeout(teaserTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Stop teaser when hovering out
+  useEffect(() => {
+    if (!isHovered && teaserState === 'playing') {
+      stopTeaser();
+    }
+  }, [isHovered, teaserState]);
+
+  const stopTeaser = () => {
+    if (teaserAudioRef.current) {
+      teaserAudioRef.current.pause();
+      teaserAudioRef.current.currentTime = 0;
+    }
+    if (teaserTimeoutRef.current) {
+      clearTimeout(teaserTimeoutRef.current);
+    }
+    setTeaserState('idle');
+  };
+
+  const startTeaser = async () => {
+    // Don't start teaser if already playing or played, or if this is the current track
+    if (teaserState !== 'idle' || currentTrack?.id === track.id) return;
+
+    try {
+      setTeaserState('playing');
+
+      // Create or reuse audio element
+      if (!teaserAudioRef.current) {
+        teaserAudioRef.current = new Audio();
+        teaserAudioRef.current.volume = 0.3; // Lower volume for preview
+      }
+
+      // Load audio stream
+      const streamUrl = await getAudioStream(track.trackId);
+      if (streamUrl && teaserAudioRef.current) {
+        teaserAudioRef.current.src = streamUrl;
+        await teaserAudioRef.current.play();
+
+        // Stop after 30 seconds
+        teaserTimeoutRef.current = setTimeout(() => {
+          stopTeaser();
+          setTeaserState('played');
+        }, 30000);
+      }
+    } catch (error) {
+      console.error('[Teaser] Failed to play preview:', error);
+      setTeaserState('idle');
+    }
+  };
+
+  const handleClick = () => {
+    // If teaser is playing and user hasn't interacted yet, stop teaser and play full
+    if (teaserState === 'playing' && !hasInteractedRef.current) {
+      stopTeaser();
+      hasInteractedRef.current = true;
+      onClick(); // Play full track
+      return;
+    }
+
+    // If teaser was played (30s preview), or already interacted, play full track
+    if (teaserState === 'played' || hasInteractedRef.current) {
+      onClick();
+      return;
+    }
+
+    // First interaction - if nothing is playing, play full track immediately
+    if (!mainIsPlaying) {
+      onClick();
+      return;
+    }
+
+    // Something is playing - start teaser
+    hasInteractedRef.current = true;
+    startTeaser();
+  };
+
+  const handleAddToQueue = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    stopTeaser();
+    onAddToQueue();
+  };
+
+  const isCurrentTrack = currentTrack?.id === track.id;
+
+  return (
+    <motion.div
+      className="relative flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors rounded-xl group"
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.03 }}
+      onMouseEnter={() => hasHover && setIsHovered(true)}
+      onMouseLeave={() => hasHover && setIsHovered(false)}
     >
-      <img
-        src={getYouTubeThumbnail(track.trackId, 'medium')}
-        alt={track.title}
-        className="w-full h-full object-cover"
-      />
-      <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-        <Music className="w-5 h-5 text-white" />
+      {/* Thumbnail */}
+      <motion.button
+        className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0"
+        onClick={handleClick}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+      >
+        <img
+          src={getYouTubeThumbnail(track.trackId, 'medium')}
+          alt={track.title}
+          className="w-full h-full object-cover"
+        />
+
+        {/* Hover Overlay with Play/Queue buttons - Desktop only */}
+        {hasHover && (
+          <AnimatePresence>
+            {isHovered && (
+              <motion.div
+                className="absolute inset-0 bg-black/60 flex items-center justify-center gap-2"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <motion.button
+                  className="w-7 h-7 rounded-full bg-purple-500 flex items-center justify-center"
+                  onClick={handleClick}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <Play className="w-3 h-3 text-white fill-white ml-0.5" />
+                </motion.button>
+                <motion.button
+                  className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center"
+                  onClick={handleAddToQueue}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <ListPlus className="w-3 h-3 text-white" />
+                </motion.button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
+      </motion.button>
+
+      {/* Info */}
+      <button
+        className="flex-1 min-w-0 text-left"
+        onClick={handleClick}
+      >
+        <p className={`font-medium truncate ${isCurrentTrack ? 'text-purple-400' : 'text-white'}`}>
+          {track.title}
+        </p>
+        <div className="flex items-center gap-2">
+          <p className="text-white/50 text-sm truncate">{track.artist}</p>
+          {teaserState === 'playing' && (
+            <span className="text-xs text-purple-400 font-medium">Previewing...</span>
+          )}
+        </div>
+      </button>
+
+      {/* Duration */}
+      <div className="flex items-center gap-1 text-white/40 text-sm">
+        <Clock className="w-3 h-3" />
+        <span>{track.duration || '3:45'}</span>
       </div>
-    </motion.button>
 
-    {/* Info */}
-    <button
-      className="flex-1 min-w-0 text-left"
-      onClick={onClick}
-    >
-      <p className="text-white font-medium truncate">{track.title}</p>
-      <p className="text-white/50 text-sm truncate">{track.artist}</p>
-    </button>
+      {/* Like Button */}
+      <motion.button
+        className="p-2"
+        onClick={(e) => { e.stopPropagation(); onLike(); }}
+        whileHover={{ scale: 1.2 }}
+        whileTap={{ scale: 0.9 }}
+      >
+        <Heart
+          className={`w-5 h-5 ${isLiked ? 'text-pink-500 fill-pink-500' : 'text-white/40'}`}
+        />
+      </motion.button>
 
-    {/* Duration */}
-    <div className="flex items-center gap-1 text-white/40 text-sm">
-      <Clock className="w-3 h-3" />
-      <span>{track.duration || '3:45'}</span>
-    </div>
-
-    {/* Like Button */}
-    <motion.button
-      className="p-2"
-      onClick={(e) => { e.stopPropagation(); onLike(); }}
-      whileHover={{ scale: 1.2 }}
-      whileTap={{ scale: 0.9 }}
-    >
-      <Heart
-        className={`w-5 h-5 ${isLiked ? 'text-pink-500 fill-pink-500' : 'text-white/40'}`}
-      />
-    </motion.button>
-
-    {/* More Options */}
-    <motion.button
-      className="p-2"
-      whileHover={{ scale: 1.1 }}
-      whileTap={{ scale: 0.9 }}
-    >
-      <MoreVertical className="w-5 h-5 text-white/40" />
-    </motion.button>
-  </motion.div>
-);
+      {/* More Options */}
+      <motion.button
+        className="p-2"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+      >
+        <MoreVertical className="w-5 h-5 text-white/40" />
+      </motion.button>
+    </motion.div>
+  );
+};
 
 interface LibraryProps {
   onTrackClick: (track: Track) => void;
@@ -107,7 +255,7 @@ export const Library = ({ onTrackClick }: LibraryProps) => {
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [likedTracks, setLikedTracks] = useState<Set<string>>(new Set());
-  const { setCurrentTrack } = usePlayerStore();
+  const { setCurrentTrack, addToQueue } = usePlayerStore();
 
   // Filter tracks based on active filter and search
   const filteredTracks = TRACKS.filter(track => {
@@ -202,6 +350,7 @@ export const Library = ({ onTrackClick }: LibraryProps) => {
               isLiked={likedTracks.has(track.id)}
               onClick={() => handleTrackClick(track)}
               onLike={() => handleLike(track.id)}
+              onAddToQueue={() => addToQueue(track)}
             />
           ))
         ) : (

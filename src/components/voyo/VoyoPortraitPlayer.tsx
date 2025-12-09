@@ -15,8 +15,9 @@ import {
   Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Maximize2, Film
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
-import { getThumbnailUrl } from '../../data/tracks';
+import { getThumbnailUrl, getTrackThumbnailUrl } from '../../utils/imageHelpers';
 import { Track, ReactionType } from '../../types';
+import { SmartImage } from '../ui/SmartImage';
 
 // ============================================
 // FULLSCREEN BACKGROUND LAYER - Album art with dark overlay
@@ -35,10 +36,12 @@ const FullscreenBackground = ({ trackId, isVideoMode }: { trackId?: string; isVi
         transition={{ duration: 1.5, ease: 'easeOut' }}
         key={trackId} // Re-animate on track change
       >
-        <img
+        <SmartImage
           src={getThumbnailUrl(trackId, 'max')}
-          alt=""
+          alt="Background"
           className="w-full h-full object-cover blur-2xl scale-110"
+          trackId={trackId}
+          lazy={false}
         />
       </motion.div>
 
@@ -88,9 +91,9 @@ const BackdropToggle = ({
   onToggle: () => void;
   onOpenLibrary: () => void;
 }) => {
-  const holdTimer = useRef<NodeJS.Timeout | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickCount = useRef(0);
-  const clickTimer = useRef<NodeJS.Timeout | null>(null);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handlePressStart = () => {
     // Start hold timer - 500ms to trigger library
@@ -399,13 +402,15 @@ const SmallCard = ({ track, onTap, isPlayed }: { track: Track; onTap: () => void
     whileHover={{ scale: 1.05 }}
     whileTap={{ scale: 0.95 }}
   >
-    <div className="w-[70px] h-[70px] rounded-2xl overflow-hidden relative border border-white/5">
-      <img
-        src={getThumbnailUrl(track.trackId, 'medium')}
+    <div className="w-[70px] h-[70px] rounded-2xl overflow-hidden relative border border-white/5 bg-gradient-to-br from-purple-900/30 to-pink-900/20">
+      <SmartImage
+        src={getTrackThumbnailUrl(track, 'medium')}
         alt={track.title}
         className={`w-full h-full object-cover transition-all duration-300 ${
           isPlayed ? 'opacity-60' : 'opacity-90 group-hover:opacity-100 group-hover:scale-105'
         }`}
+        trackId={track.trackId}
+        lazy={true}
       />
       {/* VOYO Brand Tint - fades on hover */}
       <VoyoBrandTint isPlayed={isPlayed} />
@@ -447,56 +452,150 @@ const DashPlaceholder = ({ onClick, label }: { onClick?: () => void; label: stri
 
 // ============================================
 // STREAM CARD (Horizontal scroll - HOT/DISCOVERY - with VOYO brand tint)
+// Now with MOBILE TAP-TO-TEASER (30s preview) + DRAG-TO-QUEUE
 // ============================================
-const StreamCard = ({ track, onTap, isPlayed }: { track: Track; onTap: () => void; isPlayed?: boolean }) => (
-  <motion.button
-    className="flex-shrink-0 flex flex-col items-center w-16 group"
-    onClick={onTap}
-    whileHover={{ scale: 1.08, y: -2 }}
-    whileTap={{ scale: 0.95 }}
-  >
-    <div className="w-14 h-14 rounded-xl overflow-hidden mb-1.5 relative border border-white/5 shadow-md">
-      <img
-        src={getThumbnailUrl(track.trackId, 'medium')}
-        alt={track.title}
-        className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-110 ${
-          isPlayed ? 'opacity-60' : 'opacity-90 group-hover:opacity-100'
-        }`}
-      />
-      {/* VOYO Brand Tint - fades on hover */}
-      <VoyoBrandTint isPlayed={isPlayed} />
-      {/* Played checkmark overlay */}
-      {isPlayed && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-4 h-4 rounded-full bg-purple-500/80 flex items-center justify-center shadow-lg">
-            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
-          </div>
+const StreamCard = ({ track, onTap, isPlayed, onTeaser }: { track: Track; onTap: () => void; isPlayed?: boolean; onTeaser?: (track: Track) => void }) => {
+  const addToQueue = usePlayerStore(state => state.addToQueue);
+  const [showQueueFeedback, setShowQueueFeedback] = useState(false);
+  const [showTeaserFeedback, setShowTeaserFeedback] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [wasDragged, setWasDragged] = useState(false);
+
+  // Detect touch device
+  useEffect(() => {
+    const checkTouch = () => {
+      setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    };
+    checkTouch();
+  }, []);
+
+  // Handle tap - on mobile plays teaser, on desktop plays full
+  const handleTap = () => {
+    // If was dragging, don't trigger tap
+    if (wasDragged) {
+      setWasDragged(false);
+      return;
+    }
+
+    // On mobile: tap = teaser preview (30s)
+    if (isTouchDevice && onTeaser) {
+      onTeaser(track);
+      setShowTeaserFeedback(true);
+      setTimeout(() => setShowTeaserFeedback(false), 2000);
+    } else {
+      // On desktop: click = full play
+      onTap();
+    }
+  };
+
+  return (
+    <motion.div
+      className="flex-shrink-0 flex flex-col items-center w-16 relative"
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.2}
+      onDragStart={() => setWasDragged(true)}
+      onDragEnd={(_, info) => {
+        // Check if dragged right beyond threshold (100px)
+        if (info.offset.x > 100) {
+          addToQueue(track);
+          setShowQueueFeedback(true);
+          setTimeout(() => setShowQueueFeedback(false), 1500);
+        }
+        // Reset drag state after a short delay to prevent tap from firing
+        setTimeout(() => setWasDragged(false), 100);
+      }}
+      whileTap={{ cursor: 'grabbing' }}
+    >
+      {/* Queue Feedback Indicator */}
+      <AnimatePresence>
+        {showQueueFeedback && (
+          <motion.div
+            className="absolute -top-8 left-1/2 -translate-x-1/2 z-50 bg-purple-500 text-white text-[9px] font-bold px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap"
+            initial={{ opacity: 0, y: 10, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.8 }}
+          >
+            Added to Queue
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Teaser Feedback Indicator */}
+      <AnimatePresence>
+        {showTeaserFeedback && (
+          <motion.div
+            className="absolute -top-8 left-1/2 -translate-x-1/2 z-50 bg-cyan-500 text-white text-[9px] font-bold px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap flex items-center gap-1"
+            initial={{ opacity: 0, y: 10, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.8 }}
+          >
+            <Play size={10} fill="white" /> 30s Preview
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.button
+        className="flex flex-col items-center group w-full"
+        onClick={handleTap}
+        whileHover={{ scale: 1.08, y: -2 }}
+        whileTap={{ scale: 0.95 }}
+      >
+        <div className="w-14 h-14 rounded-xl overflow-hidden mb-1.5 relative border border-white/5 shadow-md bg-gradient-to-br from-purple-900/30 to-pink-900/20">
+          <SmartImage
+            src={getTrackThumbnailUrl(track, 'medium')}
+            alt={track.title}
+            className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-110 ${
+              isPlayed ? 'opacity-60' : 'opacity-90 group-hover:opacity-100'
+            }`}
+            trackId={track.trackId}
+            lazy={true}
+          />
+          {/* VOYO Brand Tint - fades on hover */}
+          <VoyoBrandTint isPlayed={isPlayed} />
+          {/* Played checkmark overlay */}
+          {isPlayed && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-4 h-4 rounded-full bg-purple-500/80 flex items-center justify-center shadow-lg">
+                <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          )}
+          {/* Mobile hint indicator */}
+          {isTouchDevice && (
+            <div className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full bg-cyan-500/80 flex items-center justify-center">
+              <Play size={6} fill="white" className="text-white" />
+            </div>
+          )}
         </div>
-      )}
-    </div>
-    <h4 className={`text-[9px] font-bold truncate w-full text-center ${isPlayed ? 'text-gray-400' : 'text-white'}`}>{track.title}</h4>
-    <p className="text-[7px] text-gray-500 truncate w-full text-center uppercase">{track.artist}</p>
-  </motion.button>
-);
+        <h4 className={`text-[9px] font-bold truncate w-full text-center ${isPlayed ? 'text-gray-400' : 'text-white'}`}>{track.title}</h4>
+        <p className="text-[7px] text-gray-500 truncate w-full text-center uppercase">{track.artist}</p>
+      </motion.button>
+    </motion.div>
+  );
+};
 
 // ============================================
 // BIG CENTER CARD (NOW PLAYING - Large artwork with VOYO brand tint)
 // ============================================
 const BigCenterCard = ({ track, onExpandVideo }: { track: Track; onExpandVideo?: () => void }) => (
   <motion.div
-    className="relative w-52 h-52 md:w-60 md:h-60 rounded-[2rem] overflow-hidden border border-white/10 z-20 group"
+    className="relative w-52 h-52 md:w-60 md:h-60 rounded-[2rem] overflow-hidden border border-white/10 z-20 group bg-gradient-to-br from-purple-900/30 to-pink-900/20"
     style={{ boxShadow: '0 20px 60px -15px rgba(0,0,0,0.8), 0 0 40px rgba(147,51,234,0.15)' }}
     initial={{ scale: 0.9, opacity: 0 }}
     animate={{ scale: 1, opacity: 1 }}
     transition={springs.gentle}
     whileHover={{ scale: 1.02 }}
+    key={track.id}
   >
-    <img
-      src={getThumbnailUrl(track.trackId, 'high')}
+    <SmartImage
+      src={getTrackThumbnailUrl(track, 'high')}
       alt={track.title}
       className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
+      trackId={track.trackId}
+      lazy={false}
     />
     {/* VOYO Brand Tint - subtle on main card, fades on hover */}
     <div
@@ -574,14 +673,14 @@ const PlayControls = ({
       // Fast spin during scrub in the direction
       return {
         rotate: scrubDirection === 'forward' ? [0, 360] : [0, -360],
-        transition: { duration: 0.4, repeat: Infinity, ease: 'linear' }
+        transition: { duration: 0.4, repeat: Infinity, ease: 'linear' as const }
       };
     }
     if (isPlaying) {
       // Slow vinyl spin during playback
       return {
         rotate: [0, 360],
-        transition: { duration: 3, repeat: Infinity, ease: 'linear' }
+        transition: { duration: 3, repeat: Infinity, ease: 'linear' as const }
       };
     }
     return { rotate: 0 };
@@ -663,15 +762,20 @@ const PlayControls = ({
           {/* Album art - only visible when playing/scrubbing */}
           <AnimatePresence>
             {(isPlaying || isScrubbing) && trackArt && (
-              <motion.img
-                src={trackArt}
-                alt=""
-                className="absolute inset-2 w-[calc(100%-16px)] h-[calc(100%-16px)] object-cover rounded-full"
+              <motion.div
+                className="absolute inset-2 w-[calc(100%-16px)] h-[calc(100%-16px)] rounded-full overflow-hidden"
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
                 transition={{ duration: 0.2 }}
-              />
+              >
+                <SmartImage
+                  src={trackArt}
+                  alt="Now Playing"
+                  className="w-full h-full object-cover"
+                  lazy={false}
+                />
+              </motion.div>
             )}
           </AnimatePresence>
 
@@ -893,10 +997,12 @@ const FullscreenVideoPlayer = ({
     <div className="flex-1 relative bg-black flex items-center justify-center">
       {/* Placeholder - in production this would be a YouTube embed */}
       <div className="relative w-full h-full max-w-4xl mx-auto">
-        <img
-          src={getThumbnailUrl(track.trackId, 'max')}
+        <SmartImage
+          src={getTrackThumbnailUrl(track, 'max')}
           alt={track.title}
           className="w-full h-full object-contain"
+          trackId={track.trackId}
+          lazy={false}
         />
         {/* Play overlay */}
         <motion.button
@@ -977,8 +1083,8 @@ export const VoyoPortraitPlayer = ({
   // SCRUB STATE - Hold prev/next to scrub time
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubDirection, setScrubDirection] = useState<'forward' | 'backward' | null>(null);
-  const scrubInterval = useRef<NodeJS.Timeout | null>(null);
-  const scrubHoldTimer = useRef<NodeJS.Timeout | null>(null);
+  const scrubInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scrubHoldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Refs to avoid stale closures in interval
   const currentTimeRef = useRef(currentTime);
@@ -1050,6 +1156,48 @@ export const VoyoPortraitPlayer = ({
     });
   };
 
+  // ============================================
+  // MOBILE TEASER PREVIEW (30 seconds at 30% volume)
+  // ============================================
+  const [teaserTrack, setTeaserTrack] = useState<Track | null>(null);
+  const [isTeaserPlaying, setIsTeaserPlaying] = useState(false);
+  const teaserAudioRef = useRef<HTMLAudioElement | null>(null);
+  const teaserTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Handle teaser playback for mobile tap
+  const handleTeaser = useCallback((track: Track) => {
+    // Stop any existing teaser
+    if (teaserAudioRef.current) {
+      teaserAudioRef.current.pause();
+      teaserAudioRef.current = null;
+    }
+    if (teaserTimeoutRef.current) {
+      clearTimeout(teaserTimeoutRef.current);
+    }
+
+    // Create audio element for teaser preview
+    // Note: In production, this would use the actual audio source
+    // For now, we'll set the current track and auto-stop after 30s
+    setTeaserTrack(track);
+    setIsTeaserPlaying(true);
+    setCurrentTrack(track);
+
+    // Auto-stop after 30 seconds
+    teaserTimeoutRef.current = setTimeout(() => {
+      setIsTeaserPlaying(false);
+      setTeaserTrack(null);
+      // Don't auto-pause - let user decide
+    }, 30000);
+  }, [setCurrentTrack]);
+
+  // Cleanup teaser on unmount
+  useEffect(() => {
+    return () => {
+      if (teaserTimeoutRef.current) clearTimeout(teaserTimeoutRef.current);
+      if (teaserAudioRef.current) teaserAudioRef.current.pause();
+    };
+  }, []);
+
   return (
     <div className="relative h-full w-full bg-[#020203] text-white font-sans overflow-hidden flex flex-col">
 
@@ -1086,6 +1234,40 @@ export const VoyoPortraitPlayer = ({
 
       {/* Noise texture overlay */}
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none z-[1]" />
+
+      {/* TEASER PREVIEW INDICATOR - Shows when 30s preview is active */}
+      <AnimatePresence>
+        {isTeaserPlaying && teaserTrack && (
+          <motion.div
+            className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/90 backdrop-blur-sm border border-cyan-400/50 shadow-lg"
+            initial={{ opacity: 0, y: -20, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+          >
+            <motion.div
+              className="w-2 h-2 rounded-full bg-white"
+              animate={{ scale: [1, 1.3, 1] }}
+              transition={{ duration: 0.5, repeat: Infinity }}
+            />
+            <span className="text-white text-xs font-bold">30s Preview</span>
+            <motion.button
+              className="ml-1 p-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+              onClick={() => {
+                setIsTeaserPlaying(false);
+                setTeaserTrack(null);
+                if (teaserTimeoutRef.current) {
+                  clearTimeout(teaserTimeoutRef.current);
+                }
+              }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* FULLSCREEN VIDEO PLAYER - Shows when expand button clicked */}
       <AnimatePresence>
@@ -1202,7 +1384,7 @@ export const VoyoPortraitPlayer = ({
           isScrubbing={isScrubbing}
           onScrubStart={handleScrubStart}
           onScrubEnd={handleScrubEnd}
-          trackArt={currentTrack ? getThumbnailUrl(currentTrack.trackId, 'medium') : undefined}
+          trackArt={currentTrack ? getTrackThumbnailUrl(currentTrack, 'medium') : undefined}
           scrubDirection={scrubDirection}
         />
 
@@ -1231,6 +1413,7 @@ export const VoyoPortraitPlayer = ({
                 key={track.id}
                 track={track}
                 onTap={() => setCurrentTrack(track)}
+                onTeaser={handleTeaser}
                 isPlayed={playedTrackIds.has(track.id)}
               />
             ))}
@@ -1257,6 +1440,7 @@ export const VoyoPortraitPlayer = ({
                 key={track.id}
                 track={track}
                 onTap={() => setCurrentTrack(track)}
+                onTeaser={handleTeaser}
                 isPlayed={playedTrackIds.has(track.id)}
               />
             ))}

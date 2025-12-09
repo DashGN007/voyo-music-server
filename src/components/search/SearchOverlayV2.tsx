@@ -10,6 +10,7 @@ import { Search, X, Loader2, Music2, Clock, Play, Plus, ListPlus, Compass, Disc3
 import { usePlayerStore } from '../../store/playerStore';
 import { Track } from '../../types';
 import { searchMusic, SearchResult } from '../../services/api';
+import { TRACKS } from '../../data/tracks';
 
 interface SearchOverlayProps {
   isOpen: boolean;
@@ -88,7 +89,7 @@ interface TrackItemProps {
   onDragEnd: (zone: 'queue' | 'discovery' | null, pos: { x: number; y: number }) => void;
   formatDuration: (seconds: number) => string;
   formatViews: (views: number) => string;
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 const TrackItem = ({
@@ -171,14 +172,16 @@ const TrackItem = ({
       whileHover={!isDragging ? { background: 'rgba(255,255,255,0.06)' } : {}}
     >
       {/* Thumbnail */}
-      <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+      <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gradient-to-br from-purple-900/30 to-pink-900/20">
         <img
           src={result.thumbnail}
           alt={result.title}
           className="w-full h-full object-cover"
+          loading="lazy"
           onError={(e) => {
-            (e.target as HTMLImageElement).style.background = 'linear-gradient(135deg, #4c1d95 0%, #7c3aed 100%)';
-            (e.target as HTMLImageElement).src = '';
+            const target = e.target as HTMLImageElement;
+            target.style.opacity = '0';
+            console.error('[SearchOverlay] Failed to load thumbnail:', result.thumbnail);
           }}
         />
         <motion.div
@@ -304,7 +307,41 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
     }
   }, [isOpen]);
 
-  // Search function
+  // Search seed data locally
+  const searchSeedData = useCallback((searchQuery: string): SearchResult[] => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return [];
+
+    // Search in title, artist, album, and tags
+    const matches = TRACKS.filter(track => {
+      const title = track.title.toLowerCase();
+      const artist = track.artist.toLowerCase();
+      const album = (track.album || '').toLowerCase();
+      const tags = track.tags.join(' ').toLowerCase();
+
+      return title.includes(query) ||
+             artist.includes(query) ||
+             album.includes(query) ||
+             tags.includes(query);
+    });
+
+    // Convert Track to SearchResult format (seed data uses raw YouTube IDs, not VOYO IDs)
+    // Use same API_BASE logic as in api.ts
+    const API_BASE = import.meta.env.PROD
+      ? 'https://voyo-music-server-production.up.railway.app'
+      : 'http://localhost:3001';
+
+    return matches.slice(0, 5).map(track => ({
+      voyoId: track.trackId, // Seed data has raw YouTube IDs, backend will accept both
+      title: track.title,
+      artist: track.artist,
+      duration: track.duration,
+      thumbnail: `${API_BASE}/cdn/art/${track.trackId}`, // Use backend CDN endpoint for consistency
+      views: track.oyeScore, // Use oyeScore as views
+    }));
+  }, []);
+
+  // Hybrid search: seed data first, then YouTube
   const performSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) {
       setResults([]);
@@ -313,17 +350,41 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
     setIsSearching(true);
     setError(null);
     try {
-      const searchResults = await searchMusic(searchQuery, 15);
-      setResults(searchResults);
+      // 1. Search seed data first (instant results)
+      const seedResults = searchSeedData(searchQuery);
+
+      // Show seed results immediately
+      if (seedResults.length > 0) {
+        setResults(seedResults);
+      }
+
+      // 2. Search YouTube (async, may take longer)
+      const youtubeResults = await searchMusic(searchQuery, 15);
+
+      // 3. Merge results, prioritizing seed data
+      // Remove YouTube duplicates (if same trackId/voyoId exists in seed)
+      const seedIds = new Set(seedResults.map(r => r.voyoId));
+      const uniqueYoutubeResults = youtubeResults.filter(r => !seedIds.has(r.voyoId));
+
+      // Combine: seed first, then YouTube
+      const mergedResults = [...seedResults, ...uniqueYoutubeResults];
+      setResults(mergedResults);
       saveToHistory(searchQuery);
     } catch (err) {
       console.error('[SearchOverlay] Search error:', err);
-      setError('Search failed. Check your connection.');
-      setResults([]);
+      // Still show seed results even if YouTube fails
+      const seedResults = searchSeedData(searchQuery);
+      if (seedResults.length > 0) {
+        setResults(seedResults);
+        setError('YouTube search unavailable. Showing local results only.');
+      } else {
+        setError('Search failed. Check your connection.');
+        setResults([]);
+      }
     } finally {
       setIsSearching(false);
     }
-  }, []);
+  }, [searchSeedData]);
 
   const handleSearch = (value: string) => {
     setQuery(value);
