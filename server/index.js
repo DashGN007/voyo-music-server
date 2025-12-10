@@ -579,6 +579,34 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Debug endpoint - check yt-dlp availability
+  if (pathname === '/debug') {
+    const { exec } = await import('child_process');
+    const checkYtDlp = () => new Promise((resolve) => {
+      exec('which yt-dlp && yt-dlp --version', (error, stdout, stderr) => {
+        resolve({
+          available: !error,
+          path: stdout.trim().split('\n')[0] || 'not found',
+          version: stdout.trim().split('\n')[1] || 'unknown',
+          error: error ? error.message : null
+        });
+      });
+    });
+
+    const ytdlpInfo = await checkYtDlp();
+    res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      ytdlp: ytdlpInfo,
+      ytdlpPath: YT_DLP_PATH,
+      env: {
+        NODE_ENV: process.env.NODE_ENV,
+        PORT: process.env.PORT,
+        RAILWAY: !!process.env.RAILWAY_PUBLIC_DOMAIN
+      }
+    }));
+    return;
+  }
+
   // Prefetch warming endpoint - warm up stream URL before needed
   if (pathname === '/prefetch' && query.v) {
     try {
