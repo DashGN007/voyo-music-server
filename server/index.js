@@ -231,21 +231,25 @@ async function getStreamUrl(videoId, type = 'audio', quality = 'high') {
     console.log(`[yt-dlp] Fetching ${type} (${quality}) URL for: ${videoId}`);
 
     // Format selection with quality tiers:
+    // CRITICAL: Use explicit itags to avoid HLS streams (itag 233/234)
+    // YouTube serves HLS to certain regions which causes CORS issues
+    // Direct audio formats: 251 (opus), 250 (opus), 249 (opus), 140 (m4a)
     let format;
     if (type === 'video') {
       format = 'bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best';
     } else {
-      // Audio quality selection based on bitrate
+      // Audio: Use direct formats ONLY, avoid HLS (protocol!=m3u8)
+      // Fallback chain: opus high -> opus med -> opus low -> m4a
       switch (quality) {
         case 'low':
-          format = 'bestaudio[abr<=64]/bestaudio';
+          format = '249/250/140/bestaudio[protocol!=m3u8]';
           break;
         case 'medium':
-          format = 'bestaudio[abr<=128]/bestaudio';
+          format = '250/251/140/bestaudio[protocol!=m3u8]';
           break;
         case 'high':
         default:
-          format = 'bestaudio[ext=webm]/bestaudio';
+          format = '251/250/140/bestaudio[protocol!=m3u8]';
           break;
       }
     }
