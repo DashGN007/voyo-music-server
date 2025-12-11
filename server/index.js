@@ -1100,11 +1100,8 @@ const server = http.createServer(async (req, res) => {
           '-f', format,
           '-o', '-',  // Output to stdout
           '--no-playlist',
-          '--remote-components', 'ejs:github',  // Required for YouTube JS challenge solving
           ytUrl
-        ], {
-          env: { ...process.env, PATH: `${process.env.HOME}/.deno/bin:${process.env.HOME}/.local/bin:${process.env.PATH}` }
-        });
+        ]);
 
         // WebM/Opus is the output format
         res.writeHead(200, {
