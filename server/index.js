@@ -1066,37 +1066,50 @@ const server = http.createServer(async (req, res) => {
 
       const type = query.type === 'video' ? 'video' : 'audio';
       const quality = query.quality || 'high'; // Support quality selection
-      const result = await getStreamUrl(youtubeId, type, quality);
-      const streamUrl = type === 'audio' ? result.audioUrl : result.url;
 
       console.log(`[CDN/Stream] Streaming ${type} (${quality}) for ${youtubeId}`);
       cacheStats.activeStreams++;
 
-      // Check if URL is HLS (manifest URL) - YouTube serves HLS to some regions
-      const isHLS = streamUrl.includes('manifest.googlevideo.com') || streamUrl.includes('.m3u8');
+      // ALWAYS use yt-dlp pipe for audio streams
+      // YouTube now returns DASH fragments for all audio formats which browsers can't play natively
+      // The yt-dlp pipe approach downloads the full audio file and streams it
+      if (type === 'audio') {
+        console.log(`[CDN/Stream] Using yt-dlp pipe for ${youtubeId} (quality=${quality})`);
 
-      if (isHLS && type === 'audio') {
-        // HLS detected - use yt-dlp to download and pipe directly
-        // This bypasses CORS issues since we download the full audio on server
-        console.log(`[CDN/Stream] HLS detected, using yt-dlp pipe for ${youtubeId}`);
+        // Format selection: Use WebM/Opus (251/250/249) which browsers can play natively
+        // M4A formats (140/139) are DASH segments that Chrome can't demux directly
+        let format;
+        switch (quality) {
+          case 'low':
+            format = '249/250/251/worstaudio[ext=webm]/worstaudio';
+            break;
+          case 'medium':
+            format = '250/251/249/bestaudio[ext=webm]/bestaudio';
+            break;
+          case 'high':
+          default:
+            format = '251/250/249/bestaudio[ext=webm]/bestaudio';
+            break;
+        }
 
-        // Use 'bestaudio' with fallback - explicit itags may not be available in all regions
-        const format = 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio';
         const ytUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
+
+        console.log(`[CDN/Stream] Format string: ${format}`);
 
         const ytdlp = spawn(YT_DLP_PATH, [
           '-f', format,
           '-o', '-',  // Output to stdout
-          '--no-warnings',
           '--no-playlist',
+          '--remote-components', 'ejs:github',  // Required for YouTube JS challenge solving
           ytUrl
         ], {
           env: { ...process.env, PATH: `${process.env.HOME}/.deno/bin:${process.env.HOME}/.local/bin:${process.env.PATH}` }
         });
 
+        // WebM/Opus is the output format
         res.writeHead(200, {
           ...corsHeaders,
-          'Content-Type': 'audio/mpeg',  // yt-dlp outputs M4A/AAC which has ID3 headers
+          'Content-Type': 'audio/webm',
           'Transfer-Encoding': 'chunked',
         });
 
@@ -1105,20 +1118,16 @@ const server = http.createServer(async (req, res) => {
         let stderrData = '';
         ytdlp.stderr.on('data', (data) => {
           stderrData += data.toString();
-          console.error(`[CDN/Stream] yt-dlp stderr: ${data}`);
-        });
-
-        // Log stderr on close if there were issues
-        ytdlp.on('close', (code) => {
-          if (code !== 0 && stderrData) {
-            console.error(`[CDN/Stream] yt-dlp failed (${code}): ${stderrData}`);
+          // Only log errors, not progress
+          if (!data.toString().includes('[download]')) {
+            console.error(`[CDN/Stream] yt-dlp stderr: ${data}`);
           }
         });
 
         ytdlp.on('close', (code) => {
           cacheStats.activeStreams--;
-          if (code !== 0) {
-            console.error(`[CDN/Stream] yt-dlp exited with code ${code}`);
+          if (code !== 0 && stderrData) {
+            console.error(`[CDN/Stream] yt-dlp failed (${code}): ${stderrData}`);
           }
         });
 
@@ -1134,7 +1143,9 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // Direct URL - proxy as normal
+      // VIDEO: Direct URL - proxy as normal (video formats work with proxy)
+      const result = await getStreamUrl(youtubeId, type, quality);
+      const streamUrl = result.url;
       // Parse the googlevideo URL
       const parsedStream = new URL(streamUrl);
 
