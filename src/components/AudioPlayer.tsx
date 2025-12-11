@@ -337,15 +337,20 @@ export const AudioPlayer = () => {
       return;
     }
 
+    // CRITICAL FIX: If isPlaying is true but element not ready, set flag for auto-play on canplay
+    if (isPlaying) {
+      shouldAutoPlayOnLoad.current = true;
+    }
+
     // If no stream URL yet, canplay handler will start playback when ready
     if (!currentStreamUrl.current) {
-      console.log('[AudioPlayer] Play/pause skipped - waiting for stream URL');
+      console.log('[AudioPlayer] Play/pause skipped - waiting for stream URL (will auto-play when ready)');
       return;
     }
 
     // Only act if element has a source loaded
     if (!element.src || element.readyState < 1) {
-      console.log('[AudioPlayer] Play/pause skipped - element not ready');
+      console.log('[AudioPlayer] Play/pause skipped - element not ready (will auto-play when ready)');
       return;
     }
 
@@ -357,6 +362,8 @@ export const AudioPlayer = () => {
     } else {
       console.log('[AudioPlayer] Pausing...');
       element.pause();
+      // Clear auto-play flag when user pauses
+      shouldAutoPlayOnLoad.current = false;
     }
   }, [isPlaying, isVideoMode]);
 
