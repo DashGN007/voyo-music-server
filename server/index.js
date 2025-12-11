@@ -230,28 +230,15 @@ async function getStreamUrl(videoId, type = 'audio', quality = 'high') {
     const ytUrl = `https://www.youtube.com/watch?v=${videoId}`;
     console.log(`[yt-dlp] Fetching ${type} (${quality}) URL for: ${videoId}`);
 
-    // Format selection with quality tiers:
-    // CRITICAL: Use explicit itags to avoid HLS streams (itag 233/234)
-    // YouTube serves HLS to certain regions which causes CORS issues
-    // Direct audio formats: 251 (opus), 250 (opus), 249 (opus), 140 (m4a)
+    // Format selection - HIGHEST QUALITY ONLY
+    // 251 = Opus 139kbps (BEST), 140 = AAC 128kbps (fallback)
+    // PO Token plugin (bgutil-ytdlp-pot-provider) unlocks all formats
     let format;
     if (type === 'video') {
       format = 'bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best';
     } else {
-      // Audio: Use direct formats ONLY, avoid HLS (protocol!=m3u8)
-      // Fallback chain: opus high -> opus med -> opus low -> m4a
-      switch (quality) {
-        case 'low':
-          format = '249/250/140/bestaudio[protocol!=m3u8]';
-          break;
-        case 'medium':
-          format = '250/251/140/bestaudio[protocol!=m3u8]';
-          break;
-        case 'high':
-        default:
-          format = '251/250/140/bestaudio[protocol!=m3u8]';
-          break;
-      }
+      // Audio: ALWAYS highest quality - no compromises
+      format = '251/140/bestaudio';
     }
 
     // Anti-blocking: Use random User-Agent and add delay jitter
@@ -455,7 +442,7 @@ async function downloadAudio(videoId) {
     console.log(`[Download] Starting download for: ${videoId}`);
 
     const ytdlp = spawn(YT_DLP_PATH, [
-      '-f', 'bestaudio',
+      '-f', '251/140/bestaudio',  // HIGHEST QUALITY: 251 = Opus 139kbps
       '-x',
       '--audio-format', 'mp3',
       '-o', outputPath,
@@ -637,11 +624,23 @@ const server = http.createServer(async (req, res) => {
         });
       });
     });
+    const checkDeno = () => new Promise((resolve) => {
+      exec('which deno && deno --version', (error, stdout, stderr) => {
+        resolve({
+          available: !error,
+          path: stdout.trim().split('\n')[0] || 'not found',
+          version: stdout.trim().split('\n')[1] || 'unknown',
+          error: error ? error.message : null
+        });
+      });
+    });
 
     const ytdlpInfo = await checkYtDlp();
+    const denoInfo = await checkDeno();
     res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       ytdlp: ytdlpInfo,
+      deno: denoInfo,
       ytdlpPath: YT_DLP_PATH,
       env: {
         NODE_ENV: process.env.NODE_ENV,
@@ -1076,112 +1075,80 @@ const server = http.createServer(async (req, res) => {
       if (type === 'audio') {
         console.log(`[CDN/Stream] Using yt-dlp pipe for ${youtubeId} (quality=${quality})`);
 
-        // Format selection: Prioritize formats that work reliably
-        // 251 = Opus 160kbps, 250 = Opus 70kbps, 249 = Opus 50kbps
-        // 140 = M4A 128kbps (reliable fallback)
-        // bestaudio = any best audio
-        let format;
-        switch (quality) {
-          case 'low':
-            format = '249/250/140/worstaudio';
-            break;
-          case 'medium':
-            format = '250/251/140/bestaudio';
-            break;
-          case 'high':
-          default:
-            format = '251/250/140/bestaudio';
-            break;
-        }
+        // Format selection: HIGHEST QUALITY ONLY
+        // 251 = Opus 139kbps (BEST), 140 = AAC 128kbps (fallback)
+        // PO Token plugin (bgutil-ytdlp-pot-provider) unlocks all formats
+        const format = '251/140/bestaudio';
 
         const ytUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
 
         console.log(`[CDN/Stream] Format string: ${format}`);
 
-        // FIXED: Wait for first data chunk before sending headers
-        // This prevents empty responses when yt-dlp fails
-        // CRITICAL: --quiet prevents stderr from mixing with stdout
+        // SIMPLE APPROACH: Use yt-dlp with protocol filter to avoid HLS
+        // HLS streams fail on datacenter IPs, so force non-HLS formats
+        const tempFile = `/tmp/voyo-${youtubeId}-${Date.now()}.m4a`;
+
         const ytdlp = spawn(YT_DLP_PATH, [
-          '-f', format,
-          '-o', '-',  // Output to stdout
+          // HIGHEST QUALITY: 251 = Opus 139kbps, 140 = AAC 128kbps
+          '-f', '251/140/bestaudio',
+          '-o', tempFile,
           '--no-playlist',
-          '--quiet',  // CRITICAL: Suppress all output to stderr
           '--no-check-certificates',
           ytUrl
         ], {
-          env: { ...process.env, PATH: `${process.env.HOME}/.nix-profile/bin:${process.env.HOME}/.deno/bin:${process.env.HOME}/.local/bin:${process.env.PATH}` }
+          // Ensure HOME is set so yt-dlp can find plugins
+          env: { ...process.env, HOME: process.env.HOME || '/home/dash' }
         });
 
-        let headersSent = false;
         let stderrData = '';
-        let hasReceivedData = false;
-
-        ytdlp.stdout.on('data', (chunk) => {
-          hasReceivedData = true;
-          if (!headersSent) {
-            // Detect format from first bytes
-            // WebM starts with 0x1A 0x45 0xDF 0xA3
-            // M4A/MP4 starts with "ftyp" at byte 4
-            let contentType = 'audio/webm';  // default
-            if (chunk.length >= 8) {
-              const header = chunk.slice(0, 8).toString('hex');
-              if (header.includes('66747970')) {  // 'ftyp' in hex
-                contentType = 'audio/mp4';
-              } else if (header.startsWith('1a45dfa3')) {
-                contentType = 'audio/webm';
-              }
-            }
-
-            // Send headers only when we have actual data
-            res.writeHead(200, {
-              ...corsHeaders,
-              'Content-Type': contentType,
-              'Transfer-Encoding': 'chunked',
-            });
-            headersSent = true;
-            console.log(`[CDN/Stream] First chunk (${contentType}) for ${youtubeId}, streaming...`);
-          }
-          res.write(chunk);
-        });
 
         ytdlp.stderr.on('data', (data) => {
           stderrData += data.toString();
-          // Log progress for debugging
-          const str = data.toString();
-          if (str.includes('[download]') && str.includes('%')) {
-            // Progress update - don't log every one
-          } else if (str.trim()) {
-            console.log(`[CDN/Stream] yt-dlp: ${str.trim()}`);
-          }
         });
 
-        ytdlp.on('close', (code) => {
-          cacheStats.activeStreams--;
+        ytdlp.on('close', async (code) => {
           if (code !== 0) {
-            console.error(`[CDN/Stream] yt-dlp exit code ${code}: ${stderrData}`);
-            if (!headersSent) {
+            console.error(`[CDN/Stream] yt-dlp failed: ${stderrData.slice(-500)}`);
+            cacheStats.activeStreams--;
+            res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Download failed', details: stderrData.slice(-500) }));
+            return;
+          }
+
+          try {
+            const stats = fs.statSync(tempFile);
+            if (stats.size === 0) {
+              fs.unlinkSync(tempFile);
+              cacheStats.activeStreams--;
               res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'Stream failed', details: stderrData.slice(0, 200) }));
+              res.end(JSON.stringify({ error: 'Empty file' }));
+              return;
             }
-          } else {
-            console.log(`[CDN/Stream] Stream complete for ${youtubeId}`);
-            if (headersSent) {
-              res.end();
-            } else {
-              // No data received but process exited 0 - weird edge case
-              res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'No audio data received' }));
-            }
+
+            console.log(`[CDN/Stream] Downloaded ${Math.round(stats.size/1024)}KB`);
+            res.writeHead(200, {
+              ...corsHeaders,
+              'Content-Type': 'audio/mp4',
+              'Content-Length': stats.size,
+            });
+
+            const fileStream = fs.createReadStream(tempFile);
+            fileStream.pipe(res);
+            fileStream.on('end', () => {
+              cacheStats.activeStreams--;
+              fs.unlink(tempFile, () => {});
+            });
+          } catch (err) {
+            cacheStats.activeStreams--;
+            res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
           }
         });
 
         ytdlp.on('error', (err) => {
-          console.error('[CDN/Stream] yt-dlp spawn error:', err);
           cacheStats.activeStreams--;
-          if (!headersSent) {
-            res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Stream spawn failed', details: err.message }));
-          }
+          res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
         });
 
         return;

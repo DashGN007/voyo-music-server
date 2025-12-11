@@ -5,16 +5,19 @@
     "nixpacksPlan": {
       "phases": {
         "setup": {
-          "nixPkgs": ["nodejs_20", "yt-dlp", "ffmpeg"]
+          "nixPkgs": ["nodejs_20", "yt-dlp", "ffmpeg", "deno", "python311"]
         },
         "install": {
-          "cmds": ["npm install"]
+          "cmds": [
+            "npm install",
+            "pip install --break-system-packages bgutil-ytdlp-pot-provider"
+          ]
         }
       }
     }
   },
   "deploy": {
-    "startCommand": "yt-dlp --version && node index.js",
+    "startCommand": "yt-dlp --version && pip show bgutil-ytdlp-pot-provider && node index.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
