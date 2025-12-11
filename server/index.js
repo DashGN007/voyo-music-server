@@ -1,7 +1,7 @@
 /**
  * VOYO Music Backend Server
  * Uses yt-dlp to extract audio streams from YouTube
- * v1.1.0 - Railway root directory fix
+ * v1.2.0 - pip3 fix for Railway
  */
 
 import { spawn } from 'child_process';
