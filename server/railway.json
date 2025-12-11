@@ -10,7 +10,7 @@
         "install": {
           "cmds": [
             "npm install",
-            "pip install --break-system-packages bgutil-ytdlp-pot-provider"
+            "pip3 install --break-system-packages bgutil-ytdlp-pot-provider"
           ]
         }
       }
