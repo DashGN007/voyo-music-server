@@ -1,0 +1,19 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "nixpacks",
+    "buildCommand": "cd server && npm install && pip install --break-system-packages bgutil-ytdlp-pot-provider",
+    "nixpacksPlan": {
+      "phases": {
+        "setup": {
+          "nixPkgs": ["nodejs_20", "yt-dlp", "ffmpeg", "deno", "python311"]
+        }
+      }
+    }
+  },
+  "deploy": {
+    "startCommand": "cd server && node index.js",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}
