@@ -73,10 +73,13 @@ export function decodeVoyoId(voyoId) {
 export function sanitizeSearchResult(result) {
   const voyoId = encodeVoyoId(result.id);
 
-  // Auto-detect API_BASE: production Railway URL or localhost
-  const API_BASE = process.env.RAILWAY_PUBLIC_DOMAIN
-    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-    : (process.env.API_BASE || 'http://localhost:3001');
+  // Auto-detect API_BASE: Fly.io, Railway, or localhost
+  let API_BASE = process.env.API_BASE || 'http://localhost:3001';
+  if (process.env.FLY_APP_NAME) {
+    API_BASE = `https://${process.env.FLY_APP_NAME}.fly.dev`;
+  } else if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    API_BASE = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  }
 
   return {
     voyoId,

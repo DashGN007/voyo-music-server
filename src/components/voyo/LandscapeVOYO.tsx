@@ -7,6 +7,7 @@
  * - More cards visible horizontally
  * - Reactions split to left and right sides
  * - Triple-tap center circle to enter Video Mode
+ * - Hold center circle to reveal DJ (OYO) mode
  */
 
 import { useRef, useEffect, useState } from 'react';
@@ -16,6 +17,7 @@ import { usePlayerStore } from '../../store/playerStore';
 import { getYouTubeThumbnail } from '../../data/tracks';
 import { Track } from '../../types';
 import { SmartImage } from '../ui/SmartImage';
+import { DJTextInput } from './PortraitVOYO';
 
 // Timeline Card (horizontal scroll)
 const TimelineCard = ({
@@ -86,11 +88,14 @@ const WaveformBars = ({ isPlaying }: { isPlaying: boolean }) => {
 };
 
 // Main Play Circle (landscape)
-const PlayCircle = ({ onTripleTap }: { onTripleTap: () => void }) => {
+// Triple-tap = Video Mode, Hold (500ms) = DJ Mode
+const PlayCircle = ({ onTripleTap, onHold }: { onTripleTap: () => void; onHold: () => void }) => {
   const { isPlaying, togglePlay, progress } = usePlayerStore();
   const controls = useAnimation();
   const tapCountRef = useRef(0);
   const tapTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const holdTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const isHoldingRef = useRef(false);
 
   useEffect(() => {
     if (isPlaying) {
@@ -106,6 +111,25 @@ const PlayCircle = ({ onTripleTap }: { onTripleTap: () => void }) => {
       });
     }
   }, [isPlaying, controls]);
+
+  const handlePointerDown = () => {
+    isHoldingRef.current = false;
+    holdTimeoutRef.current = setTimeout(() => {
+      isHoldingRef.current = true;
+      onHold();
+    }, 500); // 500ms hold to trigger DJ
+  };
+
+  const handlePointerUp = () => {
+    if (holdTimeoutRef.current) {
+      clearTimeout(holdTimeoutRef.current);
+    }
+    // Only process tap if we didn't hold
+    if (!isHoldingRef.current) {
+      handleTap();
+    }
+    isHoldingRef.current = false;
+  };
 
   const handleTap = () => {
     tapCountRef.current += 1;
@@ -135,7 +159,9 @@ const PlayCircle = ({ onTripleTap }: { onTripleTap: () => void }) => {
         background: 'conic-gradient(from 0deg, #a855f7, #ec4899, #a855f7)',
         padding: '3px',
       }}
-      onClick={handleTap}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={() => holdTimeoutRef.current && clearTimeout(holdTimeoutRef.current)}
       animate={controls}
       transition={{ duration: 2, repeat: isPlaying ? Infinity : 0, ease: "easeInOut" }}
       whileHover={{ scale: 1.02 }}
@@ -240,6 +266,15 @@ interface LandscapeVOYOProps {
   onVideoMode: () => void;
 }
 
+// DJ Response Messages
+const DJ_RESPONSES: Record<string, string[]> = {
+  'more-like-this': ["Got you fam!", "Adding similar vibes..."],
+  'something-different': ["Say less!", "Switching it up..."],
+  'more-energy': ["AYEEE!", "Turning UP!"],
+  'chill-vibes': ["Cooling it down...", "Smooth vibes only"],
+  'default': ["I hear you!", "Say less, fam!", "OYE!"],
+};
+
 export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
   const {
     currentTrack,
@@ -251,11 +286,45 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
     prevTrack,
     setCurrentTrack,
     addReaction,
-    volume
+    volume,
+    refreshRecommendations,
+    isPlaying,
+    togglePlay,
   } = usePlayerStore();
+
+  // DJ Mode state
+  const [isDJOpen, setIsDJOpen] = useState(false);
 
   const pastTracks = history.slice(-3).map(h => h.track).reverse();
   const queueTracks = queue.slice(0, 2).map(q => q.track);
+
+  // Handle DJ command
+  const handleDJCommand = (command: string) => {
+    setIsDJOpen(false);
+
+    const commandLower = command.toLowerCase();
+    let responseKey = 'default';
+
+    if (commandLower.includes('like this') || commandLower.includes('similar')) {
+      responseKey = 'more-like-this';
+    } else if (commandLower.includes('different') || commandLower.includes('change')) {
+      responseKey = 'something-different';
+    } else if (commandLower.includes('energy') || commandLower.includes('hype')) {
+      responseKey = 'more-energy';
+    } else if (commandLower.includes('chill') || commandLower.includes('relax')) {
+      responseKey = 'chill-vibes';
+    }
+
+    // Apply the DJ's suggestion
+    refreshRecommendations();
+    if (!isPlaying) togglePlay();
+  };
+
+  // Handle hold to open DJ
+  const handleHoldForDJ = () => {
+    if (isPlaying) togglePlay(); // Pause music when opening DJ
+    setIsDJOpen(true);
+  };
 
   return (
     <div className="flex flex-col h-full p-4">
@@ -329,8 +398,8 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
           <SkipBack className="w-6 h-6 text-white/70" />
         </motion.button>
 
-        {/* Play Circle */}
-        <PlayCircle onTripleTap={onVideoMode} />
+        {/* Play Circle - Triple-tap for Video, Hold for DJ */}
+        <PlayCircle onTripleTap={onVideoMode} onHold={handleHoldForDJ} />
 
         {/* Skip Next */}
         <motion.button
@@ -396,8 +465,15 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
         </div>
       </div>
 
-      {/* Triple-tap hint */}
-      <p className="text-center text-white/20 text-xs">Triple-tap circle for Video Mode</p>
+      {/* Interaction hints */}
+      <p className="text-center text-white/20 text-xs">Triple-tap for Video Mode | Hold for DJ</p>
+
+      {/* DJ Text Input Overlay */}
+      <DJTextInput
+        isOpen={isDJOpen}
+        onClose={() => setIsDJOpen(false)}
+        onSubmit={handleDJCommand}
+      />
     </div>
   );
 };

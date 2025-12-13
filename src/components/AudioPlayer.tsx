@@ -1,424 +1,355 @@
 /**
- * VOYO Music - Global Audio Player
+ * VOYO Music - Hybrid Audio Player with BOOST System
  *
- * This component handles actual audio playback using our yt-dlp backend.
- * It syncs with the playerStore and plays audio in the background.
- * Renders hidden audio/video elements that the rest of the app controls.
+ * SIMPLE FLOW:
+ * 1. Check IndexedDB cache → If BOOSTED, play from local blob (instant, offline)
+ * 2. If NOT boosted → IFrame plays instantly (YouTube handles streaming)
+ * 3. User clicks "⚡ Boost HD" → Downloads to IndexedDB for next time
+ *
+ * NO server proxy for playback - only for downloads when user requests Boost
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { usePreferenceStore } from '../store/preferenceStore';
-import { getAudioStream, getVideoStream } from '../services/api';
-import { audioEngine, BufferStatus } from '../services/audioEngine';
+import { useDownloadStore } from '../store/downloadStore';
+import { getYouTubeIdForIframe } from '../services/api';
 
-// Constants for Spotify-beating optimization
-const PREFETCH_THRESHOLD = 50; // Start prefetch at 50% progress
-const BUFFER_WARNING_THRESHOLD = 8; // seconds - show warning (match audioEngine)
-const BUFFER_EMERGENCY_THRESHOLD = 3; // seconds - switch to low quality
-
-// Pre-buffer cache for next track (stores the URL we've pre-warmed)
-const preBufferCache = new Map<string, boolean>();
+type PlaybackMode = 'cached' | 'iframe';
 
 export const AudioPlayer = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const preBufferRef = useRef<HTMLAudioElement | null>(null);
+  const playerRef = useRef<YT.Player | null>(null);
+  const currentVideoId = useRef<string | null>(null);
+  const loadingRef = useRef<boolean>(false);
+
+  const [playbackMode, setPlaybackMode] = useState<PlaybackMode>('iframe');
 
   const {
     currentTrack,
     isPlaying,
-    isVideoMode,
     volume,
-    queue,
-    progress,
     seekPosition,
-    streamQuality,
     setCurrentTime,
     setDuration,
     setProgress,
     clearSeekPosition,
     nextTrack,
     setBufferHealth,
-    setPrefetchStatus,
-    detectNetworkQuality,
+    setPlaybackSource,
   } = usePlayerStore();
 
-  // Preference tracking
   const {
     startListenSession,
     endListenSession,
-    recordSkip,
-    recordCompletion,
   } = usePreferenceStore();
 
-  // Store the current stream URL to avoid refetching
-  const currentStreamUrl = useRef<string | null>(null);
-  const currentVideoId = useRef<string | null>(null);
-  const loadingRef = useRef<boolean>(false);
-  const isPlayingRef = useRef<boolean>(isPlaying); // Track isPlaying in ref to avoid stale closures
+  const {
+    initialize: initDownloads,
+    checkCache,
+  } = useDownloadStore();
 
-  // Preference tracking state
-  const sessionStartTime = useRef<number>(0);
   const lastTrackId = useRef<string | null>(null);
 
-  // Keep isPlayingRef in sync
+  // Initialize download system (IndexedDB)
   useEffect(() => {
-    isPlayingRef.current = isPlaying;
-  }, [isPlaying]);
+    initDownloads();
+  }, [initDownloads]);
 
-  // Detect network quality on mount
+  // Load YouTube IFrame API
   useEffect(() => {
-    detectNetworkQuality();
-  }, [detectNetworkQuality]);
+    if (typeof window !== 'undefined' && !(window as any).YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScript = document.getElementsByTagName('script')[0];
+      firstScript.parentNode?.insertBefore(tag, firstScript);
+    }
+  }, []);
 
-  // Monitor buffer health using AudioEngine
-  useEffect(() => {
-    const element = isVideoMode ? videoRef.current : audioRef.current;
-    if (!element) return;
+  // Initialize IFrame player
+  const initIframePlayer = useCallback((videoId: string) => {
+    if (!(window as any).YT?.Player) {
+      console.log('[VOYO] YT API not ready, retrying...');
+      setTimeout(() => initIframePlayer(videoId), 500);
+      return;
+    }
 
-    const checkBufferHealth = () => {
-      const health = audioEngine.getBufferHealth(element);
-      setBufferHealth(health.percentage, health.status);
-
-      // Log warnings
-      if (health.status === 'emergency') {
-        console.warn('[Buffer] EMERGENCY: Only', health.current.toFixed(1), 's buffered');
-      } else if (health.status === 'warning') {
-        console.warn('[Buffer] Warning:', health.current.toFixed(1), 's buffered');
+    // Destroy existing player
+    if (playerRef.current) {
+      try {
+        playerRef.current.destroy();
+      } catch (e) {
+        // Ignore
       }
-    };
+    }
 
-    const interval = setInterval(checkBufferHealth, 1000);
-    return () => clearInterval(interval);
-  }, [isVideoMode, setBufferHealth]);
+    const container = document.getElementById('voyo-yt-player');
+    if (!container) return;
 
-  // Get the active media element
-  const getActiveElement = useCallback(() => {
-    return isVideoMode ? videoRef.current : audioRef.current;
-  }, [isVideoMode]);
-
-  // Cleanup: End session when component unmounts
-  useEffect(() => {
-    return () => {
-      if (lastTrackId.current) {
-        const el = getActiveElement();
-        const listenDuration = el?.currentTime || 0;
-        console.log('[Prefs] Component unmounting, ending session');
-        endListenSession(listenDuration, 0);
-      }
-    };
-  }, [endListenSession, getActiveElement]);
-
-  // Load stream URL when track changes
-  useEffect(() => {
-    const loadStream = async () => {
-      if (!currentTrack?.trackId) {
-        currentStreamUrl.current = null;
-        currentVideoId.current = null;
-        return;
-      }
-
-      // Track changed - end previous session if exists
-      if (lastTrackId.current && lastTrackId.current !== currentTrack.id) {
-        const el = getActiveElement();
-        const listenDuration = el?.currentTime || 0;
-        console.log('[Prefs] Track changed, ending previous session');
-        endListenSession(listenDuration, 0);
-      }
-
-      // Same track - handle resume properly
-      if (currentVideoId.current === currentTrack.trackId && currentStreamUrl.current) {
-        const element = isVideoMode ? videoRef.current : audioRef.current;
-        if (element) {
-          // FIX: Check if element has a valid source and can play
-          if (element.readyState >= 2) {
-            // HAVE_CURRENT_DATA or better - can resume
-            if (isPlaying && element.paused) {
-              console.log('[AudioPlayer] Same track, resuming playback');
-              element.play().catch(err => {
-                console.error('[AudioPlayer] Resume failed, will reload:', err);
-                // If resume fails, reload the stream
-                currentStreamUrl.current = null;
-                currentVideoId.current = null;
-              });
-            }
-            return;
-          } else {
-            // Element isn't ready - reload the stream
-            console.log('[AudioPlayer] Same track but element not ready, reloading');
-            currentStreamUrl.current = null;
-            currentVideoId.current = null;
+    playerRef.current = new (window as any).YT.Player('voyo-yt-player', {
+      height: '1',
+      width: '1',
+      videoId: videoId,
+      playerVars: {
+        autoplay: isPlaying ? 1 : 0,
+        controls: 0,
+        disablekb: 1,
+        fs: 0,
+        modestbranding: 1,
+        rel: 0,
+        showinfo: 0,
+      },
+      events: {
+        onReady: (event: any) => {
+          console.log('[VOYO IFrame] Ready - Playing instantly');
+          event.target.setVolume(volume);
+          if (isPlaying) {
+            event.target.playVideo();
           }
-        }
+          setBufferHealth(100, 'healthy');
+        },
+        onStateChange: (event: any) => {
+          const state = event.data;
+          if (state === 0) { // ENDED
+            console.log('[VOYO IFrame] Track ended');
+            nextTrack();
+          } else if (state === 1) { // PLAYING
+            setBufferHealth(100, 'healthy');
+          } else if (state === 3) { // BUFFERING
+            setBufferHealth(50, 'warning');
+          }
+        },
+        onError: (event: any) => {
+          console.error('[VOYO IFrame] Error:', event.data);
+          setBufferHealth(0, 'emergency');
+        },
+      },
+    });
+  }, [isPlaying, volume, nextTrack, setBufferHealth]);
+
+  // Load track when it changes
+  useEffect(() => {
+    const loadTrack = async () => {
+      if (!currentTrack?.trackId) return;
+      if (loadingRef.current) return;
+      if (currentVideoId.current === currentTrack.trackId) return;
+
+      loadingRef.current = true;
+      currentVideoId.current = currentTrack.trackId;
+      console.log('[VOYO] Loading:', currentTrack.title);
+
+      // End previous session
+      if (lastTrackId.current && lastTrackId.current !== currentTrack.id) {
+        const el = audioRef.current;
+        endListenSession(el?.currentTime || 0, 0);
       }
 
-      // Start new preference session
+      // Start new session
       startListenSession(currentTrack.id);
-      sessionStartTime.current = Date.now();
       lastTrackId.current = currentTrack.id;
-      console.log('[Prefs] Started tracking:', currentTrack.title);
-
-      // Prevent duplicate loads
-      if (loadingRef.current) return;
-      loadingRef.current = true;
-
-      console.log('[AudioPlayer] Loading stream for:', currentTrack.title);
-      currentVideoId.current = currentTrack.trackId;
 
       try {
-        // Get audio or video stream based on mode
-        const streamUrl = isVideoMode
-          ? (await getVideoStream(currentTrack.trackId)).url
-          : await getAudioStream(currentTrack.trackId);
+        // 1. CHECK LOCAL CACHE FIRST (User's IndexedDB - Boosted tracks)
+        const cachedUrl = await checkCache(currentTrack.trackId);
 
-        if (streamUrl) {
-          console.log('[AudioPlayer] Got stream URL:', streamUrl);
-          currentStreamUrl.current = streamUrl;
+        if (cachedUrl) {
+          // ⚡ BOOSTED - Play from local cache (instant, offline-ready)
+          console.log('[VOYO] ⚡ BOOSTED - Playing from local cache');
+          setPlaybackMode('cached');
+          setPlaybackSource('cached');
 
-          const element = isVideoMode ? videoRef.current : audioRef.current;
-          if (element) {
-            // FIX: Clear any previous errors
-            element.src = '';
-            element.load();
+          if (audioRef.current) {
+            audioRef.current.src = cachedUrl;
+            audioRef.current.load();
 
-            // Set new source
-            element.src = streamUrl;
-            element.load();
-
-            // Wait for canplay event before trying to play
-            const handleCanPlay = () => {
-              // Use ref to get current isPlaying state (avoids stale closure)
-              console.log('[AudioPlayer] canplay event - isPlaying:', isPlayingRef.current);
-              if (isPlayingRef.current) {
-                element.play().catch(err => {
-                  console.error('[AudioPlayer] Autoplay failed:', err);
+            audioRef.current.oncanplay = () => {
+              if (isPlaying) {
+                audioRef.current?.play().catch(err => {
+                  console.error('[VOYO] Cached playback failed:', err);
                 });
               }
-              element.removeEventListener('canplay', handleCanPlay);
             };
-
-            // FIX: Handle errors and retry
-            const handleError = () => {
-              console.error('[AudioPlayer] Load error, clearing cache');
-              currentStreamUrl.current = null;
-              element.removeEventListener('error', handleError);
-            };
-
-            element.addEventListener('canplay', handleCanPlay);
-            element.addEventListener('error', handleError, { once: true });
           }
-        } else {
-          console.error('[AudioPlayer] Failed to get stream URL');
+          loadingRef.current = false;
+          return;
         }
+
+        // 2. NOT CACHED - Use IFrame for instant playback
+        // User can click "⚡ Boost HD" to download for next time
+        console.log('[VOYO] Not boosted - Using IFrame (instant start)');
+        setPlaybackMode('iframe');
+        setPlaybackSource('iframe');
+
+        const ytId = getYouTubeIdForIframe(currentTrack.trackId);
+        initIframePlayer(ytId);
+
       } catch (error) {
-        console.error('[AudioPlayer] Error loading stream:', error);
-        // Clear cache on error so next attempt will reload
-        currentStreamUrl.current = null;
-        currentVideoId.current = null;
+        console.error('[VOYO] Load error:', error);
+        // Fallback to IFrame
+        setPlaybackMode('iframe');
+        setPlaybackSource('iframe');
+        const ytId = getYouTubeIdForIframe(currentTrack.trackId);
+        initIframePlayer(ytId);
       } finally {
         loadingRef.current = false;
       }
     };
 
-    loadStream();
-  }, [currentTrack?.trackId, isVideoMode, isPlaying]);
+    loadTrack();
+  }, [currentTrack?.trackId, initIframePlayer, isPlaying, startListenSession, endListenSession, checkCache, setPlaybackSource]);
 
-  // PRE-BUFFER: Warm up next track in queue when current track is 50% played
+  // Handle play/pause
   useEffect(() => {
-    const nextTrackInQueue = queue[0]?.track;
-    if (!nextTrackInQueue || !currentTrack || isVideoMode) return;
-
-    // Check if we should pre-buffer (when > threshold of current track played)
-    const shouldPreBuffer = progress > PREFETCH_THRESHOLD && !preBufferCache.has(nextTrackInQueue.trackId);
-
-    if (shouldPreBuffer) {
-      console.log('[PreBuffer] Warming up next track:', nextTrackInQueue.title);
-      preBufferCache.set(nextTrackInQueue.trackId, true);
-      setPrefetchStatus(nextTrackInQueue.trackId, 'loading');
-
-      // Create hidden audio element to pre-load
-      const preBuffer = new Audio();
-      preBuffer.preload = 'auto';
-      preBuffer.volume = 0;
-
-      // Use the same API endpoint as the main player with quality parameter
-      const apiBase = import.meta.env.PROD
-        ? 'https://voyo-music-server-production.up.railway.app'
-        : 'http://localhost:3001';
-      preBuffer.src = `${apiBase}/cdn/stream/${nextTrackInQueue.trackId}?type=audio&quality=${streamQuality}`;
-
-      // Track when enough data is buffered
-      preBuffer.addEventListener('canplaythrough', () => {
-        console.log('[PreBuffer] Next track READY:', nextTrackInQueue.title);
-        setPrefetchStatus(nextTrackInQueue.trackId, 'ready');
-      }, { once: true });
-
-      preBuffer.addEventListener('loadedmetadata', () => {
-        console.log('[PreBuffer] Next track metadata loaded:', nextTrackInQueue.title);
-      }, { once: true });
-
-      preBuffer.addEventListener('error', () => {
-        console.error('[PreBuffer] Failed to pre-load:', nextTrackInQueue.title);
-        preBufferCache.delete(nextTrackInQueue.trackId);
-        setPrefetchStatus(nextTrackInQueue.trackId, 'error');
-      }, { once: true });
-
-      preBufferRef.current = preBuffer;
-      preBuffer.load();
-    }
-
-    return () => {
-      // Cleanup pre-buffer element when component updates
-      if (preBufferRef.current) {
-        preBufferRef.current.src = '';
-        preBufferRef.current = null;
+    if (playbackMode === 'cached' && audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.play().catch(err => {
+          console.error('[VOYO] Play failed:', err);
+        });
+      } else {
+        audioRef.current.pause();
       }
-    };
-  }, [progress, queue, currentTrack, isVideoMode, streamQuality, setPrefetchStatus]);
+    } else if (playbackMode === 'iframe' && playerRef.current) {
+      try {
+        if (isPlaying) {
+          playerRef.current.playVideo();
+        } else {
+          playerRef.current.pauseVideo();
+        }
+      } catch (e) {
+        // Player not ready yet
+      }
+    }
+  }, [isPlaying, playbackMode]);
 
-  // Clear pre-buffer cache when track changes (so next track can be pre-buffered)
+  // Handle volume
   useEffect(() => {
-    // When current track changes, clear cache for old tracks
-    preBufferCache.clear();
-  }, [currentTrack?.id]);
-
-  // Handle play/pause state changes
-  useEffect(() => {
-    const element = isVideoMode ? videoRef.current : audioRef.current;
-    if (!element) {
-      console.log('[AudioPlayer] Play/pause skipped - no element');
-      return;
+    if (playbackMode === 'cached' && audioRef.current) {
+      audioRef.current.volume = volume / 100;
+    } else if (playbackMode === 'iframe' && playerRef.current) {
+      try {
+        playerRef.current.setVolume(volume);
+      } catch (e) {
+        // Player not ready yet
+      }
     }
+  }, [volume, playbackMode]);
 
-    // If no stream URL yet, canplay handler will start playback when ready
-    if (!currentStreamUrl.current) {
-      console.log('[AudioPlayer] Play/pause skipped - waiting for stream URL');
-      return;
-    }
-
-    // Only act if element has a source loaded
-    if (!element.src || element.readyState < 1) {
-      console.log('[AudioPlayer] Play/pause skipped - element not ready');
-      return;
-    }
-
-    if (isPlaying) {
-      console.log('[AudioPlayer] Playing...');
-      element.play().catch(err => {
-        console.error('[AudioPlayer] Play failed:', err);
-      });
-    } else {
-      console.log('[AudioPlayer] Pausing...');
-      element.pause();
-    }
-  }, [isPlaying, isVideoMode]);
-
-  // Handle volume changes
-  useEffect(() => {
-    const audio = audioRef.current;
-    const video = videoRef.current;
-    const vol = volume / 100; // Store has 0-100, audio wants 0-1
-
-    if (audio) audio.volume = vol;
-    if (video) video.volume = vol;
-  }, [volume]);
-
-  // Handle seek requests (when user scrubs or clicks progress)
+  // Handle seek
   useEffect(() => {
     if (seekPosition === null) return;
 
-    const element = isVideoMode ? videoRef.current : audioRef.current;
-    if (element && element.readyState >= 1) {
-      console.log('[AudioPlayer] Seeking to:', seekPosition);
-      element.currentTime = seekPosition;
-      clearSeekPosition();
+    if (playbackMode === 'cached' && audioRef.current) {
+      audioRef.current.currentTime = seekPosition;
+    } else if (playbackMode === 'iframe' && playerRef.current) {
+      try {
+        playerRef.current.seekTo(seekPosition, true);
+      } catch (e) {
+        // Player not ready yet
+      }
     }
-  }, [seekPosition, isVideoMode, clearSeekPosition]);
+    clearSeekPosition();
+  }, [seekPosition, clearSeekPosition, playbackMode]);
 
-  // Time update handler
+  // IFrame time tracking
+  useEffect(() => {
+    if (playbackMode !== 'iframe') return;
+
+    const interval = setInterval(() => {
+      if (playerRef.current) {
+        try {
+          const currentTime = playerRef.current.getCurrentTime();
+          const duration = playerRef.current.getDuration();
+          if (duration) {
+            setCurrentTime(currentTime);
+            setDuration(duration);
+            setProgress((currentTime / duration) * 100);
+          }
+        } catch (e) {
+          // Player not ready
+        }
+      }
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [playbackMode, setCurrentTime, setDuration, setProgress]);
+
+  // Audio element event handlers (for cached playback)
   const handleTimeUpdate = useCallback(() => {
-    const el = getActiveElement();
+    const el = audioRef.current;
     if (el && el.duration) {
       setCurrentTime(el.currentTime);
       setProgress((el.currentTime / el.duration) * 100);
     }
-  }, [getActiveElement, setCurrentTime, setProgress]);
+  }, [setCurrentTime, setProgress]);
 
-  // Duration change handler
   const handleDurationChange = useCallback(() => {
-    const el = getActiveElement();
+    const el = audioRef.current;
     if (el && el.duration) {
       setDuration(el.duration);
     }
-  }, [getActiveElement, setDuration]);
+  }, [setDuration]);
 
-  // Track ended handler
   const handleEnded = useCallback(() => {
-    console.log('[AudioPlayer] Track ended, playing next');
-
-    // Record completion before moving to next track
-    const el = getActiveElement();
+    console.log('[VOYO] Track ended');
+    const el = audioRef.current;
     if (el && currentTrack) {
-      const listenDuration = el.currentTime;
-      console.log('[Prefs] Track completed:', currentTrack.title);
-      endListenSession(listenDuration, 0); // TODO: pass actual reaction count
+      endListenSession(el.currentTime, 0);
     }
-
     nextTrack();
-  }, [nextTrack, currentTrack, endListenSession, getActiveElement]);
+  }, [nextTrack, currentTrack, endListenSession]);
 
-  // Error handler
-  const handleError = useCallback((e: Event) => {
-    const el = e.target as HTMLMediaElement;
-    console.error('[AudioPlayer] Playback error:', el.error?.message);
-  }, []);
+  const handleProgress = useCallback(() => {
+    const el = audioRef.current;
+    if (!el || !el.buffered.length) return;
 
-  // Attach event listeners
-  useEffect(() => {
-    const audio = audioRef.current;
-    const video = videoRef.current;
+    const bufferedEnd = el.buffered.end(el.buffered.length - 1);
+    const duration = el.duration || 1;
+    const bufferPercent = (bufferedEnd / duration) * 100;
 
-    const attachListeners = (el: HTMLMediaElement | null) => {
-      if (!el) return;
-      el.addEventListener('timeupdate', handleTimeUpdate);
-      el.addEventListener('durationchange', handleDurationChange);
-      el.addEventListener('ended', handleEnded);
-      el.addEventListener('error', handleError);
-    };
+    if (bufferPercent > 80) {
+      setBufferHealth(100, 'healthy');
+    } else if (bufferPercent > 30) {
+      setBufferHealth(bufferPercent, 'warning');
+    } else {
+      setBufferHealth(bufferPercent, 'emergency');
+    }
+  }, [setBufferHealth]);
 
-    const removeListeners = (el: HTMLMediaElement | null) => {
-      if (!el) return;
-      el.removeEventListener('timeupdate', handleTimeUpdate);
-      el.removeEventListener('durationchange', handleDurationChange);
-      el.removeEventListener('ended', handleEnded);
-      el.removeEventListener('error', handleError);
-    };
+  const handlePlaying = useCallback(() => {
+    setBufferHealth(100, 'healthy');
+  }, [setBufferHealth]);
 
-    attachListeners(audio);
-    attachListeners(video);
-
-    return () => {
-      removeListeners(audio);
-      removeListeners(video);
-    };
-  }, [handleTimeUpdate, handleDurationChange, handleEnded, handleError]);
+  const handleWaiting = useCallback(() => {
+    setBufferHealth(50, 'warning');
+  }, [setBufferHealth]);
 
   return (
     <>
-      {/* Hidden audio element - always renders */}
+      {/* HTML5 Audio (for cached/boosted tracks) */}
       <audio
         ref={audioRef}
         preload="auto"
+        onTimeUpdate={handleTimeUpdate}
+        onDurationChange={handleDurationChange}
+        onEnded={handleEnded}
+        onProgress={handleProgress}
+        onPlaying={handlePlaying}
+        onWaiting={handleWaiting}
         style={{ display: 'none' }}
       />
 
-      {/* Hidden video element - for video mode */}
-      <video
-        ref={videoRef}
-        preload="auto"
-        playsInline
-        style={{ display: 'none' }}
+      {/* YouTube IFrame (for non-boosted tracks - hidden) */}
+      <div
+        id="voyo-yt-player"
+        style={{
+          position: 'fixed',
+          top: -9999,
+          left: -9999,
+          width: 1,
+          height: 1,
+          opacity: 0,
+          pointerEvents: 'none',
+        }}
       />
     </>
   );

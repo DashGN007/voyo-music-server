@@ -1,60 +1,44 @@
 /**
- * VOYO Music - Backend API Service
- * STEALTH MODE: Uses VOYO IDs to hide YouTube traces
+ * VOYO Music - Production API Service
+ *
+ * HYBRID EXTRACTION SYSTEM:
+ * 1. Cloudflare Worker (edge) - Direct high-quality URLs when available
+ * 2. Fly.io Backend - Search, thumbnails, fallback streaming
+ * 3. YouTube IFrame - Ultimate fallback for protected content
+ *
+ * Dark Mode: No third-party APIs, full control, VOYO branding
  */
 
-// Use production backend in production, localhost in dev
-// Override with VITE_BACKEND_URL env var to force production in dev
-export const API_BASE = import.meta.env.VITE_BACKEND_URL
-  || (import.meta.env.PROD
-    ? 'https://voyo-music-server-production.up.railway.app'
-    : 'http://localhost:3001');
+// Production endpoints
+const API_URL = 'https://voyo-music-api.fly.dev';
+const EDGE_WORKER_URL = 'https://voyo-edge.dash-webtv.workers.dev';
 
 export interface SearchResult {
-  voyoId: string;  // STEALTH: VOYO ID (vyo_XXXXX) instead of YouTube ID
+  voyoId: string;
   title: string;
   artist: string;
   duration: number;
-  thumbnail: string;  // Points to /cdn/art/vyo_XXXXX
+  thumbnail: string;
   views: number;
 }
 
 export interface StreamResponse {
   url: string;
   audioUrl: string;
-  videoId: string;  // Actually a VOYO ID in stealth mode
+  videoId: string;
   type: 'audio' | 'video';
+  quality?: string;
 }
 
 /**
- * Search VOYO Music library - YouTube only (STEALTH: Returns VOYO IDs)
- */
-export async function searchYouTube(query: string, limit: number = 10): Promise<SearchResult[]> {
-  try {
-    const response = await fetch(
-      `${API_BASE}/api/search?q=${encodeURIComponent(query)}&limit=${limit}`
-    );
-
-    if (!response.ok) {
-      throw new Error(`Search failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.results || [];
-  } catch (error) {
-    console.error('[API] YouTube search error:', error);
-    throw error;
-  }
-}
-
-/**
- * Search VOYO Music library - Combined seed data + YouTube
- * Returns seed data matches first, then YouTube results
+ * Search music - Uses our backend with yt-dlp
  */
 export async function searchMusic(query: string, limit: number = 10): Promise<SearchResult[]> {
   try {
+    console.log(`[VOYO API] Searching: ${query}`);
     const response = await fetch(
-      `${API_BASE}/api/search?q=${encodeURIComponent(query)}&limit=${limit}`
+      `${API_URL}/api/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+      { signal: AbortSignal.timeout(15000) }
     );
 
     if (!response.ok) {
@@ -62,59 +46,237 @@ export async function searchMusic(query: string, limit: number = 10): Promise<Se
     }
 
     const data = await response.json();
-    return data.results || [];
+
+    // Transform to VOYO format (backend returns VOYO IDs)
+    return (data.results || []).map((item: any) => ({
+      voyoId: item.id || item.voyoId,
+      title: item.title,
+      artist: item.artist || 'Unknown Artist',
+      duration: item.duration || 0,
+      thumbnail: `${API_URL}/cdn/art/${item.id || item.voyoId}`,
+      views: item.views || 0,
+    }));
   } catch (error) {
-    console.error('[API] Search error:', error);
+    console.error('[VOYO API] Search error:', error);
     throw error;
   }
 }
 
+// Alias for backward compatibility
+export const searchYouTube = searchMusic;
+
 /**
- * Get stream URL for a VOYO track (STEALTH: Accepts VOYO IDs)
- * @param voyoId VOYO track ID (vyo_XXXXX)
- * @param type 'audio' for music mode, 'video' for video mode
+ * Decode VOYO ID to YouTube ID
+ * VOYO IDs are base64url encoded with 'vyo_' prefix
  */
-export async function getStream(voyoId: string, type: 'audio' | 'video' = 'audio'): Promise<StreamResponse> {
+function decodeVoyoId(voyoId: string): string {
+  if (!voyoId.startsWith('vyo_')) {
+    // Already a YouTube ID
+    return voyoId;
+  }
+
+  const encoded = voyoId.substring(4);
+  let base64 = encoded
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+
+  // Add padding
+  while (base64.length % 4 !== 0) {
+    base64 += '=';
+  }
+
   try {
-    console.log(`[API] Getting ${type} stream for: ${voyoId}`);
-    const streamUrl = `${API_BASE}/cdn/stream/${voyoId}?type=${type}`;
+    return atob(base64);
+  } catch {
+    console.warn('[VOYO] Failed to decode VOYO ID:', voyoId);
+    return voyoId;
+  }
+}
+
+/**
+ * Edge Worker extraction result
+ */
+export interface EdgeStreamResult {
+  url: string;
+  mimeType: string;
+  bitrate: number;
+  title: string;
+  client: string;
+}
+
+/**
+ * Try Cloudflare Edge Worker for direct audio URL
+ * Returns null if blocked (fallback needed)
+ */
+export async function tryEdgeExtraction(voyoId: string): Promise<EdgeStreamResult | null> {
+  const youtubeId = decodeVoyoId(voyoId);
+
+  try {
+    console.log(`[VOYO Edge] Trying worker for: ${youtubeId}`);
+    const response = await fetch(`${EDGE_WORKER_URL}/stream?v=${youtubeId}`, {
+      signal: AbortSignal.timeout(8000)
+    });
+
+    const data = await response.json();
+
+    if (data.url) {
+      console.log(`[VOYO Edge] SUCCESS via ${data.client}: ${data.bitrate}bps`);
+      return data as EdgeStreamResult;
+    }
+
+    console.log(`[VOYO Edge] Blocked: ${data.error || 'No URL returned'}`);
+    return null;
+  } catch (error) {
+    console.warn('[VOYO Edge] Worker error:', error);
+    return null;
+  }
+}
+
+/**
+ * Stream response from server
+ */
+export interface StreamResult {
+  url: string;
+  cached: boolean;
+  boosting: boolean;
+  source: 'voyo_cache' | 'youtube_direct';
+  quality: string;
+}
+
+/**
+ * Get audio stream URL - VOYO BOOST SYSTEM
+ *
+ * Flow:
+ * 1. If cached on server: Returns our cached URL (fast, high quality)
+ * 2. If not cached: Returns YouTube URL + starts background download
+ * 3. Next play of same track: Served from cache
+ *
+ * Browser plays DIRECTLY from URL (user's residential IP for YouTube,
+ * or our server for cached content)
+ */
+export async function getAudioStream(videoId: string, quality: string = 'high'): Promise<string> {
+  const youtubeId = decodeVoyoId(videoId);
+
+  try {
+    console.log(`[VOYO] Getting stream for: ${youtubeId}`);
+
+    const response = await fetch(`${API_URL}/stream?v=${youtubeId}&quality=${quality}`, {
+      signal: AbortSignal.timeout(15000)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.url) {
+      // Log what we got
+      if (data.cached) {
+        console.log(`[VOYO] 🚀 BOOSTED - Serving from VOYO cache`);
+      } else {
+        console.log(`[VOYO] ▶️ First play - YouTube direct`);
+        if (data.boosting) {
+          console.log(`[VOYO] ⏳ Boost in progress - next play will be cached`);
+        }
+      }
+
+      return data.url;
+    }
+
+    throw new Error(data.error || 'No URL returned');
+
+  } catch (err) {
+    console.error('[VOYO] Extraction failed:', err);
+    return `iframe:${youtubeId}`;
+  }
+}
+
+/**
+ * Get full stream info (for UI to show boost status)
+ */
+export async function getStreamInfo(videoId: string, quality: string = 'high'): Promise<StreamResult | null> {
+  const youtubeId = decodeVoyoId(videoId);
+
+  try {
+    const response = await fetch(`${API_URL}/stream?v=${youtubeId}&quality=${quality}`, {
+      signal: AbortSignal.timeout(15000)
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (!data.url) return null;
 
     return {
-      url: streamUrl,
-      audioUrl: streamUrl,
-      videoId: voyoId,
-      type
+      url: data.url,
+      cached: data.cached || false,
+      boosting: data.boosting || false,
+      source: data.source || 'youtube_direct',
+      quality: data.quality || quality
     };
-  } catch (error) {
-    console.error('[API] Stream error:', error);
-    throw error;
+  } catch {
+    return null;
   }
 }
 
 /**
- * Get audio stream URL (STEALTH: Uses CDN endpoint with VOYO ID)
+ * Get YouTube ID for IFrame fallback
  */
-export async function getAudioStream(voyoId: string): Promise<string> {
-  return `${API_BASE}/cdn/stream/${voyoId}?type=audio`;
+export function getYouTubeIdForIframe(voyoId: string): string {
+  return decodeVoyoId(voyoId);
 }
 
 /**
- * Get video stream URL (STEALTH: Uses CDN endpoint with VOYO ID)
+ * Get video stream URL
  */
-export async function getVideoStream(voyoId: string): Promise<StreamResponse> {
+export async function getVideoStream(videoId: string): Promise<StreamResponse> {
+  const url = `${API_URL}/cdn/stream/${videoId}?type=video`;
   return {
-    url: `${API_BASE}/cdn/stream/${voyoId}?type=video`,
-    audioUrl: `${API_BASE}/cdn/stream/${voyoId}?type=audio`,
-    videoId: voyoId,
-    type: 'video'
+    url,
+    audioUrl: `${API_URL}/cdn/stream/${videoId}`,
+    videoId,
+    type: 'video',
   };
 }
 
 /**
- * Get thumbnail URL for VOYO track (STEALTH: Uses CDN endpoint)
+ * Get stream (generic)
  */
-export function getThumbnailUrl(voyoId: string, quality: 'default' | 'medium' | 'high' | 'max' = 'high'): string {
-  return `${API_BASE}/cdn/art/${voyoId}?quality=${quality}`;
+export async function getStream(videoId: string, type: 'audio' | 'video' = 'audio'): Promise<StreamResponse> {
+  if (type === 'video') {
+    return getVideoStream(videoId);
+  }
+
+  const audioUrl = await getAudioStream(videoId);
+  return {
+    url: audioUrl,
+    audioUrl,
+    videoId,
+    type: 'audio',
+  };
+}
+
+/**
+ * Get video details (for metadata)
+ */
+export async function getVideoDetails(videoId: string): Promise<any> {
+  try {
+    const response = await fetch(`${API_URL}/stream?v=${videoId}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    return response.json();
+  } catch (error) {
+    console.error('[VOYO API] Video details error:', error);
+    return null;
+  }
+}
+
+/**
+ * Get thumbnail URL - Proxied through our backend
+ */
+export function getThumbnailUrl(videoId: string, quality: 'default' | 'medium' | 'high' | 'max' = 'high'): string {
+  return `${API_URL}/cdn/art/${videoId}?quality=${quality}`;
 }
 
 /**
@@ -122,7 +284,9 @@ export function getThumbnailUrl(voyoId: string, quality: 'default' | 'medium' | 
  */
 export async function healthCheck(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE}/health`);
+    const response = await fetch(`${API_URL}/health`, {
+      signal: AbortSignal.timeout(5000),
+    });
     return response.ok;
   } catch {
     return false;
@@ -130,154 +294,131 @@ export async function healthCheck(): Promise<boolean> {
 }
 
 /**
- * PREFETCH: Warm up a track on server-side for instant playback
- * Non-blocking - returns immediately with 202 Accepted
- * Server caches the stream URL so subsequent requests are instant
- * @param trackId VOYO track ID (vyo_XXXXX) or raw YouTube ID
- * @param quality Stream quality level (low/medium/high)
+ * Get trending music
  */
-export async function prefetchTrack(trackId: string, quality: 'low' | 'medium' | 'high' = 'high'): Promise<boolean> {
+export async function getTrending(region: string = 'US'): Promise<SearchResult[]> {
   try {
-    // Fire and forget - don't await, just trigger
-    fetch(`${API_BASE}/prefetch?v=${trackId}&quality=${quality}`, {
-      method: 'GET',
-    }).catch(() => {
-      // Ignore errors - prefetch is best effort
-    });
-    console.log(`[API] Prefetch triggered for: ${trackId}`);
-    return true;
+    // Use search with trending terms as fallback
+    return searchMusic('trending music 2025', 20);
   } catch (error) {
-    console.warn('[API] Prefetch error (non-critical):', error);
+    console.error('[VOYO API] Trending error:', error);
+    return [];
+  }
+}
+
+/**
+ * Prefetch - Warm up stream URL in backend cache
+ */
+export async function prefetchTrack(trackId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/prefetch?v=${trackId}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    console.log(`[VOYO API] Prefetch ${trackId}: ${response.ok ? 'warming' : 'failed'}`);
+    return response.ok;
+  } catch (error) {
+    console.warn('[VOYO API] Prefetch error:', error);
+    return false;
+  }
+}
+
+// ============================================
+// OFFLINE MODE - NOW AVAILABLE WITH BACKEND!
+// ============================================
+
+/**
+ * Check if track is downloaded
+ */
+export async function isDownloaded(trackId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/downloaded`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    const data = await response.json();
+    return (data.downloads || []).includes(trackId);
+  } catch {
     return false;
   }
 }
 
 /**
- * OFFLINE MODE - Download Management
- * Note: Download features use YouTube IDs internally but can work with VOYO IDs
- */
-
-let downloadedTracksCache: Set<string> | null = null;
-
-/**
- * Initialize the downloads cache
- */
-export async function initDownloadsCache(): Promise<void> {
-  const tracks = await getDownloadedTracks();
-  downloadedTracksCache = new Set(tracks);
-  console.log(`[Downloads] Cache initialized with ${tracks.length} tracks`);
-}
-
-/**
- * Check if a track is downloaded
- */
-export async function isDownloaded(trackId: string): Promise<boolean> {
-  if (downloadedTracksCache === null) {
-    await initDownloadsCache();
-  }
-  return downloadedTracksCache?.has(trackId) || false;
-}
-
-/**
- * Download a track for offline playback
+ * Download track for offline playback
  */
 export async function downloadTrack(trackId: string): Promise<boolean> {
   try {
-    console.log(`[API] Downloading track: ${trackId}`);
-    const response = await fetch(`${API_BASE}/download?v=${trackId}`);
-
-    if (!response.ok) {
-      throw new Error(`Download failed: ${response.status}`);
-    }
-
+    console.log(`[VOYO API] Downloading: ${trackId}`);
+    const response = await fetch(`${API_URL}/download?v=${trackId}`, {
+      signal: AbortSignal.timeout(60000), // 1 minute for download
+    });
     const data = await response.json();
-    if (data.success) {
-      if (downloadedTracksCache === null) {
-        await initDownloadsCache();
-      }
-      downloadedTracksCache?.add(trackId);
-      console.log(`[API] Download complete: ${trackId}`);
-      return true;
-    }
-    return false;
+    return data.success === true;
   } catch (error) {
-    console.error('[API] Download error:', error);
+    console.error('[VOYO API] Download error:', error);
     return false;
   }
 }
 
 /**
- * Get offline playback URL
- * Tries multiple audio formats to find the downloaded file
+ * Get offline URL for downloaded track
  */
 export async function getOfflineUrl(trackId: string): Promise<string | null> {
   const downloaded = await isDownloaded(trackId);
-  if (!downloaded) {
-    return null;
+  if (downloaded) {
+    return `${API_URL}/downloads/${trackId}.mp3`;
   }
-
-  // Try different formats (backend supports mp3, m4a, webm, opus)
-  const formats = ['mp3', 'm4a', 'webm', 'opus'];
-
-  for (const format of formats) {
-    const testUrl = `${API_BASE}/downloads/${trackId}.${format}`;
-    try {
-      // Quick HEAD request to check if file exists
-      const response = await fetch(testUrl, { method: 'HEAD' });
-      if (response.ok) {
-        return testUrl;
-      }
-    } catch (e) {
-      // Continue to next format
-    }
-  }
-
-  // Fallback to mp3 (most common)
-  return `${API_BASE}/downloads/${trackId}.mp3`;
+  return null;
 }
 
 /**
- * Delete a downloaded track
+ * Delete downloaded track
  */
 export async function deleteDownload(trackId: string): Promise<boolean> {
   try {
-    console.log(`[API] Deleting download: ${trackId}`);
-    const response = await fetch(`${API_BASE}/download?v=${trackId}`, {
-      method: 'DELETE'
+    const response = await fetch(`${API_URL}/download?v=${trackId}`, {
+      method: 'DELETE',
+      signal: AbortSignal.timeout(5000),
     });
-
-    if (!response.ok) {
-      throw new Error(`Delete failed: ${response.status}`);
-    }
-
     const data = await response.json();
-    if (data.success) {
-      downloadedTracksCache?.delete(trackId);
-      console.log(`[API] Download deleted: ${trackId}`);
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error('[API] Delete error:', error);
+    return data.success === true;
+  } catch {
     return false;
   }
 }
 
 /**
- * Get all downloaded track IDs
+ * Get list of downloaded tracks
  */
 export async function getDownloadedTracks(): Promise<string[]> {
   try {
-    const response = await fetch(`${API_BASE}/downloaded`);
-
-    if (!response.ok) {
-      throw new Error(`Fetch downloads failed: ${response.status}`);
-    }
-
+    const response = await fetch(`${API_URL}/downloaded`, {
+      signal: AbortSignal.timeout(5000),
+    });
     const data = await response.json();
     return data.downloads || [];
-  } catch (error) {
-    console.error('[API] Get downloads error:', error);
+  } catch {
     return [];
   }
+}
+
+/**
+ * Initialize downloads cache (no-op, backend handles it)
+ */
+export async function initDownloadsCache(): Promise<void> {
+  // Backend maintains its own cache
+}
+
+// ============================================
+// INSTANCE MANAGEMENT (for debugging)
+// ============================================
+
+export function getCurrentInstance(): string {
+  return API_URL;
+}
+
+export function getAvailableInstances(): string[] {
+  return [API_URL];
+}
+
+export function forceRotateInstance(): string {
+  return API_URL; // Single instance, no rotation needed
 }

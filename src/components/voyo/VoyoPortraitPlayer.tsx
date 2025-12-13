@@ -12,14 +12,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Maximize2, Film
+  Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Maximize2, Film, Settings
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
+import { useDownloadStore } from '../../store/downloadStore';
 import { getThumbnailUrl, getTrackThumbnailUrl } from '../../utils/imageHelpers';
 import { Track, ReactionType } from '../../types';
 import { SmartImage } from '../ui/SmartImage';
 import { unlockMobileAudio, isMobileDevice } from '../../utils/mobileAudioUnlock';
 import { useMobilePlay } from '../../hooks/useMobilePlay';
+import { BoostButton, AutoBoostPrompt } from '../ui/BoostButton';
+import { BoostSettings } from '../ui/BoostSettings';
+import { BoostIndicator } from '../ui/BoostIndicator';
 
 // ============================================
 // FULLSCREEN BACKGROUND LAYER - Album art with dark overlay
@@ -1083,6 +1087,8 @@ export const VoyoPortraitPlayer = ({
   const [isBackdropLibraryOpen, setIsBackdropLibraryOpen] = useState(false);
   // State for fullscreen video mode
   const [isFullscreenVideo, setIsFullscreenVideo] = useState(false);
+  // State for boost settings panel
+  const [isBoostSettingsOpen, setIsBoostSettingsOpen] = useState(false);
 
   // SCRUB STATE - Hold prev/next to scrub time
   const [isScrubbing, setIsScrubbing] = useState(false);
@@ -1392,7 +1398,27 @@ export const VoyoPortraitPlayer = ({
           scrubDirection={scrubDirection}
         />
 
-        {/* 3. REACTIONS */}
+        {/* 3. BOOST + REACTIONS ROW */}
+        <div className="flex items-center justify-center gap-3 mb-2 z-30">
+          {/* Boost Button */}
+          <BoostButton variant="compact" />
+
+          {/* Boost Status Indicator */}
+          <BoostIndicator />
+
+          {/* Boost Settings */}
+          <motion.button
+            onClick={() => setIsBoostSettingsOpen(true)}
+            className="p-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            title="Boost Settings"
+          >
+            <Settings size={12} className="text-gray-400" />
+          </motion.button>
+        </div>
+
+        {/* 4. REACTIONS */}
         <ReactionBar onReaction={handleReaction} />
       </div>
 
@@ -1489,6 +1515,15 @@ export const VoyoPortraitPlayer = ({
         </div>
 
       </div>
+
+      {/* BOOST SETTINGS PANEL */}
+      <BoostSettings
+        isOpen={isBoostSettingsOpen}
+        onClose={() => setIsBoostSettingsOpen(false)}
+      />
+
+      {/* AUTO-BOOST PROMPT (shows after 3 manual boosts) */}
+      <AutoBoostPrompt />
 
     </div>
   );

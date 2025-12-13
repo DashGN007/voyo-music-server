@@ -9,7 +9,8 @@ import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from '
 import { Search, X, Loader2, Music2, Clock, Play, Plus, ListPlus, Compass, Disc3 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import { Track } from '../../types';
-import { searchMusic, SearchResult, API_BASE } from '../../services/api';
+import { searchMusic, SearchResult } from '../../services/api';
+import { getThumb } from '../../utils/thumbnail';
 import { TRACKS } from '../../data/tracks';
 
 interface SearchOverlayProps {
@@ -270,6 +271,7 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { setCurrentTrack, addToQueue, queue } = usePlayerStore();
 
   // Sync queue items from store
@@ -325,25 +327,30 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
              tags.includes(query);
     });
 
-    // Convert Track to SearchResult format (seed data uses raw YouTube IDs, not VOYO IDs)
-    // Use centralized API_BASE from api.ts
-
+    // Convert Track to SearchResult format
     return matches.slice(0, 5).map(track => ({
-      voyoId: track.trackId, // Seed data has raw YouTube IDs, backend will accept both
+      voyoId: track.trackId, // Seed data has raw YouTube IDs
       title: track.title,
       artist: track.artist,
       duration: track.duration,
-      thumbnail: `${API_BASE}/cdn/art/${track.trackId}`, // Use backend CDN endpoint for consistency
-      views: track.oyeScore, // Use oyeScore as views
+      thumbnail: getThumb(track.trackId), // Direct YouTube thumbnail
+      views: track.oyeScore,
     }));
   }, []);
 
   // Hybrid search: seed data first, then YouTube
   const performSearch = useCallback(async (searchQuery: string) => {
-    if (!searchQuery.trim()) {
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
       setResults([]);
       return;
     }
+
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     setIsSearching(true);
     setError(null);
     try {
@@ -355,19 +362,28 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
         setResults(seedResults);
       }
 
-      // 2. Search YouTube (async, may take longer)
-      const youtubeResults = await searchMusic(searchQuery, 15);
+      // 2. Search YouTube (async, may take longer) - only if 3+ chars
+      if (searchQuery.trim().length >= 3) {
+        const youtubeResults = await searchMusic(searchQuery, 15);
 
-      // 3. Merge results, prioritizing seed data
-      // Remove YouTube duplicates (if same trackId/voyoId exists in seed)
-      const seedIds = new Set(seedResults.map(r => r.voyoId));
-      const uniqueYoutubeResults = youtubeResults.filter(r => !seedIds.has(r.voyoId));
+        // Check if this request was aborted
+        if (abortControllerRef.current?.signal.aborted) {
+          return;
+        }
 
-      // Combine: seed first, then YouTube
-      const mergedResults = [...seedResults, ...uniqueYoutubeResults];
-      setResults(mergedResults);
-      saveToHistory(searchQuery);
-    } catch (err) {
+        // 3. Merge results, prioritizing seed data
+        const seedIds = new Set(seedResults.map(r => r.voyoId));
+        const uniqueYoutubeResults = youtubeResults.filter(r => !seedIds.has(r.voyoId));
+
+        // Combine: seed first, then YouTube
+        const mergedResults = [...seedResults, ...uniqueYoutubeResults];
+        setResults(mergedResults);
+        saveToHistory(searchQuery);
+      }
+    } catch (err: any) {
+      // Ignore abort errors
+      if (err?.name === 'AbortError') return;
+
       console.error('[SearchOverlay] Search error:', err);
       // Still show seed results even if YouTube fails
       const seedResults = searchSeedData(searchQuery);
@@ -386,7 +402,8 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
   const handleSearch = (value: string) => {
     setQuery(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => performSearch(value), 300);
+    // 500ms debounce to avoid flooding server with requests
+    debounceRef.current = setTimeout(() => performSearch(value), 500);
   };
 
   // Convert search result to track

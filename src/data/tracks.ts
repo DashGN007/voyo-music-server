@@ -1,32 +1,12 @@
 // VOYO Music - Seed Data (African Bangers with REAL YouTube IDs)
 import { Track, Playlist, MoodTunnel, Reaction } from '../types';
+import { getThumb } from '../utils/thumbnail';
 
-// YouTube thumbnail quality mappings
-const YOUTUBE_QUALITY_MAP = {
-  default: 'default',      // 120x90
-  medium: 'mqdefault',     // 320x180
-  high: 'hqdefault',       // 480x360
-  max: 'maxresdefault',    // 1280x720 (may not exist for all videos)
-};
+// Re-export thumbnail utilities for backward compatibility
+export { getThumb as getThumbnailUrl, getThumb as getYouTubeThumbnail, getThumbWithFallback as getThumbnailWithFallback } from '../utils/thumbnail';
 
-// Helper to get YouTube thumbnail URL directly
-export const getThumbnailUrl = (trackId: string, quality: 'default' | 'medium' | 'high' | 'max' = 'high') => {
-  const ytQuality = YOUTUBE_QUALITY_MAP[quality];
-  return `https://i.ytimg.com/vi/${trackId}/${ytQuality}.jpg`;
-};
-
-// Alias for backward compatibility (same as getThumbnailUrl)
-export const getYouTubeThumbnail = (trackId: string, quality: 'default' | 'medium' | 'high' | 'max' = 'high') => {
-  const ytQuality = YOUTUBE_QUALITY_MAP[quality];
-  return `https://i.ytimg.com/vi/${trackId}/${ytQuality}.jpg`;
-};
-
-// Get multiple thumbnail URLs for fallback
-export const getThumbnailWithFallback = (trackId: string) => ({
-  primary: `https://i.ytimg.com/vi/${trackId}/maxresdefault.jpg`,
-  fallback: `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg`,
-  fallback2: `https://i.ytimg.com/vi/${trackId}/mqdefault.jpg`,
-});
+// Local alias for internal use
+const getThumbnailUrl = getThumb;
 
 // ============================================
 // MOOD TUNNELS

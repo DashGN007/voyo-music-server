@@ -1,0 +1,351 @@
+/**
+ * VOYO Download Manager - Spotify-style local caching
+ *
+ * Auto-downloads songs to user's device for:
+ * - Offline playback
+ * - Faster load times
+ * - Data savings on repeat plays
+ * - High quality "Boosted" versions
+ */
+
+const DB_NAME = 'voyo-music-cache';
+const DB_VERSION = 1;
+const STORE_NAME = 'audio-files';
+const META_STORE = 'track-meta';
+
+interface CachedTrack {
+  id: string;
+  blob: Blob;
+  mimeType: string;
+  size: number;
+  downloadedAt: number;
+  playCount: number;
+  quality: 'standard' | 'boosted';
+}
+
+interface TrackMeta {
+  id: string;
+  title: string;
+  artist: string;
+  duration: number;
+  thumbnail: string;
+  quality: 'standard' | 'boosted';
+  size: number;
+  downloadedAt: number;
+}
+
+let db: IDBDatabase | null = null;
+
+/**
+ * Initialize IndexedDB
+ */
+export async function initDB(): Promise<IDBDatabase> {
+  if (db) return db;
+
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onerror = () => reject(request.error);
+
+    request.onsuccess = () => {
+      db = request.result;
+      resolve(db);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const database = (event.target as IDBOpenDBRequest).result;
+
+      // Store for audio blobs
+      if (!database.objectStoreNames.contains(STORE_NAME)) {
+        database.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      }
+
+      // Store for track metadata
+      if (!database.objectStoreNames.contains(META_STORE)) {
+        const metaStore = database.createObjectStore(META_STORE, { keyPath: 'id' });
+        metaStore.createIndex('downloadedAt', 'downloadedAt', { unique: false });
+      }
+    };
+  });
+}
+
+/**
+ * Check if track is cached locally
+ */
+export async function isTrackCached(trackId: string): Promise<boolean> {
+  try {
+    const database = await initDB();
+    return new Promise((resolve) => {
+      const transaction = database.transaction(STORE_NAME, 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(trackId);
+
+      request.onsuccess = () => resolve(!!request.result);
+      request.onerror = () => resolve(false);
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get cached track URL (creates blob URL)
+ */
+export async function getCachedTrackUrl(trackId: string): Promise<string | null> {
+  try {
+    const database = await initDB();
+    return new Promise((resolve) => {
+      const transaction = database.transaction(STORE_NAME, 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(trackId);
+
+      request.onsuccess = () => {
+        const cached = request.result as CachedTrack | undefined;
+        if (cached?.blob) {
+          const url = URL.createObjectURL(cached.blob);
+          resolve(url);
+
+          // Increment play count
+          incrementPlayCount(trackId);
+        } else {
+          resolve(null);
+        }
+      };
+      request.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Increment play count for a cached track
+ */
+async function incrementPlayCount(trackId: string): Promise<void> {
+  try {
+    const database = await initDB();
+    const transaction = database.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(trackId);
+
+    request.onsuccess = () => {
+      const cached = request.result as CachedTrack | undefined;
+      if (cached) {
+        cached.playCount = (cached.playCount || 0) + 1;
+        store.put(cached);
+      }
+    };
+  } catch {
+    // Ignore errors
+  }
+}
+
+/**
+ * Download and cache a track
+ */
+export async function downloadTrack(
+  trackId: string,
+  audioUrl: string,
+  meta: Omit<TrackMeta, 'id' | 'downloadedAt' | 'size'>,
+  quality: 'standard' | 'boosted' = 'boosted',
+  onProgress?: (progress: number) => void
+): Promise<boolean> {
+  try {
+    console.log(`[VOYO Download] Starting: ${trackId}`);
+
+    // Fetch the audio file
+    const response = await fetch(audioUrl);
+
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status}`);
+    }
+
+    const contentLength = response.headers.get('content-length');
+    const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+    // Read the stream with progress
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const chunks: ArrayBuffer[] = [];
+    let received = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) break;
+
+      // Convert Uint8Array to ArrayBuffer for Blob compatibility
+      chunks.push(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
+      received += value.length;
+
+      if (total && onProgress) {
+        onProgress(Math.round((received / total) * 100));
+      }
+    }
+
+    // Create blob from chunks
+    const blob = new Blob(chunks, {
+      type: response.headers.get('content-type') || 'audio/webm'
+    });
+
+    // Store in IndexedDB
+    const database = await initDB();
+    const transaction = database.transaction([STORE_NAME, META_STORE], 'readwrite');
+
+    const audioStore = transaction.objectStore(STORE_NAME);
+    const metaStore = transaction.objectStore(META_STORE);
+
+    const cachedTrack: CachedTrack = {
+      id: trackId,
+      blob,
+      mimeType: blob.type,
+      size: blob.size,
+      downloadedAt: Date.now(),
+      playCount: 0,
+      quality,
+    };
+
+    const trackMeta: TrackMeta = {
+      id: trackId,
+      title: meta.title,
+      artist: meta.artist,
+      duration: meta.duration,
+      thumbnail: meta.thumbnail,
+      quality,
+      size: blob.size,
+      downloadedAt: Date.now(),
+    };
+
+    audioStore.put(cachedTrack);
+    metaStore.put(trackMeta);
+
+    return new Promise((resolve) => {
+      transaction.oncomplete = () => {
+        console.log(`[VOYO Download] Complete: ${trackId} (${(blob.size / 1024 / 1024).toFixed(2)}MB)`);
+        resolve(true);
+      };
+      transaction.onerror = () => {
+        console.error('[VOYO Download] Store error:', transaction.error);
+        resolve(false);
+      };
+    });
+
+  } catch (error) {
+    console.error('[VOYO Download] Failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Get all cached tracks metadata
+ */
+export async function getCachedTracks(): Promise<TrackMeta[]> {
+  try {
+    const database = await initDB();
+    return new Promise((resolve) => {
+      const transaction = database.transaction(META_STORE, 'readonly');
+      const store = transaction.objectStore(META_STORE);
+      const request = store.getAll();
+
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get total cache size
+ */
+export async function getCacheSize(): Promise<number> {
+  const tracks = await getCachedTracks();
+  return tracks.reduce((total, track) => total + (track.size || 0), 0);
+}
+
+/**
+ * Delete a cached track
+ */
+export async function deleteTrack(trackId: string): Promise<boolean> {
+  try {
+    const database = await initDB();
+    const transaction = database.transaction([STORE_NAME, META_STORE], 'readwrite');
+
+    transaction.objectStore(STORE_NAME).delete(trackId);
+    transaction.objectStore(META_STORE).delete(trackId);
+
+    return new Promise((resolve) => {
+      transaction.oncomplete = () => resolve(true);
+      transaction.onerror = () => resolve(false);
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Clear all cached tracks
+ */
+export async function clearCache(): Promise<boolean> {
+  try {
+    const database = await initDB();
+    const transaction = database.transaction([STORE_NAME, META_STORE], 'readwrite');
+
+    transaction.objectStore(STORE_NAME).clear();
+    transaction.objectStore(META_STORE).clear();
+
+    return new Promise((resolve) => {
+      transaction.oncomplete = () => resolve(true);
+      transaction.onerror = () => resolve(false);
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if on WiFi (Network Information API)
+ */
+export function isOnWiFi(): boolean {
+  const connection = (navigator as any).connection;
+  if (!connection) return true; // Assume WiFi if API not available
+
+  return connection.type === 'wifi' || connection.effectiveType === '4g';
+}
+
+/**
+ * Get download settings from localStorage
+ */
+export type DownloadSetting = 'always' | 'wifi-only' | 'ask' | 'never';
+
+export function getDownloadSetting(): DownloadSetting {
+  return (localStorage.getItem('voyo-download-setting') as DownloadSetting) || 'wifi-only';
+}
+
+export function setDownloadSetting(setting: DownloadSetting): void {
+  localStorage.setItem('voyo-download-setting', setting);
+}
+
+/**
+ * Should auto-download based on settings and network
+ */
+export function shouldAutoDownload(): boolean {
+  const setting = getDownloadSetting();
+
+  switch (setting) {
+    case 'always':
+      return true;
+    case 'wifi-only':
+      return isOnWiFi();
+    case 'never':
+      return false;
+    case 'ask':
+      return false; // Will prompt user
+    default:
+      return isOnWiFi();
+  }
+}
+
+// Initialize DB on load
+initDB().catch(console.error);

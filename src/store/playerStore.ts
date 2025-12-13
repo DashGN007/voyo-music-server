@@ -39,6 +39,7 @@ interface PlayerStore {
   bufferHealth: number; // 0-100 percentage
   bufferStatus: BufferStatus;  // 'healthy' | 'warning' | 'emergency'
   prefetchStatus: Map<string, PrefetchStatus>; // trackId -> status
+  playbackSource: 'cached' | 'direct' | 'iframe' | null; // VOYO Boost indicator
 
   // Playback Modes
   shuffleMode: boolean;
@@ -119,6 +120,7 @@ interface PlayerStore {
   setNetworkQuality: (quality: NetworkQuality) => void;
   setStreamQuality: (quality: BitrateLevel) => void;
   setBufferHealth: (health: number, status: BufferStatus) => void;
+  setPlaybackSource: (source: 'cached' | 'direct' | 'iframe' | null) => void;
   setPrefetchStatus: (trackId: string, status: PrefetchStatus) => void;
   detectNetworkQuality: () => void;
 }
@@ -143,6 +145,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   bufferHealth: 100,
   bufferStatus: 'healthy',
   prefetchStatus: new Map(),
+  playbackSource: null,
 
   queue: TRACKS.slice(1, 4).map((track) => ({
     track,
@@ -307,12 +310,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         source: 'manual',
       };
 
-      // INSTANT PLAYBACK: Trigger server-side prefetch when track is added to queue
-      // This warms up the stream cache so playback is instant when track is selected
+      // INSTANT PLAYBACK: Warm up the track for streaming
       if (track.trackId) {
-        const quality = state.streamQuality || 'high';
-        prefetchTrack(track.trackId, quality);
-        console.log(`[Queue] Prefetching added track: ${track.title}`);
+        prefetchTrack(track.trackId);
+        console.log(`[Queue] Track ready: ${track.title}`);
       }
 
       if (position !== undefined) {
@@ -477,6 +478,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     bufferHealth: Math.max(0, Math.min(100, health)),
     bufferStatus: status
   }),
+
+  setPlaybackSource: (source) => set({ playbackSource: source }),
 
   setPrefetchStatus: (trackId, status) => {
     set((state) => {
