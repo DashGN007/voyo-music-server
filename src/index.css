@@ -3,35 +3,54 @@
 /* VOYO Music Device - NEON AFRO-FUTURISM V2.0 */
 /* Deep Neon Void - Expensive. Cinematic. Glass. */
 :root {
-  /* Core Colors - Deeper Black */
-  --voyo-bg-deep: #050507;
+  /* === CORE BACKGROUNDS === */
+  --voyo-bg-void: #020203;         /* Deepest black - main bg */
+  --voyo-bg-deep: #050507;         /* Card backgrounds */
   --voyo-bg-card: rgba(20, 20, 30, 0.6);
-  --voyo-bg-elevated: #1a1a24;
+  --voyo-bg-elevated: #1a1a24;     /* Elevated surfaces */
 
-  /* Neon Accent Colors */
-  --voyo-purple: #8b5cf6;
-  --voyo-purple-glow: rgba(139, 92, 246, 0.5);
-  --voyo-accent: #d946ef;
+  /* === PRIMARY BRAND - PURPLE SYSTEM === */
+  /* Use these 3 primary purples + 3 glow levels consistently */
+  --voyo-purple: #8b5cf6;          /* Main purple (violet-500) */
+  --voyo-purple-light: #a78bfa;    /* Light purple (violet-400) */
+  --voyo-purple-dark: #7c3aed;     /* Dark purple (violet-600) */
+
+  /* Standardized glow levels - USE THESE instead of inline rgba() */
+  --glow-primary-soft: rgba(139, 92, 246, 0.2);
+  --glow-primary: rgba(139, 92, 246, 0.5);
+  --glow-primary-intense: rgba(139, 92, 246, 0.8);
+
+  /* === ACCENT COLORS === */
+  --voyo-accent: #d946ef;          /* Fuchsia-500 */
   --voyo-accent-glow: rgba(217, 70, 239, 0.5);
-  --voyo-blue: #3b82f6;
-  --voyo-blue-glow: rgba(59, 130, 246, 0.4);
-  --voyo-red: #ef4444;
-  --voyo-red-glow: rgba(239, 68, 68, 0.4);
-  --voyo-pink: #ec4899;
+  --voyo-pink: #ec4899;            /* Pink-500 */
   --voyo-pink-glow: rgba(236, 72, 153, 0.4);
-  --voyo-cyan: #06b6d4;
-  --voyo-gold: #ffd700;
-  --voyo-neon-green: #39ff14;
+  --glow-accent: rgba(236, 72, 153, 0.4);
+
+  /* === FUNCTIONAL COLORS === */
+  --voyo-blue: #3b82f6;            /* Blue-500 - Discovery */
+  --voyo-blue-glow: rgba(59, 130, 246, 0.4);
+  --voyo-red: #ef4444;             /* Red-500 - Hot */
+  --voyo-red-glow: rgba(239, 68, 68, 0.4);
+  --voyo-cyan: #06b6d4;            /* Cyan-500 */
+  --voyo-gold: #ffd700;            /* Gold - Boost */
+  --voyo-neon-green: #39ff14;      /* Neon green - Success */
+  --voyo-amber: #f59e0b;           /* Amber-500 - Boost */
+  --voyo-success: #10b981;         /* Emerald-500 */
 
   /* OYÉ Zone Colors */
   --oye-hot: #ef4444;
   --oye-ai: #3b82f6;
   --oye-discover: #a855f7;
 
-  /* Text */
+  /* === TEXT HIERARCHY === */
   --voyo-text: #ffffff;
   --voyo-text-secondary: rgba(255, 255, 255, 0.7);
   --voyo-text-muted: rgba(255, 255, 255, 0.4);
+  --voyo-text-hint: rgba(255, 255, 255, 0.25);
+
+  /* === VIEWPORT FIX === */
+  --vh: 1vh; /* Updated by JS for iOS browser chrome fix */
 }
 
 * {
@@ -474,4 +493,70 @@ body {
     backdrop-filter: blur(10px) !important;
     -webkit-backdrop-filter: blur(10px) !important;
   }
+}
+
+/* ============================================ */
+/* PROGRESS BAR RANGE INPUT STYLING
+/* Custom slider for seek/progress control
+/* ============================================ */
+
+/* Remove default styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Firefox */
+input[type="range"]::-moz-range-track {
+  height: 0;
+  background: transparent;
+  border: none;
+}
+
+input[type="range"]::-moz-range-thumb {
+  -moz-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(147, 51, 234, 0.8);
+}
+
+/* WebKit (Chrome, Safari, Edge) */
+input[type="range"]::-webkit-slider-track {
+  height: 0;
+  background: transparent;
+  border: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(147, 51, 234, 0.8);
+  margin-top: -5.5px; /* Center thumb on track */
+}
+
+/* Focus states */
+input[type="range"]:focus {
+  outline: none;
+}
+
+input[type="range"]:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 16px rgba(147, 51, 234, 1);
+}
+
+input[type="range"]:focus::-moz-range-thumb {
+  box-shadow: 0 0 16px rgba(147, 51, 234, 1);
 }

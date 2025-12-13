@@ -174,11 +174,17 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   // Playback Actions
   setCurrentTrack: (track) => {
     const state = get();
-    // Add current track to history before switching
-    if (state.currentTrack) {
+    // Add current track to history before switching (only if played > 5 seconds)
+    if (state.currentTrack && state.currentTime > 5) {
       get().addToHistory(state.currentTrack, state.currentTime);
     }
-    set({ currentTrack: track, isPlaying: true, progress: 0, currentTime: 0, seekPosition: null });
+    set({
+      currentTrack: track,
+      isPlaying: true,
+      progress: 0,
+      currentTime: 0,
+      seekPosition: null // Clear seek position on track change
+    });
 
     // AUTO-TRIGGER: Update smart discovery for this track
     get().updateDiscoveryForTrack(track);
@@ -209,6 +215,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         isPlaying: true,
         progress: 0,
         currentTime: 0,
+        seekPosition: null, // Clear seek position
       });
       return;
     }
@@ -216,7 +223,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     // Check queue first
     if (state.queue.length > 0) {
       const [next, ...rest] = state.queue;
-      if (state.currentTrack) {
+      if (state.currentTrack && state.currentTime > 5) {
         get().addToHistory(state.currentTrack, state.currentTime);
       }
       set({
@@ -225,6 +232,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         isPlaying: true,
         progress: 0,
         currentTime: 0,
+        seekPosition: null, // Clear seek position
       });
       return;
     }
@@ -233,7 +241,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     if (state.repeatMode === 'all' && state.history.length > 0) {
       // Restart from the first track in history
       const firstTrack = state.history[0].track;
-      if (state.currentTrack) {
+      if (state.currentTrack && state.currentTime > 5) {
         get().addToHistory(state.currentTrack, state.currentTime);
       }
       set({
@@ -241,6 +249,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         isPlaying: true,
         progress: 0,
         currentTime: 0,
+        seekPosition: null, // Clear seek position
       });
       return;
     }
@@ -264,7 +273,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         nextTrack = availableTracks[Math.floor(Math.random() * availableTracks.length)];
       }
 
-      if (state.currentTrack) {
+      if (state.currentTrack && state.currentTime > 5) {
         get().addToHistory(state.currentTrack, state.currentTime);
       }
       set({
@@ -272,6 +281,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         isPlaying: true,
         progress: 0,
         currentTime: 0,
+        seekPosition: null, // Clear seek position
       });
     }
   },
@@ -286,6 +296,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         isPlaying: true,
         progress: 0,
         currentTime: 0,
+        seekPosition: null, // Clear seek position
       });
     }
   },

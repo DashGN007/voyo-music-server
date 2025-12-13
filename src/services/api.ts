@@ -147,8 +147,14 @@ export interface StreamResult {
  * Browser plays DIRECTLY from URL (user's residential IP for YouTube,
  * or our server for cached content)
  */
-export async function getAudioStream(videoId: string, quality: string = 'high'): Promise<string> {
+export async function getAudioStream(videoId: string, quality?: string): Promise<string> {
   const youtubeId = decodeVoyoId(videoId);
+
+  // ADAPTIVE QUALITY: Use stream quality from player store if not specified
+  if (!quality) {
+    const { usePlayerStore } = await import('../store/playerStore');
+    quality = usePlayerStore.getState().streamQuality;
+  }
 
   try {
     const response = await fetch(`${API_URL}/stream?v=${youtubeId}&quality=${quality}`, {

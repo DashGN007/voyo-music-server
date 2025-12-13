@@ -24,6 +24,7 @@ import { usePlayerStore } from './store/playerStore';
 import { getYouTubeThumbnail } from './data/tracks';
 import { setupMobileAudioUnlock } from './utils/mobileAudioUnlock';
 import { InstallButton } from './components/ui/InstallButton';
+import { OfflineIndicator } from './components/ui/OfflineIndicator';
 
 // App modes
 type AppMode = 'classic' | 'voyo' | 'video' | 'dj';
@@ -63,6 +64,12 @@ function App() {
   // MOBILE FIX: Setup audio unlock on app mount
   useEffect(() => {
     setupMobileAudioUnlock();
+  }, []);
+
+  // NETWORK DETECTION: Detect network quality on app mount
+  useEffect(() => {
+    const { detectNetworkQuality } = usePlayerStore.getState();
+    detectNetworkQuality();
   }, []);
 
   // Get background image URL with fallback
@@ -293,6 +300,9 @@ function App() {
 
       {/* PWA Install Button - Subtle, bottom right */}
       <InstallButton />
+
+      {/* Offline Indicator - Shows when network is lost */}
+      <OfflineIndicator />
     </div>
   );
 }

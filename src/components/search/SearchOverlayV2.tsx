@@ -4,7 +4,7 @@
  * Drag tracks into zones with CD disc animation
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { Search, X, Loader2, Music2, Clock, Play, Plus, ListPlus, Compass, Disc3 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
@@ -12,6 +12,7 @@ import { Track } from '../../types';
 import { searchMusic, SearchResult } from '../../services/api';
 import { getThumb } from '../../utils/thumbnail';
 import { TRACKS } from '../../data/tracks';
+import { searchCache } from '../../utils/searchCache';
 
 interface SearchOverlayProps {
   isOpen: boolean;
@@ -93,7 +94,7 @@ interface TrackItemProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
-const TrackItem = ({
+const TrackItem = memo(({
   result,
   index,
   onSelect,
@@ -240,7 +241,7 @@ const TrackItem = ({
       </div>
     </motion.div>
   );
-};
+});
 
 export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
   const [query, setQuery] = useState('');
@@ -308,7 +309,7 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
     }
   }, [isOpen]);
 
-  // Search seed data locally
+  // Search seed data locally - MEMOIZED for performance
   const searchSeedData = useCallback((searchQuery: string): SearchResult[] => {
     const query = searchQuery.toLowerCase().trim();
     if (!query) return [];
@@ -337,7 +338,20 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
     }));
   }, []);
 
-  // Hybrid search: seed data first, then YouTube
+  // Memoized seed results for current query
+  const seedResults = useMemo(() => {
+    if (!query || query.trim().length < 2) return [];
+    return searchSeedData(query);
+  }, [query, searchSeedData]);
+
+  // Show seed results INSTANTLY when they change
+  useEffect(() => {
+    if (seedResults.length > 0) {
+      setResults(seedResults);
+    }
+  }, [seedResults]);
+
+  // Hybrid search: seed data first, then YouTube - WITH CACHING
   const performSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim() || searchQuery.trim().length < 2) {
       setResults([]);
@@ -363,7 +377,19 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
 
       // 2. Search YouTube (async, may take longer) - only if 3+ chars
       if (searchQuery.trim().length >= 3) {
-        const youtubeResults = await searchMusic(searchQuery, 15);
+        // CHECK CACHE FIRST
+        const cachedResults = searchCache.get(searchQuery);
+        let youtubeResults: SearchResult[];
+
+        if (cachedResults) {
+          // Cache hit - instant results!
+          youtubeResults = cachedResults;
+        } else {
+          // Cache miss - fetch from API
+          youtubeResults = await searchMusic(searchQuery, 15);
+          // Store in cache for next time
+          searchCache.set(searchQuery, youtubeResults);
+        }
 
         // Check if this request was aborted
         if (abortControllerRef.current?.signal.aborted) {
@@ -400,23 +426,19 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
   const handleSearch = (value: string) => {
     setQuery(value);
 
-    // INSTANT: Show local seed results immediately (no debounce)
-    if (value.trim().length >= 2) {
-      const seedResults = searchSeedData(value);
-      if (seedResults.length > 0) {
-        setResults(seedResults);
-      }
-    } else {
+    // Clear results if query too short
+    if (value.trim().length < 2) {
       setResults([]);
     }
+    // NOTE: Seed results are shown via useMemo hook (seedResults) automatically
 
-    // DEBOUNCED: YouTube API search (200ms delay)
+    // DEBOUNCED: YouTube API search (150ms delay - faster than before)
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => performSearch(value), 200);
+    debounceRef.current = setTimeout(() => performSearch(value), 150);
   };
 
-  // Convert search result to track
-  const resultToTrack = (result: SearchResult): Track => ({
+  // Convert search result to track - MEMOIZED with useCallback
+  const resultToTrack = useCallback((result: SearchResult): Track => ({
     id: result.voyoId,
     title: result.title,
     artist: result.artist,
@@ -429,22 +451,22 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
     region: 'NG',
     oyeScore: result.views || 0,
     createdAt: new Date().toISOString(),
-  });
+  }), []);
 
-  const handleSelectTrack = (result: SearchResult) => {
+  const handleSelectTrack = useCallback((result: SearchResult) => {
     setCurrentTrack(resultToTrack(result));
     onClose();
-  };
+  }, [resultToTrack, setCurrentTrack, onClose]);
 
-  const handleAddToQueue = (result: SearchResult, pos: { x: number; y: number }) => {
+  const handleAddToQueue = useCallback((result: SearchResult, pos: { x: number; y: number }) => {
     setFlyingCD({
       thumbnail: result.thumbnail,
       startPos: pos,
       targetZone: 'queue',
     });
-  };
+  }, []);
 
-  const handleAddToDiscovery = (result: SearchResult, pos: { x: number; y: number }) => {
+  const handleAddToDiscovery = useCallback((result: SearchResult, pos: { x: number; y: number }) => {
     setFlyingCD({
       thumbnail: result.thumbnail,
       startPos: pos,
@@ -455,9 +477,9 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
     setDiscoveryItems(prev => [track, ...prev].slice(0, 5));
     // FIX 1: Wire to player store to update recommendations!
     updateDiscoveryForTrack(track);
-  };
+  }, [resultToTrack, updateDiscoveryForTrack]);
 
-  const handleFlyingCDComplete = () => {
+  const handleFlyingCDComplete = useCallback(() => {
     if (flyingCD) {
       if (flyingCD.targetZone === 'queue') {
         // Find the result and add to queue
@@ -473,19 +495,19 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
       }
     }
     setFlyingCD(null);
-  };
+  }, [flyingCD, results, resultToTrack, addToQueue]);
 
-  // Drag handlers
-  const handleDragStart = (result: SearchResult, thumbnail: string) => {
+  // Drag handlers - WRAPPED in useCallback for performance
+  const handleDragStart = useCallback((result: SearchResult, thumbnail: string) => {
     setIsDraggingTrack(true);
     setDragThumbnail(thumbnail);
-  };
+  }, []);
 
-  const handleDragUpdate = (relativeY: number) => {
+  const handleDragUpdate = useCallback((relativeY: number) => {
     setActiveZone(relativeY < 0.5 ? 'queue' : 'discovery');
-  };
+  }, []);
 
-  const handleDragEnd = (zone: 'queue' | 'discovery' | null, pos: { x: number; y: number }) => {
+  const handleDragEnd = useCallback((zone: 'queue' | 'discovery' | null, pos: { x: number; y: number }) => {
     setIsDraggingTrack(false);
 
     if (zone && dragThumbnail) {
@@ -507,19 +529,19 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
 
     setActiveZone(null);
     setDragThumbnail('');
-  };
+  }, [dragThumbnail, results, resultToTrack, updateDiscoveryForTrack]);
 
-  const formatDuration = (seconds: number): string => {
+  const formatDuration = useCallback((seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  }, []);
 
-  const formatViews = (views: number): string => {
+  const formatViews = useCallback((views: number): string => {
     if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M`;
     if (views >= 1000) return `${(views / 1000).toFixed(0)}K`;
     return views.toString();
-  };
+  }, []);
 
   return (
     <AnimatePresence>

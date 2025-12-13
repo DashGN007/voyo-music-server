@@ -13,7 +13,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { usePreferenceStore } from '../store/preferenceStore';
 import { useDownloadStore } from '../store/downloadStore';
-import { getYouTubeIdForIframe } from '../services/api';
+import { getYouTubeIdForIframe, prefetchTrack } from '../services/api';
 
 type PlaybackMode = 'cached' | 'iframe';
 
@@ -21,10 +21,8 @@ export const AudioPlayer = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const playerRef = useRef<YT.Player | null>(null);
   const currentVideoId = useRef<string | null>(null);
-  const loadingRef = useRef<boolean>(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const cachedUrlRef = useRef<string | null>(null);
-  const iframeRetryCount = useRef<number>(0);
 
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>('iframe');
 
@@ -53,6 +51,7 @@ export const AudioPlayer = () => {
   } = useDownloadStore();
 
   const lastTrackId = useRef<string | null>(null);
+  const hasPrefetchedRef = useRef<boolean>(false); // Track if we've prefetched next track
 
   // Initialize download system (IndexedDB)
   useEffect(() => {
@@ -73,6 +72,7 @@ export const AudioPlayer = () => {
   const initIframePlayer = useCallback((videoId: string, retryCount: number = 0) => {
     if (!(window as any).YT?.Player) {
       if (retryCount >= 10) {
+        console.error('[VOYO] YT API failed to load after 10 retries');
         setBufferHealth(0, 'emergency');
         return;
       }
@@ -80,10 +80,11 @@ export const AudioPlayer = () => {
       return;
     }
 
-    // Destroy existing player
+    // Destroy existing player and clean up DOM
     if (playerRef.current) {
       try {
         playerRef.current.destroy();
+        playerRef.current = null;
       } catch (e) {
         // Ignore
       }
@@ -92,12 +93,15 @@ export const AudioPlayer = () => {
     const container = document.getElementById('voyo-yt-player');
     if (!container) return;
 
+    // Clear previous IFrame remnants
+    container.innerHTML = '';
+
     playerRef.current = new (window as any).YT.Player('voyo-yt-player', {
       height: '1',
       width: '1',
       videoId: videoId,
       playerVars: {
-        autoplay: isPlaying ? 1 : 0,
+        autoplay: 0, // Always 0 - we control playback via playVideo()
         controls: 0,
         disablekb: 1,
         fs: 0,
@@ -124,7 +128,12 @@ export const AudioPlayer = () => {
           }
         },
         onError: (event: any) => {
+          console.error('[VOYO IFrame] Error:', event.data);
           setBufferHealth(0, 'emergency');
+          // Auto-skip on error after 2 seconds
+          setTimeout(() => {
+            nextTrack();
+          }, 2000);
         },
       },
     });
@@ -134,7 +143,6 @@ export const AudioPlayer = () => {
   useEffect(() => {
     const loadTrack = async () => {
       if (!currentTrack?.trackId) return;
-      if (loadingRef.current) return;
       if (currentVideoId.current === currentTrack.trackId) return;
 
       // Cancel previous load operation
@@ -143,8 +151,8 @@ export const AudioPlayer = () => {
       }
       abortControllerRef.current = new AbortController();
 
-      loadingRef.current = true;
       currentVideoId.current = currentTrack.trackId;
+      hasPrefetchedRef.current = false; // Reset prefetch flag for new track
 
       // End previous session
       if (lastTrackId.current && lastTrackId.current !== currentTrack.id) {
@@ -182,7 +190,6 @@ export const AudioPlayer = () => {
               }
             };
           }
-          loadingRef.current = false;
           return;
         }
 
@@ -194,21 +201,27 @@ export const AudioPlayer = () => {
         const ytId = getYouTubeIdForIframe(currentTrack.trackId);
         initIframePlayer(ytId);
 
-      } catch (error) {
-        // Fallback to IFrame
+      } catch (error: any) {
+        // Check if aborted
+        if (error.name === 'AbortError') {
+          return; // Load was cancelled, ignore
+        }
+
+        // Fallback to IFrame on error
         setPlaybackMode('iframe');
         setPlaybackSource('iframe');
         const ytId = getYouTubeIdForIframe(currentTrack.trackId);
         initIframePlayer(ytId);
-      } finally {
-        loadingRef.current = false;
       }
     };
 
     loadTrack();
 
-    // Cleanup: revoke blob URL on unmount
+    // Cleanup: abort on track change and revoke blob URL
     return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
       if (cachedUrlRef.current) {
         URL.revokeObjectURL(cachedUrlRef.current);
         cachedUrlRef.current = null;
@@ -280,6 +293,32 @@ export const AudioPlayer = () => {
             setCurrentTime(currentTime);
             setDuration(duration);
             setProgress((currentTime / duration) * 100);
+
+            // Update Media Session position state
+            if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
+              navigator.mediaSession.setPositionState({
+                duration: duration,
+                playbackRate: 1,
+                position: currentTime
+              });
+            }
+
+            // 50% PREFETCH: Prefetch next track when 50% through current track (IFrame mode)
+            const progressPercent = (currentTime / duration) * 100;
+            if (progressPercent >= 50 && !hasPrefetchedRef.current) {
+              hasPrefetchedRef.current = true;
+
+              // Get next track from queue
+              const state = usePlayerStore.getState();
+              const nextInQueue = state.queue[0];
+
+              if (nextInQueue?.track?.trackId) {
+                // Prefetch next track
+                prefetchTrack(nextInQueue.track.trackId).catch(() => {
+                  // Ignore prefetch errors
+                });
+              }
+            }
           }
         } catch (e) {
           // Player not ready
@@ -290,12 +329,79 @@ export const AudioPlayer = () => {
     return () => clearInterval(interval);
   }, [playbackMode, setCurrentTime, setDuration, setProgress]);
 
+  // Media Session API - Lock screen and notification controls
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !currentTrack) return;
+
+    // Set metadata
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentTrack.title,
+      artist: currentTrack.artist,
+      album: 'VOYO Music',
+      artwork: [
+        {
+          src: `https://voyo-music-api.fly.dev/cdn/art/${currentTrack.trackId}?quality=high`,
+          sizes: '512x512',
+          type: 'image/jpeg'
+        }
+      ]
+    });
+
+    // Set action handlers
+    navigator.mediaSession.setActionHandler('play', () => {
+      if (playbackMode === 'cached' && audioRef.current) {
+        audioRef.current.play();
+      } else if (playbackMode === 'iframe' && playerRef.current) {
+        playerRef.current.playVideo();
+      }
+    });
+
+    navigator.mediaSession.setActionHandler('pause', () => {
+      if (playbackMode === 'cached' && audioRef.current) {
+        audioRef.current.pause();
+      } else if (playbackMode === 'iframe' && playerRef.current) {
+        playerRef.current.pauseVideo();
+      }
+    });
+
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+      nextTrack();
+    });
+
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+      // Get prevTrack from store
+      const { prevTrack } = usePlayerStore.getState();
+      prevTrack();
+    });
+
+    // Update playback state
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+
+  }, [currentTrack, isPlaying, playbackMode, nextTrack]);
+
   // Audio element event handlers (for cached playback)
   const handleTimeUpdate = useCallback(() => {
     const el = audioRef.current;
     if (el && el.duration) {
       setCurrentTime(el.currentTime);
       setProgress((el.currentTime / el.duration) * 100);
+
+      // 50% PREFETCH: Prefetch next track when 50% through current track
+      const progressPercent = (el.currentTime / el.duration) * 100;
+      if (progressPercent >= 50 && !hasPrefetchedRef.current) {
+        hasPrefetchedRef.current = true;
+
+        // Get next track from queue
+        const state = usePlayerStore.getState();
+        const nextInQueue = state.queue[0];
+
+        if (nextInQueue?.track?.trackId) {
+          // Prefetch next track
+          prefetchTrack(nextInQueue.track.trackId).catch(() => {
+            // Ignore prefetch errors
+          });
+        }
+      }
     }
   }, [setCurrentTime, setProgress]);
 

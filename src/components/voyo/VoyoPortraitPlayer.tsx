@@ -9,10 +9,10 @@
  * 5. BOTTOM: 3-column vertical grid (HOT | VOYO FEED | DISCOVERY)
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Maximize2, Film, Settings
+  Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Maximize2, Film, Settings, Download
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import { useDownloadStore } from '../../store/downloadStore';
@@ -23,13 +23,13 @@ import { unlockMobileAudio, isMobileDevice } from '../../utils/mobileAudioUnlock
 import { useMobilePlay } from '../../hooks/useMobilePlay';
 import { BoostButton, AutoBoostPrompt } from '../ui/BoostButton';
 import { BoostSettings } from '../ui/BoostSettings';
-import { BoostIndicator } from '../ui/BoostIndicator';
+import { haptics, getReactionHaptic } from '../../utils/haptics';
 
 // ============================================
 // FULLSCREEN BACKGROUND LAYER - Album art with dark overlay
 // Creates the "floating in space" atmosphere
 // ============================================
-const FullscreenBackground = ({ trackId, isVideoMode }: { trackId?: string; isVideoMode: boolean }) => {
+const FullscreenBackground = memo(({ trackId, isVideoMode }: { trackId?: string; isVideoMode: boolean }) => {
   if (!trackId) return null;
 
   return (
@@ -83,12 +83,12 @@ const FullscreenBackground = ({ trackId, isVideoMode }: { trackId?: string; isVi
       />
     </div>
   );
-};
+});
 
 // ============================================
 // BACKDROP TOGGLE - Two-state with double-click/hold for library
 // ============================================
-const BackdropToggle = ({
+const BackdropToggle = memo(({
   isEnabled,
   onToggle,
   onOpenLibrary,
@@ -207,7 +207,7 @@ const BackdropToggle = ({
       </div>
     </motion.button>
   );
-};
+});
 
 // ============================================
 // BACKDROP LIBRARY MODAL - Choose from presets or custom
@@ -377,6 +377,103 @@ const ExpandVideoButton = ({ onClick }: { onClick: () => void }) => (
   </motion.button>
 );
 
+// ============================================
+// RIGHT-SIDE TOOLBAR - Vertical action buttons
+// ============================================
+const RightToolbar = ({ onSettingsClick }: { onSettingsClick: () => void }) => {
+  const boostTrack = useDownloadStore(state => state.boostTrack);
+  const currentTrack = usePlayerStore(state => state.currentTrack);
+
+  const handleDownload = () => {
+    if (!currentTrack?.trackId) return;
+
+    boostTrack(
+      currentTrack.trackId,
+      currentTrack.title,
+      currentTrack.artist,
+      currentTrack.duration || 0,
+      getThumbnailUrl(currentTrack.trackId, 'medium')
+    );
+  };
+
+  return (
+    <motion.div
+      className="absolute right-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: 0.4, duration: 0.4 }}
+    >
+      {/* Glassmorphism container */}
+      <div className="relative flex flex-col gap-3 p-2 rounded-2xl bg-gradient-to-b from-purple-900/20 to-pink-900/20 backdrop-blur-xl border border-white/10 shadow-[0_0_30px_rgba(147,51,234,0.15)]">
+
+        {/* Boost Button - Icon variant */}
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <BoostButton variant="icon" />
+        </motion.div>
+
+        {/* Divider */}
+        <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+
+        {/* Download Button */}
+        <motion.button
+          onClick={handleDownload}
+          className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center hover:from-cyan-500/30 hover:to-blue-500/30 transition-colors group relative"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          title="Download track"
+        >
+          <Download size={14} className="text-cyan-400" />
+
+          {/* Tooltip */}
+          <div className="absolute right-full mr-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+            <div className="bg-black/80 backdrop-blur-sm text-white text-[9px] px-2 py-1.5 rounded-lg whitespace-nowrap border border-white/10">
+              Download
+            </div>
+          </div>
+        </motion.button>
+
+        {/* Divider */}
+        <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+
+        {/* Settings Button */}
+        <motion.button
+          onClick={onSettingsClick}
+          className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full bg-gradient-to-br from-white/5 to-white/10 border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors group relative"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          title="Boost settings"
+        >
+          <Settings size={14} className="text-gray-400" />
+
+          {/* Tooltip */}
+          <div className="absolute right-full mr-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+            <div className="bg-black/80 backdrop-blur-sm text-white text-[9px] px-2 py-1.5 rounded-lg whitespace-nowrap border border-white/10">
+              Settings
+            </div>
+          </div>
+        </motion.button>
+      </div>
+
+      {/* Pulsing glow effect when idle */}
+      <motion.div
+        className="absolute inset-0 rounded-2xl bg-purple-500/10 blur-xl -z-10"
+        animate={{
+          opacity: [0.3, 0.6, 0.3],
+          scale: [0.95, 1.05, 0.95],
+        }}
+        transition={{
+          duration: 3,
+          repeat: Infinity,
+          ease: "easeInOut"
+        }}
+      />
+    </motion.div>
+  );
+};
+
 // Spring configs
 const springs = {
   gentle: { type: 'spring' as const, stiffness: 120, damping: 14 },
@@ -401,7 +498,7 @@ const VoyoBrandTint = ({ isPlayed }: { isPlayed?: boolean }) => (
 // ============================================
 // SMALL CARD (History/Queue - with VOYO brand tint)
 // ============================================
-const SmallCard = ({ track, onTap, isPlayed }: { track: Track; onTap: () => void; isPlayed?: boolean }) => (
+const SmallCard = memo(({ track, onTap, isPlayed }: { track: Track; onTap: () => void; isPlayed?: boolean }) => (
   <motion.button
     className="flex flex-col gap-2 w-[70px] flex-shrink-0 group"
     onClick={onTap}
@@ -436,7 +533,7 @@ const SmallCard = ({ track, onTap, isPlayed }: { track: Track; onTap: () => void
       <p className="text-[9px] text-gray-500 truncate">{track.artist}</p>
     </div>
   </motion.button>
-);
+));
 
 // ============================================
 // DASH PLACEHOLDER (Empty state for queue/history)
@@ -609,7 +706,7 @@ const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type, isActive }:
 // STREAM CARD (Horizontal scroll - HOT/DISCOVERY - with VOYO brand tint)
 // Now with MOBILE TAP-TO-TEASER (30s preview) + DRAG-TO-QUEUE
 // ============================================
-const StreamCard = ({ track, onTap, isPlayed, onTeaser }: { track: Track; onTap: () => void; isPlayed?: boolean; onTeaser?: (track: Track) => void }) => {
+const StreamCard = memo(({ track, onTap, isPlayed, onTeaser }: { track: Track; onTap: () => void; isPlayed?: boolean; onTeaser?: (track: Track) => void }) => {
   const addToQueue = usePlayerStore(state => state.addToQueue);
   const [showQueueFeedback, setShowQueueFeedback] = useState(false);
   const [showTeaserFeedback, setShowTeaserFeedback] = useState(false);
@@ -653,6 +750,7 @@ const StreamCard = ({ track, onTap, isPlayed, onTeaser }: { track: Track; onTap:
       onDragEnd={(_, info) => {
         // Check if dragged right beyond threshold (100px)
         if (info.offset.x > 100) {
+          haptics.success();
           addToQueue(track);
           setShowQueueFeedback(true);
           setTimeout(() => setShowQueueFeedback(false), 1500);
@@ -730,12 +828,14 @@ const StreamCard = ({ track, onTap, isPlayed, onTeaser }: { track: Track; onTap:
       </motion.button>
     </motion.div>
   );
-};
+});
+// memo comparison function for StreamCard
+StreamCard.displayName = 'StreamCard';
 
 // ============================================
 // BIG CENTER CARD (NOW PLAYING - Canva-style purple fade with premium typography)
 // ============================================
-const BigCenterCard = ({ track, onExpandVideo }: { track: Track; onExpandVideo?: () => void }) => (
+const BigCenterCard = memo(({ track, onExpandVideo }: { track: Track; onExpandVideo?: () => void }) => (
   <motion.div
     className="relative w-52 h-52 md:w-60 md:h-60 rounded-[2rem] overflow-hidden z-20 group"
     style={{
@@ -822,12 +922,13 @@ const BigCenterCard = ({ track, onExpandVideo }: { track: Track; onExpandVideo?:
       }}
     />
   </motion.div>
-);
+));
 
 // ============================================
 // PLAY CONTROLS - SPINNING VINYL DISK PLAY BUTTON
 // ============================================
-const PlayControls = ({
+const PlayControls = memo(({
+
   isPlaying,
   onToggle,
   onPrev,
@@ -840,6 +941,7 @@ const PlayControls = ({
   trackArt,
   scrubDirection,
 }: {
+
   isPlaying: boolean;
   onToggle: () => void;
   onPrev: () => void;
@@ -900,7 +1002,10 @@ const PlayControls = ({
       {/* Prev - HOLD TO REWIND */}
       <motion.button
         className="absolute left-[20%] text-white/50 hover:text-white transition-colors"
-        onClick={onPrev}
+        onClick={() => {
+          haptics.light();
+          onPrev();
+        }}
         onMouseDown={() => onScrubStart('backward')}
         onMouseUp={onScrubEnd}
         onMouseLeave={onScrubEnd}
@@ -927,7 +1032,10 @@ const PlayControls = ({
         {/* Spinning Vinyl Disk */}
         <motion.button
           className="absolute inset-0 rounded-full overflow-hidden border-2 border-white/20 shadow-lg"
-          onClick={onToggle}
+          onClick={() => {
+            haptics.medium();
+            onToggle();
+          }}
           animate={getSpinAnimation()}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -989,7 +1097,10 @@ const PlayControls = ({
       {/* Next - HOLD TO FAST FORWARD */}
       <motion.button
         className="absolute right-[20%] text-white/50 hover:text-white transition-colors"
-        onClick={onNext}
+        onClick={() => {
+          haptics.light();
+          onNext();
+        }}
         onMouseDown={() => onScrubStart('forward')}
         onMouseUp={onScrubEnd}
         onMouseLeave={onScrubEnd}
@@ -1002,12 +1113,12 @@ const PlayControls = ({
       </motion.button>
     </div>
   );
-};
+});
 
 // ============================================
 // REACTIONS BAR - HOLD-TO-CHARGE OYÉ MULTIPLIER
 // ============================================
-const ReactionBar = ({
+const ReactionBar = memo(({
   onReaction
 }: {
   onReaction: (type: ReactionType, emoji: string, text: string, multiplier: number) => void
@@ -1033,6 +1144,9 @@ const ReactionBar = ({
     else if (holdDuration < 500) multiplier = 2;
     else if (holdDuration < 1000) multiplier = 5;
     else multiplier = 10; // EXPLOSION!
+
+    // Trigger haptic feedback based on multiplier
+    getReactionHaptic(multiplier)();
 
     onReaction(type, emoji, text, multiplier);
     setCharging(null);
@@ -1163,7 +1277,7 @@ const ReactionBar = ({
       </motion.button>
     </div>
   );
-};
+});
 
 // ============================================
 // FULLSCREEN VIDEO PLAYER - Takes over screen for video watching
@@ -1534,6 +1648,9 @@ export const VoyoPortraitPlayer = ({
       {/* --- CENTER SECTION (Hero + Engine) --- */}
       <div className="flex-1 flex flex-col items-center relative z-10 -mt-2">
 
+        {/* RIGHT-SIDE TOOLBAR */}
+        <RightToolbar onSettingsClick={() => setIsBoostSettingsOpen(true)} />
+
         {/* 1. Main Artwork with Expand Video Button */}
         {currentTrack ? (
           <BigCenterCard
@@ -1576,6 +1693,64 @@ export const VoyoPortraitPlayer = ({
           </AnimatePresence>
         </div>
 
+        {/* PROGRESS BAR - Tap/drag to seek */}
+        <div className="w-full max-w-xs mt-6 mb-2 px-4 z-30">
+          <div className="flex items-center gap-3">
+            {/* Current Time */}
+            <span className="text-[10px] text-white/60 font-mono tabular-nums min-w-[32px]">
+              {(() => {
+                const mins = Math.floor(currentTime / 60);
+                const secs = Math.floor(currentTime % 60);
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+              })()}
+            </span>
+
+            {/* Progress Track */}
+            <div className="flex-1 relative">
+              <input
+                type="range"
+                min="0"
+                max={duration || 100}
+                value={currentTime}
+                onChange={(e) => seekTo(parseFloat(e.target.value))}
+                className="w-full h-1 appearance-none bg-transparent cursor-pointer relative z-10"
+                style={{
+                  background: 'transparent',
+                }}
+              />
+              {/* Custom track styling */}
+              <div className="absolute inset-0 pointer-events-none">
+                {/* Background track */}
+                <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1 bg-white/10 rounded-full" />
+                {/* Progress fill */}
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 left-0 h-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-100"
+                  style={{
+                    width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                  }}
+                />
+                {/* Thumb */}
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow-[0_0_12px_rgba(147,51,234,0.8)] transition-all duration-100"
+                  style={{
+                    left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                    transform: 'translate(-50%, -50%)',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Duration */}
+            <span className="text-[10px] text-white/60 font-mono tabular-nums min-w-[32px]">
+              {(() => {
+                const mins = Math.floor(duration / 60);
+                const secs = Math.floor(duration % 60);
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+              })()}
+            </span>
+          </div>
+        </div>
+
         {/* 2. THE ENGINE (Play Control) - SPINNING VINYL DISK + HOLD TO SCRUB */}
         <PlayControls
           isPlaying={isPlaying}
@@ -1591,27 +1766,7 @@ export const VoyoPortraitPlayer = ({
           scrubDirection={scrubDirection}
         />
 
-        {/* 3. BOOST + REACTIONS ROW */}
-        <div className="flex items-center justify-center gap-3 mb-2 z-30">
-          {/* Boost Button */}
-          <BoostButton variant="compact" />
-
-          {/* Boost Status Indicator */}
-          <BoostIndicator />
-
-          {/* Boost Settings */}
-          <motion.button
-            onClick={() => setIsBoostSettingsOpen(true)}
-            className="p-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            title="Boost Settings"
-          >
-            <Settings size={12} className="text-gray-400" />
-          </motion.button>
-        </div>
-
-        {/* 4. REACTIONS */}
+        {/* 3. REACTIONS */}
         <ReactionBar onReaction={handleReaction} />
       </div>
 

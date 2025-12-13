@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import { getYouTubeThumbnail } from '../../data/tracks';
+import { useMobilePlay } from '../../hooks/useMobilePlay';
 
 // ============================================
 // TYPES
@@ -498,10 +499,11 @@ export const DJSessionMode = () => {
   const {
     currentTrack,
     isPlaying,
-    togglePlay,
     nextTrack,
     prevTrack,
   } = usePlayerStore();
+
+  const { handlePlayPause } = useMobilePlay();
 
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
   const [visibleComments, setVisibleComments] = useState<LiveComment[]>([]);
@@ -601,7 +603,7 @@ export const DJSessionMode = () => {
 
           <motion.button
             className="p-5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500"
-            onClick={togglePlay}
+            onClick={handlePlayPause}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
           >
