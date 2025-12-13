@@ -517,60 +517,73 @@ const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type, isActive }:
     };
   }, [tracks.length, isPaused, speed, totalWidth, isActive]);
 
-  // Render cards with wrap-around positioning
+  // Calculate entrance effect based on position and direction
+  const getEntranceStyle = (x: number, containerWidth: number) => {
+    if (isHot) {
+      // HOT: Cards enter from LEFT (x near 0), add red glow fade-in
+      const entranceZone = cardWidth * 1.5;
+      if (x < entranceZone) {
+        const progress = Math.max(0, x / entranceZone);
+        return {
+          opacity: 0.4 + progress * 0.6,
+          filter: `drop-shadow(0 0 ${(1 - progress) * 8}px rgba(239, 68, 68, 0.6))`,
+        };
+      }
+    } else {
+      // DISCOVERY: Cards enter from RIGHT, add blue glow fade-in
+      const entranceZone = containerWidth - cardWidth * 1.5;
+      if (x > entranceZone) {
+        const progress = Math.max(0, (containerWidth - x) / (cardWidth * 1.5));
+        return {
+          opacity: 0.4 + progress * 0.6,
+          filter: `drop-shadow(0 0 ${(1 - progress) * 8}px rgba(59, 130, 246, 0.6))`,
+        };
+      }
+    }
+    return { opacity: 1, filter: 'none' };
+  };
+
+  // Render cards with wrap-around positioning (works for both directions)
   const renderCards = () => {
     const cards: React.ReactNode[] = [];
+    const containerWidth = totalWidth; // Use track count as reference
 
-    tracks.forEach((track, i) => {
-      // Calculate wrapped position
-      let x = i * cardWidth + offset;
+    // Render each track twice for seamless loop
+    for (let loop = 0; loop < 2; loop++) {
+      tracks.forEach((track, i) => {
+        // Calculate base position with loop offset
+        let x = i * cardWidth + offset + (loop * totalWidth);
 
-      // Wrap around for seamless loop
-      while (x < -cardWidth) x += totalWidth;
-      while (x >= totalWidth) x -= totalWidth;
+        // Normalize to visible range
+        while (x < -totalWidth) x += totalWidth * 2;
+        while (x >= totalWidth * 2) x -= totalWidth * 2;
 
-      // Only render if visible (with some buffer)
-      if (x >= -cardWidth && x < totalWidth + cardWidth) {
-        cards.push(
-          <motion.div
-            key={`${track.id}-${i}`}
-            className="absolute top-0 bottom-0 flex items-center"
-            style={{ left: x, width: cardWidth }}
-          >
-            <StreamCard
-              track={track}
-              onTap={() => onTap(track)}
-              onTeaser={onTeaser}
-              isPlayed={playedTrackIds.has(track.id)}
-            />
-          </motion.div>
-        );
-      }
-    });
+        // Only render if within visible bounds (with buffer)
+        if (x >= -cardWidth && x < containerWidth + cardWidth) {
+          const entranceStyle = getEntranceStyle(x, containerWidth);
 
-    // Duplicate for seamless wrap
-    tracks.forEach((track, i) => {
-      let x = i * cardWidth + offset + totalWidth;
-      while (x >= totalWidth) x -= totalWidth;
-      if (x < -cardWidth) x += totalWidth * 2;
-
-      if (x >= -cardWidth && x < totalWidth + cardWidth) {
-        cards.push(
-          <motion.div
-            key={`${track.id}-dup-${i}`}
-            className="absolute top-0 bottom-0 flex items-center"
-            style={{ left: x, width: cardWidth }}
-          >
-            <StreamCard
-              track={track}
-              onTap={() => onTap(track)}
-              onTeaser={onTeaser}
-              isPlayed={playedTrackIds.has(track.id)}
-            />
-          </motion.div>
-        );
-      }
-    });
+          cards.push(
+            <motion.div
+              key={`${track.id}-${loop}-${i}`}
+              className="absolute top-0 bottom-0 flex items-center"
+              style={{
+                left: x,
+                width: cardWidth,
+                ...entranceStyle,
+                transition: 'opacity 0.3s ease, filter 0.3s ease',
+              }}
+            >
+              <StreamCard
+                track={track}
+                onTap={() => onTap(track)}
+                onTeaser={onTeaser}
+                isPlayed={playedTrackIds.has(track.id)}
+              />
+            </motion.div>
+          );
+        }
+      });
+    }
 
     return cards;
   };
