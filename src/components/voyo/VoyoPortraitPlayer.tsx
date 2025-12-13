@@ -474,7 +474,7 @@ const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type }: PortalBel
   const [isPaused, setIsPaused] = useState(false);
 
   const isHot = type === 'hot';
-  const speed = isHot ? -0.3 : 0.3; // Hot scrolls left, Discovery scrolls right
+  const speed = -0.4; // Both scroll left (right to left) - cards disappear into left portal
 
   // Card dimensions
   const cardWidth = 72; // 64px + gap
@@ -565,46 +565,68 @@ const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type }: PortalBel
   };
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 relative h-24 overflow-hidden"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-      onTouchStart={() => setIsPaused(true)}
-      onTouchEnd={() => setTimeout(() => setIsPaused(false), 2000)}
-    >
-      {/* Portal glow effect */}
-      <div
-        className="absolute inset-0 pointer-events-none z-0"
-        style={{
-          background: isHot
-            ? 'radial-gradient(ellipse at center, rgba(239,68,68,0.15) 0%, transparent 70%)'
-            : 'radial-gradient(ellipse at center, rgba(59,130,246,0.15) 0%, transparent 70%)',
-        }}
-      />
+    <div className="flex-1 flex items-center">
+      {/* LEFT: Portal label (where cards exit) */}
+      {isHot && (
+        <div className="flex-shrink-0 w-10 h-20 flex items-center justify-center relative">
+          <div
+            className="absolute inset-0 rounded-r-xl"
+            style={{
+              background: 'linear-gradient(to right, rgba(239,68,68,0.5), rgba(239,68,68,0.1))',
+              boxShadow: 'inset 0 0 20px rgba(239,68,68,0.3)',
+            }}
+          />
+          <span className="text-[9px] font-bold text-red-400 tracking-wider -rotate-90 whitespace-nowrap relative z-10">
+            HOT
+          </span>
+        </div>
+      )}
 
-      {/* Edge glow (portal entry/exit) */}
+      {/* Cards belt */}
       <div
-        className="absolute left-0 top-0 bottom-0 w-8 pointer-events-none z-10"
+        ref={containerRef}
+        className="flex-1 relative h-20 overflow-hidden rounded-xl"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+        onTouchStart={() => setIsPaused(true)}
+        onTouchEnd={() => setTimeout(() => setIsPaused(false), 2000)}
         style={{
           background: isHot
-            ? 'linear-gradient(to right, rgba(239,68,68,0.4), transparent)'
-            : 'linear-gradient(to right, rgba(59,130,246,0.4), transparent)',
+            ? 'linear-gradient(90deg, rgba(239,68,68,0.1) 0%, transparent 20%, transparent 80%, rgba(239,68,68,0.05) 100%)'
+            : 'linear-gradient(90deg, rgba(59,130,246,0.05) 0%, transparent 20%, transparent 80%, rgba(59,130,246,0.1) 100%)',
         }}
-      />
-      <div
-        className="absolute right-0 top-0 bottom-0 w-8 pointer-events-none z-10"
-        style={{
-          background: isHot
-            ? 'linear-gradient(to left, rgba(239,68,68,0.4), transparent)'
-            : 'linear-gradient(to left, rgba(59,130,246,0.4), transparent)',
-        }}
-      />
+      >
+        {/* Cards container */}
+        <div className="absolute inset-0">
+          {renderCards()}
+        </div>
 
-      {/* Cards container */}
-      <div className="absolute inset-0 z-5">
-        {renderCards()}
+        {/* Left fade (exit portal) */}
+        <div
+          className="absolute left-0 top-0 bottom-0 w-6 pointer-events-none z-10"
+          style={{
+            background: isHot
+              ? 'linear-gradient(to right, rgba(239,68,68,0.6), transparent)'
+              : 'linear-gradient(to right, rgba(59,130,246,0.6), transparent)',
+          }}
+        />
       </div>
+
+      {/* RIGHT: Portal label (where cards enter - for Discovery) */}
+      {!isHot && (
+        <div className="flex-shrink-0 w-10 h-20 flex items-center justify-center relative">
+          <div
+            className="absolute inset-0 rounded-l-xl"
+            style={{
+              background: 'linear-gradient(to left, rgba(59,130,246,0.5), rgba(59,130,246,0.1))',
+              boxShadow: 'inset 0 0 20px rgba(59,130,246,0.3)',
+            }}
+          />
+          <span className="text-[9px] font-bold text-blue-400 tracking-wider rotate-90 whitespace-nowrap relative z-10">
+            DISCOVER
+          </span>
+        </div>
+      )}
     </div>
   );
 };
