@@ -457,51 +457,46 @@ const DashPlaceholder = ({ onClick, label }: { onClick?: () => void; label: stri
 );
 
 // ============================================
-// INFINITE HORIZONTAL WHEEL
-// Seamlessly loops tracks for HOT/DISCOVERY
+// PORTAL BELT - Watch dial style infinite loop
+// Cards wrap around like snake game walls
 // ============================================
-interface InfiniteWheelProps {
+interface PortalBeltProps {
   tracks: Track[];
   onTap: (track: Track) => void;
   onTeaser?: (track: Track) => void;
   playedTrackIds: Set<string>;
-  direction?: 'left' | 'right';
+  type: 'hot' | 'discovery';
 }
 
-const InfiniteWheel = ({ tracks, onTap, onTeaser, playedTrackIds, direction = 'left' }: InfiniteWheelProps) => {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [isHovered, setIsHovered] = useState(false);
+const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type }: PortalBeltProps) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [offset, setOffset] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
 
-  // Duplicate tracks for seamless loop (3x for smooth infinite scroll)
-  const loopedTracks = [...tracks, ...tracks, ...tracks];
+  const isHot = type === 'hot';
+  const speed = isHot ? -0.3 : 0.3; // Hot scrolls left, Discovery scrolls right
+
+  // Card dimensions
+  const cardWidth = 72; // 64px + gap
+  const totalWidth = tracks.length * cardWidth;
 
   // Auto-scroll animation
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || tracks.length === 0) return;
-
-    // Calculate single set width
-    const cardWidth = 76; // 64px card + 12px gap
-    const singleSetWidth = tracks.length * cardWidth;
-
-    // Start in the middle set
-    el.scrollLeft = singleSetWidth;
+    if (tracks.length === 0) return;
 
     let animationId: number;
     let lastTime = 0;
-    const speed = direction === 'left' ? 0.5 : -0.5; // pixels per frame
 
     const animate = (time: number) => {
-      if (!isHovered && lastTime) {
+      if (!isPaused && lastTime) {
         const delta = time - lastTime;
-        el.scrollLeft += speed * (delta / 16); // normalize to ~60fps
-
-        // Reset position for seamless loop
-        if (el.scrollLeft >= singleSetWidth * 2) {
-          el.scrollLeft = singleSetWidth;
-        } else if (el.scrollLeft <= 0) {
-          el.scrollLeft = singleSetWidth;
-        }
+        setOffset(prev => {
+          let next = prev + speed * (delta / 16);
+          // Wrap around (snake style)
+          if (next <= -totalWidth) next += totalWidth;
+          if (next >= totalWidth) next -= totalWidth;
+          return next;
+        });
       }
       lastTime = time;
       animationId = requestAnimationFrame(animate);
@@ -509,26 +504,107 @@ const InfiniteWheel = ({ tracks, onTap, onTeaser, playedTrackIds, direction = 'l
 
     animationId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animationId);
-  }, [tracks.length, isHovered, direction]);
+  }, [tracks.length, isPaused, speed, totalWidth]);
+
+  // Render cards with wrap-around positioning
+  const renderCards = () => {
+    const cards: React.ReactNode[] = [];
+
+    tracks.forEach((track, i) => {
+      // Calculate wrapped position
+      let x = i * cardWidth + offset;
+
+      // Wrap around for seamless loop
+      while (x < -cardWidth) x += totalWidth;
+      while (x >= totalWidth) x -= totalWidth;
+
+      // Only render if visible (with some buffer)
+      if (x >= -cardWidth && x < totalWidth + cardWidth) {
+        cards.push(
+          <motion.div
+            key={`${track.id}-${i}`}
+            className="absolute top-0 bottom-0 flex items-center"
+            style={{ left: x, width: cardWidth }}
+          >
+            <StreamCard
+              track={track}
+              onTap={() => onTap(track)}
+              onTeaser={onTeaser}
+              isPlayed={playedTrackIds.has(track.id)}
+            />
+          </motion.div>
+        );
+      }
+    });
+
+    // Duplicate for seamless wrap
+    tracks.forEach((track, i) => {
+      let x = i * cardWidth + offset + totalWidth;
+      while (x >= totalWidth) x -= totalWidth;
+      if (x < -cardWidth) x += totalWidth * 2;
+
+      if (x >= -cardWidth && x < totalWidth + cardWidth) {
+        cards.push(
+          <motion.div
+            key={`${track.id}-dup-${i}`}
+            className="absolute top-0 bottom-0 flex items-center"
+            style={{ left: x, width: cardWidth }}
+          >
+            <StreamCard
+              track={track}
+              onTap={() => onTap(track)}
+              onTeaser={onTeaser}
+              isPlayed={playedTrackIds.has(track.id)}
+            />
+          </motion.div>
+        );
+      }
+    });
+
+    return cards;
+  };
 
   return (
     <div
-      ref={scrollRef}
-      className="flex-1 overflow-x-auto no-scrollbar flex gap-3 px-2"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onTouchStart={() => setIsHovered(true)}
-      onTouchEnd={() => setTimeout(() => setIsHovered(false), 2000)}
+      ref={containerRef}
+      className="flex-1 relative h-24 overflow-hidden"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onTouchStart={() => setIsPaused(true)}
+      onTouchEnd={() => setTimeout(() => setIsPaused(false), 2000)}
     >
-      {loopedTracks.map((track, index) => (
-        <StreamCard
-          key={`${track.id}-${index}`}
-          track={track}
-          onTap={() => onTap(track)}
-          onTeaser={onTeaser}
-          isPlayed={playedTrackIds.has(track.id)}
-        />
-      ))}
+      {/* Portal glow effect */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        style={{
+          background: isHot
+            ? 'radial-gradient(ellipse at center, rgba(239,68,68,0.15) 0%, transparent 70%)'
+            : 'radial-gradient(ellipse at center, rgba(59,130,246,0.15) 0%, transparent 70%)',
+        }}
+      />
+
+      {/* Edge glow (portal entry/exit) */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-8 pointer-events-none z-10"
+        style={{
+          background: isHot
+            ? 'linear-gradient(to right, rgba(239,68,68,0.4), transparent)'
+            : 'linear-gradient(to right, rgba(59,130,246,0.4), transparent)',
+        }}
+      />
+      <div
+        className="absolute right-0 top-0 bottom-0 w-8 pointer-events-none z-10"
+        style={{
+          background: isHot
+            ? 'linear-gradient(to left, rgba(239,68,68,0.4), transparent)'
+            : 'linear-gradient(to left, rgba(59,130,246,0.4), transparent)',
+        }}
+      />
+
+      {/* Cards container */}
+      <div className="absolute inset-0 z-5">
+        {renderCards()}
+      </div>
     </div>
   );
 };
@@ -1513,13 +1589,13 @@ export const VoyoPortraitPlayer = ({
         {/* Horizontal Scroll Deck */}
         <div className="flex items-center relative px-2">
 
-          {/* LEFT: HOT Stream (Infinite Wheel) */}
-          <InfiniteWheel
+          {/* LEFT: HOT Portal Belt (red glow, scrolls left) */}
+          <PortalBelt
             tracks={hotTracks.slice(0, 8)}
             onTap={setCurrentTrack}
             onTeaser={handleTeaser}
             playedTrackIds={playedTrackIds}
-            direction="left"
+            type="hot"
           />
 
           {/* CENTER: VOYO FEED Button */}
@@ -1536,13 +1612,13 @@ export const VoyoPortraitPlayer = ({
             </motion.button>
           </div>
 
-          {/* RIGHT: DISCOVERY Stream (Infinite Wheel - opposite direction) */}
-          <InfiniteWheel
+          {/* RIGHT: DISCOVERY Portal Belt (blue glow, scrolls right) */}
+          <PortalBelt
             tracks={discoverTracks.slice(0, 8)}
             onTap={setCurrentTrack}
             onTeaser={handleTeaser}
             playedTrackIds={playedTrackIds}
-            direction="right"
+            type="discovery"
           />
         </div>
 
