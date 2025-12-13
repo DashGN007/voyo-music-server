@@ -12,7 +12,7 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Maximize2, Film, Settings, Download
+  Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Maximize2, Film, Settings, Download, Heart
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import { useDownloadStore } from '../../store/downloadStore';
@@ -35,21 +35,24 @@ const FullscreenBackground = memo(({ trackId, isVideoMode }: { trackId?: string;
   return (
     <div className="absolute inset-0 z-0 overflow-hidden">
       {/* Album art - blurred and scaled up for cinematic effect */}
-      <motion.div
-        className="absolute inset-0"
-        initial={{ opacity: 0, scale: 1.1 }}
-        animate={{ opacity: 1, scale: 1.05 }}
-        transition={{ duration: 1.5, ease: 'easeOut' }}
-        key={trackId} // Re-animate on track change
-      >
-        <SmartImage
-          src={getThumbnailUrl(trackId, 'high')}
-          alt="Background"
-          className="w-full h-full object-cover blur-2xl scale-110"
-          trackId={trackId}
-          lazy={false}
-        />
-      </motion.div>
+      <AnimatePresence mode="sync">
+        <motion.div
+          className="absolute inset-0"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.8, ease: 'easeInOut' }}
+          key={trackId}
+        >
+          <SmartImage
+            src={getThumbnailUrl(trackId, 'high')}
+            alt="Background"
+            className="w-full h-full object-cover blur-2xl scale-110 will-change-transform"
+            trackId={trackId}
+            lazy={false}
+          />
+        </motion.div>
+      </AnimatePresence>
 
       {/* Dark overlay gradient - makes reactions POP */}
       <div
@@ -391,6 +394,17 @@ const ExpandVideoButton = ({ onClick }: { onClick: () => void }) => (
 const RightToolbar = ({ onSettingsClick }: { onSettingsClick: () => void }) => {
   const boostTrack = useDownloadStore(state => state.boostTrack);
   const currentTrack = usePlayerStore(state => state.currentTrack);
+  const [isLiked, setIsLiked] = useState(false);
+
+  // Reset like state when track changes
+  useEffect(() => {
+    setIsLiked(false);
+    // Check localStorage for liked status
+    if (currentTrack?.trackId) {
+      const liked = localStorage.getItem(`voyo_liked_${currentTrack.trackId}`);
+      setIsLiked(liked === 'true');
+    }
+  }, [currentTrack?.trackId]);
 
   const handleDownload = () => {
     if (!currentTrack?.trackId) return;
@@ -404,15 +418,38 @@ const RightToolbar = ({ onSettingsClick }: { onSettingsClick: () => void }) => {
     );
   };
 
+  const handleLike = () => {
+    if (!currentTrack?.trackId) return;
+    const newLiked = !isLiked;
+    setIsLiked(newLiked);
+    localStorage.setItem(`voyo_liked_${currentTrack.trackId}`, String(newLiked));
+    haptics.success();
+  };
+
   return (
     <motion.div
-      className="absolute right-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3"
+      className="absolute right-2 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2"
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 0.4, duration: 0.4 }}
     >
       {/* Glassmorphism container */}
-      <div className="relative flex flex-col gap-3 p-2 rounded-2xl bg-gradient-to-b from-purple-900/20 to-pink-900/20 backdrop-blur-xl border border-white/10 shadow-[0_0_30px_rgba(147,51,234,0.15)]">
+      <div className="relative flex flex-col gap-2 p-1.5 rounded-2xl bg-gradient-to-b from-purple-900/20 to-pink-900/20 backdrop-blur-xl border border-white/10 shadow-[0_0_30px_rgba(147,51,234,0.15)]">
+
+        {/* Like Button */}
+        <motion.button
+          onClick={handleLike}
+          className={`min-w-[40px] min-h-[40px] w-10 h-10 rounded-full flex items-center justify-center transition-colors group relative ${
+            isLiked
+              ? 'bg-gradient-to-br from-pink-500/40 to-red-500/40 border border-pink-500/50'
+              : 'bg-gradient-to-br from-pink-500/10 to-red-500/10 border border-pink-500/20'
+          }`}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          title={isLiked ? 'Unlike' : 'Like'}
+        >
+          <Heart size={14} className={isLiked ? 'text-pink-400 fill-pink-400' : 'text-pink-400/60'} />
+        </motion.button>
 
         {/* Boost Button - Icon variant */}
         <motion.div
@@ -422,46 +459,26 @@ const RightToolbar = ({ onSettingsClick }: { onSettingsClick: () => void }) => {
           <BoostButton variant="icon" />
         </motion.div>
 
-        {/* Divider */}
-        <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-
         {/* Download Button */}
         <motion.button
           onClick={handleDownload}
-          className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center hover:from-cyan-500/30 hover:to-blue-500/30 transition-colors group relative"
+          className="min-w-[40px] min-h-[40px] w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center hover:from-cyan-500/30 hover:to-blue-500/30 transition-colors group relative"
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           title="Download track"
         >
           <Download size={14} className="text-cyan-400" />
-
-          {/* Tooltip */}
-          <div className="absolute right-full mr-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            <div className="bg-black/80 backdrop-blur-sm text-white text-[9px] px-2 py-1.5 rounded-lg whitespace-nowrap border border-white/10">
-              Download
-            </div>
-          </div>
         </motion.button>
-
-        {/* Divider */}
-        <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
         {/* Settings Button */}
         <motion.button
           onClick={onSettingsClick}
-          className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full bg-gradient-to-br from-white/5 to-white/10 border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors group relative"
+          className="min-w-[40px] min-h-[40px] w-10 h-10 rounded-full bg-gradient-to-br from-white/5 to-white/10 border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors group relative"
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           title="Boost settings"
         >
           <Settings size={14} className="text-gray-400" />
-
-          {/* Tooltip */}
-          <div className="absolute right-full mr-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            <div className="bg-black/80 backdrop-blur-sm text-white text-[9px] px-2 py-1.5 rounded-lg whitespace-nowrap border border-white/10">
-              Settings
-            </div>
-          </div>
         </motion.button>
       </div>
 
@@ -822,13 +839,13 @@ const StreamCard = memo(({ track, onTap, isPlayed, onTeaser }: { track: Track; o
   return (
     <motion.div
       className="flex-shrink-0 flex flex-col items-center w-16 relative"
-      drag="x"
-      dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.2}
+      drag
+      dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
+      dragElastic={0.3}
       onDragStart={() => setWasDragged(true)}
       onDragEnd={(_, info) => {
-        // Check if dragged right beyond threshold (100px)
-        if (info.offset.x > 100) {
+        // Drag UP-RIGHT to add to queue (diagonal gesture)
+        if (info.offset.y < -50 && info.offset.x > 30) {
           haptics.success();
           addToQueue(track);
           setShowQueueFeedback(true);
