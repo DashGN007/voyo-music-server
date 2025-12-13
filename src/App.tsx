@@ -23,6 +23,7 @@ import { AnimatedBackground, BackgroundPicker, BackgroundType, ReactionCanvas } 
 import { usePlayerStore } from './store/playerStore';
 import { getYouTubeThumbnail } from './data/tracks';
 import { setupMobileAudioUnlock } from './utils/mobileAudioUnlock';
+import { InstallButton } from './components/ui/InstallButton';
 
 // App modes
 type AppMode = 'classic' | 'voyo' | 'video' | 'dj';
@@ -289,6 +290,9 @@ function App() {
         isOpen={isBackgroundPickerOpen}
         onClose={() => setIsBackgroundPickerOpen(false)}
       />
+
+      {/* PWA Install Button - Subtle, bottom right */}
+      <InstallButton />
     </div>
   );
 }
