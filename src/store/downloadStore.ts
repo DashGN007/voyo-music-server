@@ -276,17 +276,32 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
     isProcessing = true;
 
-    while (downloadQueue.length > 0) {
+    // FIX: Add iteration limit to prevent infinite loops
+    const MAX_ITERATIONS = 100;
+    let iterations = 0;
+
+    while (downloadQueue.length > 0 && iterations < MAX_ITERATIONS) {
       const item = downloadQueue.shift();
       if (!item) continue;
 
       const { trackId, title, artist, duration, thumbnail } = item;
 
-      // Use boostTrack for actual download
-      await get().boostTrack(trackId, title, artist, duration, thumbnail);
+      try {
+        // Use boostTrack for actual download
+        await get().boostTrack(trackId, title, artist, duration, thumbnail);
+      } catch (error) {
+        console.error(`[VOYO] Failed to boost track ${trackId}:`, error);
+        // Continue processing next item even if this one fails
+      }
 
       // Small delay between downloads
       await new Promise(resolve => setTimeout(resolve, 500));
+      iterations++;
+    }
+
+    if (iterations >= MAX_ITERATIONS) {
+      console.warn('[VOYO] processQueue hit iteration limit, clearing queue');
+      downloadQueue.length = 0;
     }
 
     isProcessing = false;

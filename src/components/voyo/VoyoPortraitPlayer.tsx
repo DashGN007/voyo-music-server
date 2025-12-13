@@ -101,6 +101,14 @@ const BackdropToggle = memo(({
   const clickCount = useRef(0);
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // FIX: Cleanup timers on unmount to prevent race conditions
+  useEffect(() => {
+    return () => {
+      if (holdTimer.current) clearTimeout(holdTimer.current);
+      if (clickTimer.current) clearTimeout(clickTimer.current);
+    };
+  }, []);
+
   const handlePressStart = () => {
     // Start hold timer - 500ms to trigger library
     holdTimer.current = setTimeout(() => {
@@ -592,18 +600,24 @@ const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type, isActive }:
     const animate = (time: number) => {
       if (!mounted) return;
 
-      if (!isPaused && lastTime) {
-        const delta = time - lastTime;
-        setOffset(prev => {
-          let next = prev + speed * (delta / 16);
-          // Wrap around (snake style)
-          if (next <= -totalWidth) next += totalWidth;
-          if (next >= totalWidth) next -= totalWidth;
-          return next;
-        });
+      try {
+        if (!isPaused && lastTime) {
+          const delta = time - lastTime;
+          setOffset(prev => {
+            let next = prev + speed * (delta / 16);
+            // Wrap around (snake style)
+            if (next <= -totalWidth) next += totalWidth;
+            if (next >= totalWidth) next -= totalWidth;
+            return next;
+          });
+        }
+        lastTime = time;
+        animationId = requestAnimationFrame(animate);
+      } catch (error) {
+        // FIX: Graceful error handling for animation loop
+        console.error('[VOYO PortalBelt] Animation error:', error);
+        mounted = false;
       }
-      lastTime = time;
-      animationId = requestAnimationFrame(animate);
     };
 
     animationId = requestAnimationFrame(animate);
@@ -895,7 +909,8 @@ const BigCenterCard = memo(({ track, onExpandVideo }: { track: Track; onExpandVi
           letterSpacing: '-0.02em',
         }}
       >
-        {track.title}
+        {/* FIX: Sanitize text to prevent XSS and layout breaking */}
+        {track.title?.replace(/[<>]/g, '').slice(0, 80) || 'Unknown Title'}
       </h1>
 
       {/* Artist Name - Elegant and subtle */}
@@ -908,7 +923,7 @@ const BigCenterCard = memo(({ track, onExpandVideo }: { track: Track; onExpandVi
             textShadow: '0 1px 10px rgba(0,0,0,0.6)',
           }}
         >
-          {track.artist}
+          {track.artist?.replace(/[<>]/g, '').slice(0, 60) || 'Unknown Artist'}
         </p>
       </div>
     </div>

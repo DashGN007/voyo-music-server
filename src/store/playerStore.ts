@@ -508,48 +508,56 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   },
 
   // Detect network quality using Navigator API
-  detectNetworkQuality: () => {
-    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+  // FIX: Singleton pattern to prevent listener leak
+  detectNetworkQuality: (() => {
+    let listenerAttached = false;
 
-    if (connection) {
-      const effectiveType = connection.effectiveType;
-      const downlink = connection.downlink; // Mbps
+    return () => {
+      const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
 
-      let quality: NetworkQuality = 'unknown';
-      let streamQuality: BitrateLevel = 'high';
+      if (connection) {
+        const effectiveType = connection.effectiveType;
+        const downlink = connection.downlink; // Mbps
 
-      if (effectiveType === '4g' && downlink > 5) {
-        quality = 'fast';
-        streamQuality = 'high';
-      } else if (effectiveType === '4g' || effectiveType === '3g') {
-        quality = 'medium';
-        streamQuality = 'medium';
-      } else if (effectiveType === '2g' || effectiveType === 'slow-2g') {
-        quality = 'slow';
-        streamQuality = 'low';
-      } else if (downlink) {
-        // Fallback to downlink speed
-        if (downlink > 5) {
+        let quality: NetworkQuality = 'unknown';
+        let streamQuality: BitrateLevel = 'high';
+
+        if (effectiveType === '4g' && downlink > 5) {
           quality = 'fast';
           streamQuality = 'high';
-        } else if (downlink > 1) {
+        } else if (effectiveType === '4g' || effectiveType === '3g') {
           quality = 'medium';
           streamQuality = 'medium';
-        } else {
+        } else if (effectiveType === '2g' || effectiveType === 'slow-2g') {
           quality = 'slow';
           streamQuality = 'low';
+        } else if (downlink) {
+          // Fallback to downlink speed
+          if (downlink > 5) {
+            quality = 'fast';
+            streamQuality = 'high';
+          } else if (downlink > 1) {
+            quality = 'medium';
+            streamQuality = 'medium';
+          } else {
+            quality = 'slow';
+            streamQuality = 'low';
+          }
         }
+
+        set({ networkQuality: quality, streamQuality });
+
+        // Listen for changes - only attach once
+        if (!listenerAttached) {
+          connection.addEventListener?.('change', () => {
+            get().detectNetworkQuality();
+          });
+          listenerAttached = true;
+        }
+      } else {
+        // No Network Information API - assume fast
+        set({ networkQuality: 'fast', streamQuality: 'high' });
       }
-
-      set({ networkQuality: quality, streamQuality });
-
-      // Listen for changes
-      connection.addEventListener?.('change', () => {
-        get().detectNetworkQuality();
-      });
-    } else {
-      // No Network Information API - assume fast
-      set({ networkQuality: 'fast', streamQuality: 'high' });
-    }
-  },
+    };
+  })(),
 }));
