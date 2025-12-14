@@ -160,10 +160,10 @@ const BackdropToggle = memo(({
       onTouchEnd={handlePressEnd}
       className="absolute left-4 top-1/2 -translate-y-1/2 z-50 group"
       whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
+      whileTap={{ scale: 0.97 }}
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 0.3 }}
+      transition={{ delay: 0.3, ...springs.smooth }}
     >
       {/* Vertical pill container */}
       <div className={`
@@ -185,7 +185,7 @@ const BackdropToggle = memo(({
             }
           `}
           animate={{ y: isEnabled ? 38 : 4 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+          transition={{ type: 'spring', stiffness: 280, damping: 24 }}
         >
           {/* Icon changes based on state */}
           <motion.div
@@ -265,7 +265,7 @@ const BackdropLibrary = ({
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        transition={{ type: 'spring', damping: 26, stiffness: 260 }}
       >
         {/* Handle */}
         <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1 bg-white/20 rounded-full" />
@@ -296,7 +296,8 @@ const BackdropLibrary = ({
                 ${bd.locked ? 'opacity-50' : ''}
               `}
               whileHover={bd.locked ? {} : { scale: 1.05 }}
-              whileTap={bd.locked ? {} : { scale: 0.95 }}
+              whileTap={bd.locked ? {} : { scale: 0.97 }}
+              transition={springs.smooth}
             >
               {/* Preview */}
               <div
@@ -372,11 +373,11 @@ const ExpandVideoButton = ({ onClick }: { onClick: () => void }) => (
   <motion.button
     onClick={onClick}
     className="absolute top-3 right-3 z-30 p-2 rounded-xl bg-black/40 backdrop-blur-sm border border-white/10 text-white/60 hover:text-white hover:bg-black/60 hover:border-purple-500/30 transition-all group"
-    whileHover={{ scale: 1.1 }}
-    whileTap={{ scale: 0.9 }}
-    initial={{ opacity: 0, scale: 0.8 }}
+    whileHover={{ scale: 1.08 }}
+    whileTap={{ scale: 0.93 }}
+    initial={{ opacity: 0, scale: 0.85 }}
     animate={{ opacity: 1, scale: 1 }}
-    transition={{ delay: 0.2 }}
+    transition={{ delay: 0.2, ...springs.smooth }}
   >
     <Maximize2 size={16} />
     {/* Tooltip */}
@@ -431,7 +432,7 @@ const RightToolbar = ({ onSettingsClick }: { onSettingsClick: () => void }) => {
       className="absolute right-2 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2"
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 0.4, duration: 0.4 }}
+      transition={{ delay: 0.4, ...springs.smooth }}
     >
       {/* Glassmorphism container */}
       <div className="relative flex flex-col gap-2 p-1.5 rounded-2xl bg-gradient-to-b from-purple-900/20 to-pink-900/20 backdrop-blur-xl border border-white/10 shadow-[0_0_30px_rgba(147,51,234,0.15)]">
@@ -445,7 +446,8 @@ const RightToolbar = ({ onSettingsClick }: { onSettingsClick: () => void }) => {
               : 'bg-gradient-to-br from-pink-500/10 to-red-500/10 border border-pink-500/20'
           }`}
           whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+          whileTap={{ scale: 0.92 }}
+          transition={springs.snappy}
           title={isLiked ? 'Unlike' : 'Like'}
         >
           <Heart size={14} className={isLiked ? 'text-pink-400 fill-pink-400' : 'text-pink-400/60'} />
@@ -464,7 +466,8 @@ const RightToolbar = ({ onSettingsClick }: { onSettingsClick: () => void }) => {
           onClick={handleDownload}
           className="min-w-[40px] min-h-[40px] w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center hover:from-cyan-500/30 hover:to-blue-500/30 transition-colors group relative"
           whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+          whileTap={{ scale: 0.92 }}
+          transition={springs.snappy}
           title="Download track"
         >
           <Download size={14} className="text-cyan-400" />
@@ -475,7 +478,8 @@ const RightToolbar = ({ onSettingsClick }: { onSettingsClick: () => void }) => {
           onClick={onSettingsClick}
           className="min-w-[40px] min-h-[40px] w-10 h-10 rounded-full bg-gradient-to-br from-white/5 to-white/10 border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors group relative"
           whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+          whileTap={{ scale: 0.92 }}
+          transition={springs.snappy}
           title="Boost settings"
         >
           <Settings size={14} className="text-gray-400" />
@@ -499,10 +503,12 @@ const RightToolbar = ({ onSettingsClick }: { onSettingsClick: () => void }) => {
   );
 };
 
-// Spring configs
+// Spring configs - OPTIMIZED for smooth, fluid motion
 const springs = {
-  gentle: { type: 'spring' as const, stiffness: 120, damping: 14 },
-  snappy: { type: 'spring' as const, stiffness: 400, damping: 30 },
+  gentle: { type: 'spring' as const, stiffness: 150, damping: 20 },      // Smoother gentle transitions
+  snappy: { type: 'spring' as const, stiffness: 300, damping: 25 },      // Less aggressive snappy
+  smooth: { type: 'spring' as const, stiffness: 180, damping: 22 },      // General purpose smooth
+  ultraSmooth: { type: 'spring' as const, stiffness: 120, damping: 18 }, // Ultra fluid for large elements
 };
 
 // ============================================
@@ -528,7 +534,8 @@ const SmallCard = memo(({ track, onTap, isPlayed }: { track: Track; onTap: () =>
     className="flex flex-col gap-2 w-[70px] flex-shrink-0 group"
     onClick={onTap}
     whileHover={{ scale: 1.05 }}
-    whileTap={{ scale: 0.95 }}
+    whileTap={{ scale: 0.97 }}
+    transition={springs.smooth}
   >
     <div className="w-[70px] h-[70px] rounded-2xl overflow-hidden relative border border-white/5 bg-gradient-to-br from-purple-900/30 to-pink-900/20">
       <SmartImage
@@ -568,7 +575,8 @@ const DashPlaceholder = ({ onClick, label }: { onClick?: () => void; label: stri
     onClick={onClick}
     className="w-[70px] h-[70px] rounded-2xl bg-gradient-to-br from-purple-900/30 to-pink-900/20 border border-purple-500/20 flex flex-col items-center justify-center gap-1 hover:border-purple-500/40 transition-colors"
     whileHover={{ scale: 1.05 }}
-    whileTap={{ scale: 0.95 }}
+    whileTap={{ scale: 0.97 }}
+    transition={springs.smooth}
   >
     <span className="text-[10px] font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
       DASH
@@ -601,6 +609,7 @@ const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type, isActive }:
   const isDragging = useRef(false);
   const dragStartX = useRef(0);
   const dragStartOffset = useRef(0);
+  const pauseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isHot = type === 'hot';
   // INWARD direction: HOT scrolls RIGHT (+), DISCOVERY scrolls LEFT (-)
@@ -647,6 +656,7 @@ const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type, isActive }:
     return () => {
       mounted = false;
       cancelAnimationFrame(animationId);
+      if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
     };
   }, [tracks.length, isPaused, speed, totalWidth, isActive]);
 
@@ -744,7 +754,8 @@ const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type, isActive }:
   const handleDragEnd = () => {
     isDragging.current = false;
     // Keep paused for 2 seconds after drag ends to let user see position
-    setTimeout(() => setIsPaused(false), 2000);
+    if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
+    pauseTimeoutRef.current = setTimeout(() => setIsPaused(false), 2000);
   };
 
   // Mouse handlers
@@ -809,12 +820,26 @@ const StreamCard = memo(({ track, onTap, isPlayed, onTeaser }: { track: Track; o
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [wasDragged, setWasDragged] = useState(false);
 
+  // Timeout refs for cleanup - prevents memory leaks on rapid scrolling
+  const teaserTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queueTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Detect touch device
   useEffect(() => {
     const checkTouch = () => {
       setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
     };
     checkTouch();
+  }, []);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (teaserTimeoutRef.current) clearTimeout(teaserTimeoutRef.current);
+      if (queueTimeoutRef.current) clearTimeout(queueTimeoutRef.current);
+      if (dragTimeoutRef.current) clearTimeout(dragTimeoutRef.current);
+    };
   }, []);
 
   // Handle tap - on mobile plays teaser, on desktop plays full
@@ -829,7 +854,8 @@ const StreamCard = memo(({ track, onTap, isPlayed, onTeaser }: { track: Track; o
     if (isTouchDevice && onTeaser) {
       onTeaser(track);
       setShowTeaserFeedback(true);
-      setTimeout(() => setShowTeaserFeedback(false), 2000);
+      if (teaserTimeoutRef.current) clearTimeout(teaserTimeoutRef.current);
+      teaserTimeoutRef.current = setTimeout(() => setShowTeaserFeedback(false), 2000);
     } else {
       // On desktop: click = full play
       onTap();
@@ -841,18 +867,29 @@ const StreamCard = memo(({ track, onTap, isPlayed, onTeaser }: { track: Track; o
       className="flex-shrink-0 flex flex-col items-center w-16 relative"
       drag
       dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-      dragElastic={0.3}
+      dragElastic={0.2}
+      dragMomentum={false}
+      dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
       onDragStart={() => setWasDragged(true)}
       onDragEnd={(_, info) => {
-        // Drag UP-RIGHT to add to queue (diagonal gesture)
-        if (info.offset.y < -50 && info.offset.x > 30) {
+        const dragDistance = Math.abs(info.offset.y) + Math.abs(info.offset.x);
+
+        // Consider it a drag if moved more than 5px
+        if (dragDistance > 5) {
+          setWasDragged(true);
+        }
+
+        // Drag UP to add to queue (simple upward gesture)
+        if (info.offset.y < -40) {
           haptics.success();
           addToQueue(track);
           setShowQueueFeedback(true);
-          setTimeout(() => setShowQueueFeedback(false), 1500);
+          if (queueTimeoutRef.current) clearTimeout(queueTimeoutRef.current);
+          queueTimeoutRef.current = setTimeout(() => setShowQueueFeedback(false), 1500);
         }
         // Reset drag state after a short delay to prevent tap from firing
-        setTimeout(() => setWasDragged(false), 100);
+        if (dragTimeoutRef.current) clearTimeout(dragTimeoutRef.current);
+        dragTimeoutRef.current = setTimeout(() => setWasDragged(false), 150);
       }}
       whileTap={{ cursor: 'grabbing' }}
     >
@@ -861,9 +898,10 @@ const StreamCard = memo(({ track, onTap, isPlayed, onTeaser }: { track: Track; o
         {showQueueFeedback && (
           <motion.div
             className="absolute -top-8 left-1/2 -translate-x-1/2 z-50 bg-purple-500 text-white text-[9px] font-bold px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap"
-            initial={{ opacity: 0, y: 10, scale: 0.8 }}
+            initial={{ opacity: 0, y: 10, scale: 0.85 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.8 }}
+            exit={{ opacity: 0, y: -10, scale: 0.85 }}
+            transition={springs.smooth}
           >
             Added to Queue
           </motion.div>
@@ -875,9 +913,10 @@ const StreamCard = memo(({ track, onTap, isPlayed, onTeaser }: { track: Track; o
         {showTeaserFeedback && (
           <motion.div
             className="absolute -top-8 left-1/2 -translate-x-1/2 z-50 bg-cyan-500 text-white text-[9px] font-bold px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap flex items-center gap-1"
-            initial={{ opacity: 0, y: 10, scale: 0.8 }}
+            initial={{ opacity: 0, y: 10, scale: 0.85 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.8 }}
+            exit={{ opacity: 0, y: -10, scale: 0.85 }}
+            transition={springs.smooth}
           >
             <Play size={10} fill="white" /> 30s Preview
           </motion.div>
@@ -887,8 +926,9 @@ const StreamCard = memo(({ track, onTap, isPlayed, onTeaser }: { track: Track; o
       <motion.button
         className="flex flex-col items-center group w-full"
         onClick={handleTap}
-        whileHover={{ scale: 1.08, y: -2 }}
-        whileTap={{ scale: 0.95 }}
+        whileHover={{ scale: 1.06, y: -2 }}
+        whileTap={{ scale: 0.96 }}
+        transition={springs.smooth}
       >
         <div className="w-14 h-14 rounded-xl overflow-hidden mb-1.5 relative border border-white/5 shadow-md bg-gradient-to-br from-purple-900/30 to-pink-900/20">
           <SmartImage
@@ -937,9 +977,9 @@ const BigCenterCard = memo(({ track, onExpandVideo }: { track: Track; onExpandVi
     style={{
       boxShadow: '0 25px 60px -12px rgba(0,0,0,0.9), 0 0 50px rgba(139,92,246,0.2), 0 0 100px rgba(139,92,246,0.1)',
     }}
-    initial={{ scale: 0.9, opacity: 0 }}
+    initial={{ scale: 0.95, opacity: 0 }}
     animate={{ scale: 1, opacity: 1 }}
-    transition={springs.gentle}
+    transition={springs.ultraSmooth}
     whileHover={{ scale: 1.02 }}
     key={track.id}
   >
@@ -1109,7 +1149,8 @@ const PlayControls = memo(({
         onTouchStart={() => onScrubStart('backward')}
         onTouchEnd={onScrubEnd}
         whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
+        whileTap={{ scale: 0.92 }}
+        transition={springs.snappy}
       >
         <SkipBack size={24} fill="currentColor" />
       </motion.button>
@@ -1123,7 +1164,7 @@ const PlayControls = memo(({
             backgroundColor: isPlaying ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.15)',
             scale: isPlaying ? 1.2 : 1,
           }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
         />
 
         {/* Spinning Vinyl Disk */}
@@ -1204,7 +1245,8 @@ const PlayControls = memo(({
         onTouchStart={() => onScrubStart('forward')}
         onTouchEnd={onScrubEnd}
         whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
+        whileTap={{ scale: 0.92 }}
+        transition={springs.snappy}
       >
         <SkipForward size={24} fill="currentColor" />
       </motion.button>
@@ -1411,7 +1453,8 @@ const FullscreenVideoPlayer = ({
         <motion.button
           onClick={onTogglePlay}
           className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors"
-          whileTap={{ scale: 0.95 }}
+          whileTap={{ scale: 0.97 }}
+          transition={springs.smooth}
         >
           <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
             {isPlaying ? (
@@ -1435,7 +1478,8 @@ const FullscreenVideoPlayer = ({
           onClick={onClose}
           className="ml-4 px-6 py-2 rounded-full bg-white/10 border border-white/20 text-white text-sm font-bold hover:bg-white/20 transition-colors"
           whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          whileTap={{ scale: 0.97 }}
+          transition={springs.smooth}
         >
           Close
         </motion.button>
@@ -1654,9 +1698,10 @@ export const VoyoPortraitPlayer = ({
         {isTeaserPlaying && teaserTrack && (
           <motion.div
             className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/90 backdrop-blur-sm border border-cyan-400/50 shadow-lg"
-            initial={{ opacity: 0, y: -20, scale: 0.9 }}
+            initial={{ opacity: 0, y: -20, scale: 0.88 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+            exit={{ opacity: 0, y: -20, scale: 0.88 }}
+            transition={springs.smooth}
           >
             <motion.div
               className="w-2 h-2 rounded-full bg-white"
@@ -1673,7 +1718,8 @@ export const VoyoPortraitPlayer = ({
                   clearTimeout(teaserTimeoutRef.current);
                 }
               }}
-              whileTap={{ scale: 0.9 }}
+              whileTap={{ scale: 0.92 }}
+              transition={springs.snappy}
             >
               <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -1882,7 +1928,8 @@ export const VoyoPortraitPlayer = ({
               opacity: [1, 0.5, 1],
               transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' }
             } : { opacity: 1 }}
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.96 }}
+            transition={springs.snappy}
           >
             <Flame size={10} /> HOT
             {isHotBeltActive && <span className="text-[6px] text-rose-400/60 ml-1">ON</span>}
@@ -1894,7 +1941,8 @@ export const VoyoPortraitPlayer = ({
               opacity: [1, 0.5, 1],
               transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' }
             } : { opacity: 1 }}
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.96 }}
+            transition={springs.snappy}
           >
             DISCOVERY
             {isDiscoveryBeltActive && <span className="text-[6px] text-cyan-400/60 ml-1">ON</span>}
@@ -1937,7 +1985,8 @@ export const VoyoPortraitPlayer = ({
             />
             <motion.button
               onClick={onVoyoFeed}
-              whileTap={{ scale: 0.9 }}
+              whileTap={{ scale: 0.93 }}
+              transition={springs.snappy}
               className="relative w-12 h-12 rounded-full flex flex-col items-center justify-center"
               style={{
                 background: 'linear-gradient(90deg, rgba(239,68,68,0.3) 0%, #1a1a2e 50%, rgba(59,130,246,0.3) 100%)',
@@ -1989,6 +2038,7 @@ export const VoyoPortraitPlayer = ({
                 className={`flex-shrink-0 w-28 h-14 rounded-xl bg-gradient-to-br ${pl.color} border border-white/5 flex items-center justify-center relative overflow-hidden`}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
+                transition={springs.smooth}
               >
                 <div className="text-center">
                   <div className="text-[10px] font-bold text-white">{pl.title}</div>

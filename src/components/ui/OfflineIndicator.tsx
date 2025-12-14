@@ -3,20 +3,22 @@
  * Shows when user loses network connectivity
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WifiOff, Wifi } from 'lucide-react';
 
 export const OfflineIndicator = () => {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [showReconnected, setShowReconnected] = useState(false);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
       setShowReconnected(true);
-      // Hide "Back online" message after 3 seconds
-      setTimeout(() => setShowReconnected(false), 3000);
+      // Clear previous timeout and set new one
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = setTimeout(() => setShowReconnected(false), 3000);
     };
 
     const handleOffline = () => {
@@ -30,6 +32,7 @@ export const OfflineIndicator = () => {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     };
   }, []);
 
