@@ -610,10 +610,12 @@ const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type, isActive, s
 
   // Manual scroll state
   const isDragging = useRef(false);
+  const hasDraggedPastThreshold = useRef(false); // True if moved > threshold (real drag)
   const dragStartX = useRef(0);
   const dragStartOffset = useRef(0);
   const pauseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reverseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const DRAG_THRESHOLD = 10; // Pixels before considered a drag vs tap
 
   const isHot = type === 'hot';
   // INWARD direction: HOT scrolls RIGHT (+), DISCOVERY scrolls LEFT (-)
@@ -760,28 +762,44 @@ const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type, isActive, s
   // Manual scroll handlers - works when auto-scroll is paused
   const handleDragStart = (clientX: number) => {
     isDragging.current = true;
+    hasDraggedPastThreshold.current = false;
     dragStartX.current = clientX;
     dragStartOffset.current = offset;
-    setIsPaused(true);
+    // Don't pause yet - wait until threshold is crossed
   };
 
   const handleDragMove = (clientX: number) => {
     if (!isDragging.current) return;
     const delta = clientX - dragStartX.current;
-    let newOffset = dragStartOffset.current + delta;
 
-    // Wrap around for infinite scroll feel
-    while (newOffset <= -totalWidth) newOffset += totalWidth;
-    while (newOffset >= totalWidth) newOffset -= totalWidth;
+    // Check if we've crossed the drag threshold
+    if (!hasDraggedPastThreshold.current && Math.abs(delta) > DRAG_THRESHOLD) {
+      hasDraggedPastThreshold.current = true;
+      setIsPaused(true); // Now pause auto-scroll since it's a real drag
+    }
 
-    setOffset(newOffset);
+    // Only move if past threshold (prevents micro-movements during tap)
+    if (hasDraggedPastThreshold.current) {
+      let newOffset = dragStartOffset.current + delta;
+
+      // Wrap around for infinite scroll feel
+      while (newOffset <= -totalWidth) newOffset += totalWidth;
+      while (newOffset >= totalWidth) newOffset -= totalWidth;
+
+      setOffset(newOffset);
+    }
   };
 
   const handleDragEnd = () => {
+    const wasDrag = hasDraggedPastThreshold.current;
     isDragging.current = false;
-    // Keep paused for 2 seconds after drag ends to let user see position
-    if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
-    pauseTimeoutRef.current = setTimeout(() => setIsPaused(false), 2000);
+    hasDraggedPastThreshold.current = false;
+
+    // Only keep paused if it was a real drag
+    if (wasDrag) {
+      if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
+      pauseTimeoutRef.current = setTimeout(() => setIsPaused(false), 2000);
+    }
   };
 
   // Mouse handlers
@@ -798,12 +816,18 @@ const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type, isActive, s
     handleDragEnd();
   };
 
-  // Touch handlers
+  // Touch handlers - optimized for mobile belt dragging
   const handleTouchStart = (e: React.TouchEvent) => {
+    // Don't prevent default here - allow tap-through for card taps
     handleDragStart(e.touches[0].clientX);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    // Only prevent page scroll when it's a real drag (past threshold)
+    if (hasDraggedPastThreshold.current) {
+      e.preventDefault();
+      e.stopPropagation(); // Stop cards from getting the event
+    }
     handleDragMove(e.touches[0].clientX);
   };
 
@@ -811,10 +835,16 @@ const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type, isActive, s
     handleDragEnd();
   };
 
+  // Prevent context menu on long press (mobile)
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+  };
+
   return (
     <div
       ref={containerRef}
-      className="flex-1 relative h-20 overflow-hidden cursor-grab active:cursor-grabbing"
+      className="flex-1 relative h-20 overflow-hidden cursor-grab active:cursor-grabbing select-none"
+      style={{ touchAction: 'pan-x' }} // Allow horizontal drag, prevent vertical scroll
       onMouseEnter={() => !isDragging.current && setIsPaused(true)}
       onMouseLeave={() => {
         if (!isDragging.current) setIsPaused(false);
@@ -823,11 +853,13 @@ const PortalBelt = ({ tracks, onTap, onTeaser, playedTrackIds, type, isActive, s
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      // Use capture phase for touch events so belt handles drag before cards handle tap
+      onTouchStartCapture={handleTouchStart}
+      onTouchMoveCapture={handleTouchMove}
+      onTouchEndCapture={handleTouchEnd}
+      onContextMenu={handleContextMenu}
     >
-      {/* Cards container */}
+      {/* Cards container - cards have pointer-events-auto for tap, belt captures drag */}
       <div className="absolute inset-0 pointer-events-none">
         {renderCards()}
       </div>
