@@ -207,6 +207,8 @@ export const ClassicMode = ({ onSwitchToVOYO, onSearch }: ClassicModeProps) => {
   const { currentTrack } = usePlayerStore();
 
   const handleTrackClick = (track: Track) => {
+    const { setCurrentTrack } = usePlayerStore.getState();
+    setCurrentTrack(track);
     setShowNowPlaying(true);
   };
 
@@ -228,7 +230,7 @@ export const ClassicMode = ({ onSwitchToVOYO, onSearch }: ClassicModeProps) => {
           transition={{ duration: 0.2 }}
         >
           {activeTab === 'home' && (
-            <HomeFeed onArtistClick={handleArtistClick} onSearch={onSearch} />
+            <HomeFeed onTrackPlay={handleTrackClick} onSearch={onSearch} />
           )}
           {activeTab === 'library' && (
             <Library onTrackClick={handleTrackClick} />

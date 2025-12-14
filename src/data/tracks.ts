@@ -382,3 +382,126 @@ export const getRelatedTracks = (track: Track, limit: number = 5, excludeIds: st
     ...hotTracks.slice(0, needed),
   ].slice(0, limit);
 };
+
+// ============================================
+// PIPED ALBUM INTEGRATION
+// ============================================
+
+import type { PipedTrack } from '../services/piped';
+import { encodeVoyoId } from '../utils/voyoId';
+
+/**
+ * Convert Piped track to VOYO Track format
+ * Used when playing albums from YouTube playlists
+ */
+export function pipedTrackToVoyoTrack(pipedTrack: PipedTrack, albumName?: string): Track {
+  // Generate VOYO ID from YouTube ID
+  const voyoId = encodeVoyoId(pipedTrack.videoId);
+
+  return {
+    id: `piped_${pipedTrack.videoId}`,
+    title: pipedTrack.title,
+    artist: pipedTrack.artist,
+    album: albumName || 'Unknown Album',
+    trackId: voyoId, // Use encoded VOYO ID for consistency
+    coverUrl: pipedTrack.thumbnail || getThumbnailUrl(pipedTrack.videoId),
+    duration: pipedTrack.duration,
+    tags: inferTagsFromTitle(pipedTrack.title, pipedTrack.artist),
+    mood: inferMoodFromTags(pipedTrack.title),
+    region: inferRegionFromArtist(pipedTrack.artist),
+    oyeScore: 0, // New tracks start at 0
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Infer tags from track title and artist
+ */
+function inferTagsFromTitle(title: string, artist: string): string[] {
+  const tags: string[] = [];
+  const lowerTitle = title.toLowerCase();
+  const lowerArtist = artist.toLowerCase();
+
+  // Genre indicators
+  if (lowerTitle.includes('afrobeat') || lowerArtist.includes('burna') || lowerArtist.includes('wizkid')) {
+    tags.push('afrobeats');
+  }
+  if (lowerTitle.includes('amapiano') || lowerTitle.includes('piano')) {
+    tags.push('amapiano');
+  }
+  if (lowerTitle.includes('dancehall') || lowerTitle.includes('reggae')) {
+    tags.push('dancehall');
+  }
+  if (lowerTitle.includes('rnb') || lowerTitle.includes('r&b')) {
+    tags.push('rnb');
+  }
+  if (lowerTitle.includes('hip hop') || lowerTitle.includes('rap')) {
+    tags.push('hiphop');
+  }
+
+  // Mood indicators
+  if (lowerTitle.includes('love') || lowerTitle.includes('heart')) {
+    tags.push('love');
+  }
+  if (lowerTitle.includes('party') || lowerTitle.includes('club')) {
+    tags.push('party');
+  }
+  if (lowerTitle.includes('chill') || lowerTitle.includes('relax')) {
+    tags.push('chill');
+  }
+
+  // Default to afrobeats if no genre found
+  if (tags.length === 0) {
+    tags.push('afrobeats');
+  }
+
+  return tags;
+}
+
+/**
+ * Infer mood from title
+ */
+function inferMoodFromTags(title: string): Track['mood'] {
+  const lower = title.toLowerCase();
+
+  if (lower.includes('party') || lower.includes('dance') || lower.includes('club')) {
+    return 'party';
+  }
+  if (lower.includes('chill') || lower.includes('relax') || lower.includes('smooth')) {
+    return 'chill';
+  }
+  if (lower.includes('love') || lower.includes('heart') || lower.includes('feel')) {
+    return 'heartbreak';
+  }
+  if (lower.includes('hype') || lower.includes('energy') || lower.includes('fire')) {
+    return 'hype';
+  }
+
+  // Default to afro for African music
+  return 'afro';
+}
+
+/**
+ * Infer region from artist name
+ */
+function inferRegionFromArtist(artist: string): string | undefined {
+  const lower = artist.toLowerCase();
+
+  // Nigerian artists
+  if (lower.includes('burna') || lower.includes('wizkid') || lower.includes('davido') ||
+      lower.includes('rema') || lower.includes('tems') || lower.includes('asake')) {
+    return 'NG';
+  }
+
+  // South African artists
+  if (lower.includes('kabza') || lower.includes('dj maphorisa') || lower.includes('focalistic')) {
+    return 'ZA';
+  }
+
+  // Ghanaian artists
+  if (lower.includes('stonebwoy') || lower.includes('shatta') || lower.includes('sarkodie')) {
+    return 'GH';
+  }
+
+  return undefined;
+}

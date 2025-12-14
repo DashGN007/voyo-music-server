@@ -4,11 +4,6 @@ import { Track, ViewMode, QueueItem, HistoryItem, MoodType, Reaction, VoyoTab } 
 import {
   TRACKS,
   getRandomTracks,
-  getHotTracks,
-  getDiscoverTracks,
-  getRelatedTracks,
-  getTracksByArtist,
-  getTracksByTags,
 } from '../data/tracks';
 import {
   getPersonalizedHotTracks,
@@ -154,9 +149,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   })),
   history: [],
 
-  hotTracks: getHotTracks(),
+  // PERSONALIZED BELTS: Use smart scoring from day 1
+  hotTracks: getPersonalizedHotTracks(5),
   aiPicks: getRandomTracks(5),
-  discoverTracks: getDiscoverTracks([]),
+  discoverTracks: getPersonalizedDiscoveryTracks(TRACKS[0], 5, []),
   isAiMode: true,
 
   currentMood: 'afro',
@@ -384,15 +380,16 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       ...state.history.slice(-5).map((h) => h.track.id),
     ].filter(Boolean) as string[];
 
-    // Use personalized recommendations if AI mode is enabled
-    const hotTracks = state.isAiMode
-      ? getPersonalizedHotTracks(5)
-      : getHotTracks();
+    // ALWAYS use personalized recommendations (VOYO intelligence)
+    const hotTracks = getPersonalizedHotTracks(5);
+    const discoverTracks = state.currentTrack
+      ? getPersonalizedDiscoveryTracks(state.currentTrack, 5, excludeIds)
+      : getPersonalizedDiscoveryTracks(TRACKS[0], 5, excludeIds);
 
     set({
       hotTracks,
       aiPicks: getRandomTracks(5),
-      discoverTracks: getDiscoverTracks(excludeIds),
+      discoverTracks,
     });
   },
 
@@ -408,10 +405,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       ...state.queue.map((q) => q.track.id),
     ].filter(Boolean) as string[];
 
-    // Use personalized discovery if AI mode is enabled
-    const relatedTracks = state.isAiMode
-      ? getPersonalizedDiscoveryTracks(track, 5, excludeIds)
-      : getRelatedTracks(track, 5, excludeIds);
+    // ALWAYS use personalized discovery (VOYO intelligence learns from user)
+    const relatedTracks = getPersonalizedDiscoveryTracks(track, 5, excludeIds);
 
     set({ discoverTracks: relatedTracks });
   },

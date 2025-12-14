@@ -1,121 +1,207 @@
 /**
- * VOYO Music - Classic Mode: Home Feed
- * Reference: Classic Mode - When clicked on profile.jpg (Left phone)
+ * VOYO Music - Classic Mode: Home Feed (Spotify-Style Shelves)
  *
  * Features:
- * - Profile avatar top-left
- * - Search & notifications top-right
- * - Horizontal scrollable category pills
- * - Masonry grid of artist/album cards
- * - Cards show: Image, Name, Song count, Badges
+ * - Horizontal scrollable shelves (Continue Listening, Heavy Rotation, Made For You, etc.)
+ * - Time-based greeting
+ * - Personalized recommendations based on user preferences
+ * - Mobile-first, touch-friendly design
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Bell, TrendingUp, Award, Music } from 'lucide-react';
-import { getYouTubeThumbnail, TRACKS } from '../../data/tracks';
-import { Track } from '../../types';
+import { Search, Bell, Play } from 'lucide-react';
+import { getThumb } from '../../utils/thumbnail';
+import { TRACKS, MOOD_TUNNELS, getHotTracks } from '../../data/tracks';
+import { getUserTopTracks, getPersonalizedHotTracks } from '../../services/personalization';
+import { usePlayerStore } from '../../store/playerStore';
+import { Track, MoodTunnel } from '../../types';
 
-// Category pills
-const CATEGORIES = [
-  { id: 'all', label: 'All' },
-  { id: 'new', label: 'New Releases' },
-  { id: 'trending', label: 'Trending' },
-  { id: 'afrobeats', label: 'Afrobeats' },
-  { id: 'amapiano', label: 'Amapiano' },
-  { id: 'hiphop', label: 'Hip Hop' },
-];
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
 
-// Group tracks by artist for artist cards
-const getArtistCards = () => {
-  const artistMap = new Map<string, { name: string; tracks: Track[]; image: string }>();
-
-  TRACKS.forEach(track => {
-    if (!artistMap.has(track.artist)) {
-      artistMap.set(track.artist, {
-        name: track.artist,
-        tracks: [],
-        image: getYouTubeThumbnail(track.trackId, 'high'),
-      });
-    }
-    artistMap.get(track.artist)!.tracks.push(track);
-  });
-
-  return Array.from(artistMap.values());
+/**
+ * Get time-based greeting
+ */
+const getGreeting = (): string => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
 };
 
-// Artist Card Component
-const ArtistCard = ({
-  artist,
-  isLarge = false,
-  badge,
-  onClick
-}: {
-  artist: { name: string; tracks: Track[]; image: string };
-  isLarge?: boolean;
-  badge?: 'chart' | 'gold';
-  onClick: () => void;
-}) => (
-  <motion.button
-    className={`relative rounded-2xl overflow-hidden ${isLarge ? 'col-span-2 row-span-2' : ''}`}
-    onClick={onClick}
-    whileHover={{ scale: 1.02, y: -2 }}
-    whileTap={{ scale: 0.98 }}
-  >
-    <div className={`${isLarge ? 'aspect-square' : 'aspect-[3/4]'} relative`}>
-      <img
-        src={artist.image}
-        alt={artist.name}
-        className="w-full h-full object-cover"
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+/**
+ * Get new releases (sorted by createdAt)
+ */
+const getNewReleases = (limit: number = 10): Track[] => {
+  return [...TRACKS]
+    .sort((a, b) => {
+      const dateA = new Date(a.createdAt || '2024-01-01').getTime();
+      const dateB = new Date(b.createdAt || '2024-01-01').getTime();
+      return dateB - dateA;
+    })
+    .slice(0, limit);
+};
 
-      {/* Badge */}
-      {badge && (
-        <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
-          badge === 'chart'
-            ? 'bg-orange-500/80 text-white'
-            : 'bg-yellow-500/80 text-black'
-        }`}>
-          {badge === 'chart' ? (
-            <>
-              <TrendingUp className="w-3 h-3" />
-              In Charts
-            </>
-          ) : (
-            <>
-              <Award className="w-3 h-3" />
-              Gold Record
-            </>
-          )}
-        </div>
+/**
+ * Get unique tracks from history (for Continue Listening)
+ */
+const getRecentlyPlayed = (history: any[], limit: number = 10): Track[] => {
+  const seen = new Set<string>();
+  const uniqueTracks: Track[] = [];
+
+  // Iterate backwards (most recent first)
+  for (let i = history.length - 1; i >= 0; i--) {
+    const item = history[i];
+    if (item.track && !seen.has(item.track.id)) {
+      seen.add(item.track.id);
+      uniqueTracks.push(item.track);
+      if (uniqueTracks.length >= limit) break;
+    }
+  }
+
+  return uniqueTracks;
+};
+
+// ============================================
+// SHELF COMPONENT
+// ============================================
+
+interface ShelfProps {
+  title: string;
+  onSeeAll?: () => void;
+  children: React.ReactNode;
+}
+
+const Shelf = ({ title, onSeeAll, children }: ShelfProps) => (
+  <div className="mb-6">
+    <div className="flex justify-between items-center px-4 mb-3">
+      <h2 className="text-white font-bold text-lg">{title}</h2>
+      {onSeeAll && (
+        <motion.button
+          className="text-purple-400 text-sm font-medium"
+          onClick={onSeeAll}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          See all
+        </motion.button>
       )}
-
-      {/* Info */}
-      <div className="absolute bottom-3 left-3 right-3">
-        <p className="text-white font-bold text-lg truncate">{artist.name}</p>
-        <p className="text-white/60 text-sm flex items-center gap-1">
-          <Music className="w-3 h-3" />
-          {artist.tracks.length} songs
-        </p>
-      </div>
     </div>
+    <div className="flex gap-3 px-4 overflow-x-auto scrollbar-hide">
+      {children}
+    </div>
+  </div>
+);
+
+// ============================================
+// TRACK CARD COMPONENT
+// ============================================
+
+interface TrackCardProps {
+  track: Track;
+  onPlay: () => void;
+}
+
+const TrackCard = ({ track, onPlay }: TrackCardProps) => {
+  const [imageError, setImageError] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <motion.button
+      className="flex-shrink-0 w-32"
+      onClick={onPlay}
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+    >
+      <div className="relative w-32 h-32 rounded-xl overflow-hidden mb-2 bg-white/5">
+        <img
+          src={imageError ? '/placeholder-album.png' : getThumb(track.trackId)}
+          alt={track.title}
+          className="w-full h-full object-cover"
+          onError={() => setImageError(true)}
+        />
+        {/* Play button overlay on hover */}
+        {isHovered && (
+          <motion.div
+            className="absolute inset-0 bg-black/40 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="w-12 h-12 rounded-full bg-purple-500 flex items-center justify-center">
+              <Play className="w-6 h-6 text-white ml-1" fill="white" />
+            </div>
+          </motion.div>
+        )}
+      </div>
+      <p className="text-white text-sm font-medium truncate">{track.title}</p>
+      <p className="text-white/50 text-xs truncate">{track.artist}</p>
+    </motion.button>
+  );
+};
+
+// ============================================
+// MOOD CARD COMPONENT
+// ============================================
+
+interface MoodCardProps {
+  mood: MoodTunnel;
+  onSelect: () => void;
+}
+
+const MoodCard = ({ mood, onSelect }: MoodCardProps) => (
+  <motion.button
+    className={`flex-shrink-0 w-28 h-28 rounded-2xl bg-gradient-to-br ${mood.gradient} flex flex-col items-center justify-center shadow-lg`}
+    onClick={onSelect}
+    whileHover={{ scale: 1.05, y: -4 }}
+    whileTap={{ scale: 0.95 }}
+  >
+    <span className="text-3xl mb-1">{mood.icon}</span>
+    <span className="text-white font-bold text-sm">{mood.name}</span>
   </motion.button>
 );
 
+// ============================================
+// HOME FEED COMPONENT
+// ============================================
+
 interface HomeFeedProps {
-  onArtistClick: (artist: { name: string; tracks: Track[] }) => void;
+  onTrackPlay: (track: Track) => void;
   onSearch: () => void;
+  onArtistClick?: (artist: { name: string; tracks: Track[] }) => void;
 }
 
-export const HomeFeed = ({ onArtistClick, onSearch }: HomeFeedProps) => {
-  const [activeCategory, setActiveCategory] = useState('all');
-  const artists = getArtistCards();
+export const HomeFeed = ({ onTrackPlay, onSearch }: HomeFeedProps) => {
+  const { history } = usePlayerStore();
+
+  // Data for shelves (memoized for performance)
+  const recentlyPlayed = useMemo(() => getRecentlyPlayed(history, 10), [history]);
+  const heavyRotation = useMemo(() => getUserTopTracks(10), []);
+  const madeForYou = useMemo(() => getPersonalizedHotTracks(10), []);
+  const moods = MOOD_TUNNELS;
+  const newReleases = useMemo(() => getNewReleases(10), []);
+
+  // Time-based greeting
+  const greeting = getGreeting();
+
+  // Mood selection handler
+  const handleMoodSelect = (mood: MoodTunnel) => {
+    // TODO: Navigate to mood tunnel view
+    console.log('Selected mood:', mood.name);
+  };
+
+  // Check if user has listening history
+  const hasHistory = recentlyPlayed.length > 0;
+  const hasPreferences = heavyRotation.length > 0;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-y-auto pb-32 scrollbar-hide">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3">
+      <header className="flex items-center justify-between px-4 py-3 sticky top-0 bg-[#0a0a0f]/95 backdrop-blur-lg z-10">
         {/* Profile Avatar */}
         <motion.button
           className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold"
@@ -147,44 +233,89 @@ export const HomeFeed = ({ onArtistClick, onSearch }: HomeFeedProps) => {
       </header>
 
       {/* Greeting */}
-      <div className="px-4 py-2">
-        <h1 className="text-2xl font-bold text-white">Hello, Dash</h1>
-        <p className="text-white/50 text-sm">What do you want to listen to?</p>
+      <div className="px-4 py-4">
+        <h1 className="text-2xl font-bold text-white">{greeting}, Dash</h1>
       </div>
 
-      {/* Category Pills */}
-      <div className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
-        {CATEGORIES.map((cat) => (
+      {/* Continue Listening (only if user has history) */}
+      {hasHistory && (
+        <Shelf title="Continue Listening">
+          {recentlyPlayed.map((track) => (
+            <TrackCard
+              key={track.id}
+              track={track}
+              onPlay={() => onTrackPlay(track)}
+            />
+          ))}
+        </Shelf>
+      )}
+
+      {/* Heavy Rotation (only if user has preferences) */}
+      {hasPreferences && (
+        <Shelf title="Your Heavy Rotation">
+          {heavyRotation.map((track) => (
+            <TrackCard
+              key={track.id}
+              track={track}
+              onPlay={() => onTrackPlay(track)}
+            />
+          ))}
+        </Shelf>
+      )}
+
+      {/* Made For You */}
+      <Shelf title="Made For You">
+        {madeForYou.map((track) => (
+          <TrackCard
+            key={track.id}
+            track={track}
+            onPlay={() => onTrackPlay(track)}
+          />
+        ))}
+      </Shelf>
+
+      {/* Browse by Mood */}
+      <Shelf title="Browse by Mood">
+        {moods.map((mood) => (
+          <MoodCard
+            key={mood.id}
+            mood={mood}
+            onSelect={() => handleMoodSelect(mood)}
+          />
+        ))}
+      </Shelf>
+
+      {/* New Releases */}
+      <Shelf title="New Releases">
+        {newReleases.map((track) => (
+          <TrackCard
+            key={track.id}
+            track={track}
+            onPlay={() => onTrackPlay(track)}
+          />
+        ))}
+      </Shelf>
+
+      {/* Empty State (only if no history AND no preferences) */}
+      {!hasHistory && !hasPreferences && (
+        <div className="px-4 py-8 text-center">
+          <p className="text-white/50 text-sm mb-4">
+            Start listening to build your personalized collection
+          </p>
           <motion.button
-            key={cat.id}
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-              activeCategory === cat.id
-                ? 'bg-purple-500 text-white'
-                : 'bg-white/10 text-white/70 hover:bg-white/20'
-            }`}
-            onClick={() => setActiveCategory(cat.id)}
+            className="px-6 py-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold"
+            onClick={() => {
+              // Play a random track to get started
+              const randomTrack = getHotTracks()[0];
+              if (randomTrack) onTrackPlay(randomTrack);
+            }}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            {cat.label}
+            Discover Music
           </motion.button>
-        ))}
-      </div>
-
-      {/* Artist Grid (Masonry-style) */}
-      <div className="flex-1 overflow-y-auto px-4 pb-20">
-        <div className="grid grid-cols-2 gap-3">
-          {artists.map((artist, index) => (
-            <ArtistCard
-              key={artist.name}
-              artist={artist}
-              isLarge={index === 0 || index === 3}
-              badge={index === 0 ? 'chart' : index === 3 ? 'gold' : undefined}
-              onClick={() => onArtistClick(artist)}
-            />
-          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 };

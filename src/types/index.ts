@@ -51,6 +51,17 @@ export interface Playlist {
   createdAt: string;
 }
 
+// Album Interface (YouTube playlists via Piped)
+export interface Album {
+  id: string;           // Playlist ID from YouTube
+  name: string;         // Album name
+  artist: string;       // Artist name
+  thumbnail: string;    // Album artwork
+  trackCount: number;   // Number of tracks
+  tracks?: Track[];     // Loaded lazily when playing
+  source: 'piped' | 'local';
+}
+
 // View Mode
 export type ViewMode = 'card' | 'lyrics' | 'video' | 'feed';
 

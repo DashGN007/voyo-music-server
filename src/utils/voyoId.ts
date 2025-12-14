@@ -11,6 +11,36 @@ export function isVoyoId(id: string): boolean {
 }
 
 /**
+ * Encode YouTube ID to VOYO ID
+ * VOYO ID format: vyo_<base64url encoded YouTube ID>
+ */
+export function encodeVoyoId(youtubeId: string): string {
+  if (!youtubeId || typeof youtubeId !== 'string') {
+    throw new Error('Invalid YouTube ID');
+  }
+
+  // If it's already a VOYO ID, return as-is
+  if (youtubeId.startsWith('vyo_')) {
+    return youtubeId;
+  }
+
+  try {
+    // Base64 encode the YouTube ID
+    const base64 = btoa(youtubeId);
+
+    // Make it URL-safe
+    const urlSafe = base64
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, ''); // Remove padding
+
+    return `vyo_${urlSafe}`;
+  } catch (err) {
+    throw new Error('Failed to encode YouTube ID');
+  }
+}
+
+/**
  * Decode VOYO ID to YouTube ID
  * VOYO ID format: vyo_<base64url encoded YouTube ID>
  */

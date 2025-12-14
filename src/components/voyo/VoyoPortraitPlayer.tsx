@@ -1744,47 +1744,72 @@ export const VoyoPortraitPlayer = ({
       {/* --- TOP SECTION (History/Queue) - FIX 4: Safe area insets --- */}
       <div className="px-6 flex justify-between items-start z-20 h-[18%]" style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))' }}>
 
-        {/* Left: History (played tracks with overlay) */}
-        <div className="flex gap-3">
-          {historyTracks.length > 0 ? (
-            historyTracks.slice(0, 2).map((track, i) => (
-              <SmallCard
-                key={track.id + i}
-                track={track}
-                onTap={() => setCurrentTrack(track)}
-                isPlayed={true}
-              />
-            ))
-          ) : (
-            // Empty state - show DASH placeholders
-            <>
-              <DashPlaceholder onClick={onSearch} label="history" />
-              <DashPlaceholder onClick={onSearch} label="history" />
-            </>
+        {/* Left: History (scrollable) */}
+        <div className="relative max-w-[48%]">
+          {/* Scroll fade indicator - right edge */}
+          {historyTracks.length > 2 && (
+            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#0a0a0f] to-transparent pointer-events-none z-10" />
           )}
+
+          <div
+            className="flex gap-3 overflow-x-auto scrollbar-hide"
+            style={{ scrollSnapType: 'x mandatory' }}
+          >
+            {historyTracks.length > 0 ? (
+              historyTracks.slice(0, 10).map((track, i) => (
+                <div key={track.id + i} style={{ scrollSnapAlign: 'start', flexShrink: 0 }}>
+                  <SmallCard
+                    track={track}
+                    onTap={() => setCurrentTrack(track)}
+                    isPlayed={true}
+                  />
+                </div>
+              ))
+            ) : (
+              // Empty state - show DASH placeholders
+              <>
+                <DashPlaceholder onClick={onSearch} label="history" />
+                <DashPlaceholder onClick={onSearch} label="history" />
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Right: Queue + Add */}
-        <div className="flex gap-3">
-          {queueTracks.length > 0 ? (
-            queueTracks.map((track, i) => (
-              <SmallCard
-                key={track.id + i}
-                track={track}
-                onTap={() => setCurrentTrack(track)}
-                isPlayed={playedTrackIds.has(track.id)}
-              />
-            ))
-          ) : (
-            // Empty queue - show DASH placeholder
-            <DashPlaceholder onClick={onSearch} label="queue" />
+        {/* Right: Queue + Add (scrollable, reversed) */}
+        <div className="relative max-w-[48%]">
+          {/* Scroll fade indicator - left edge */}
+          {queueTracks.length > 1 && (
+            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#0a0a0f] to-transparent pointer-events-none z-10" />
           )}
-          <button
-            onClick={onSearch}
-            className="w-[70px] h-[70px] rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
+
+          <div
+            className="flex gap-3 overflow-x-auto scrollbar-hide flex-row-reverse"
+            style={{ scrollSnapType: 'x mandatory' }}
           >
-            <Plus size={24} className="text-gray-500" />
-          </button>
+            {/* Add button always visible at end */}
+            <button
+              onClick={onSearch}
+              className="flex-shrink-0 w-[70px] h-[70px] rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
+              style={{ scrollSnapAlign: 'start' }}
+            >
+              <Plus size={24} className="text-gray-500" />
+            </button>
+
+            {queueTracks.length > 0 ? (
+              queueTracks.slice(0, 10).map((track, i) => (
+                <div key={track.id + i} style={{ scrollSnapAlign: 'start', flexShrink: 0 }}>
+                  <SmallCard
+                    track={track}
+                    onTap={() => setCurrentTrack(track)}
+                    isPlayed={playedTrackIds.has(track.id)}
+                  />
+                </div>
+              ))
+            ) : (
+              // Empty queue - show DASH placeholder
+              <DashPlaceholder onClick={onSearch} label="queue" />
+            )}
+          </div>
         </div>
       </div>
 
