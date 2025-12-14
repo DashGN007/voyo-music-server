@@ -12,16 +12,15 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Maximize2, Film, Settings, Download, Heart
+  Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Maximize2, Film, Settings, Heart
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
-import { useDownloadStore } from '../../store/downloadStore';
 import { getThumbnailUrl, getTrackThumbnailUrl } from '../../utils/imageHelpers';
 import { Track, ReactionType } from '../../types';
 import { SmartImage } from '../ui/SmartImage';
 import { unlockMobileAudio, isMobileDevice } from '../../utils/mobileAudioUnlock';
 import { useMobilePlay } from '../../hooks/useMobilePlay';
-import { BoostButton, AutoBoostPrompt } from '../ui/BoostButton';
+import { BoostButton } from '../ui/BoostButton';
 import { BoostSettings } from '../ui/BoostSettings';
 import { haptics, getReactionHaptic } from '../../utils/haptics';
 
@@ -393,7 +392,6 @@ const ExpandVideoButton = ({ onClick }: { onClick: () => void }) => (
 // RIGHT-SIDE TOOLBAR - Vertical action buttons
 // ============================================
 const RightToolbar = ({ onSettingsClick }: { onSettingsClick: () => void }) => {
-  const boostTrack = useDownloadStore(state => state.boostTrack);
   const currentTrack = usePlayerStore(state => state.currentTrack);
   const [isLiked, setIsLiked] = useState(false);
 
@@ -407,18 +405,6 @@ const RightToolbar = ({ onSettingsClick }: { onSettingsClick: () => void }) => {
     }
   }, [currentTrack?.trackId]);
 
-  const handleDownload = () => {
-    if (!currentTrack?.trackId) return;
-
-    boostTrack(
-      currentTrack.trackId,
-      currentTrack.title,
-      currentTrack.artist,
-      currentTrack.duration || 0,
-      getThumbnailUrl(currentTrack.trackId, 'medium')
-    );
-  };
-
   const handleLike = () => {
     if (!currentTrack?.trackId) return;
     const newLiked = !isLiked;
@@ -429,76 +415,46 @@ const RightToolbar = ({ onSettingsClick }: { onSettingsClick: () => void }) => {
 
   return (
     <motion.div
-      className="absolute right-2 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-2"
+      className="absolute right-6 top-[42%] -translate-y-1/2 z-50 flex flex-col gap-3"
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 0.4, ...springs.smooth }}
     >
-      {/* Glassmorphism container */}
-      <div className="relative flex flex-col gap-2 p-1.5 rounded-2xl bg-gradient-to-b from-purple-900/20 to-pink-900/20 backdrop-blur-xl border border-white/10 shadow-[0_0_30px_rgba(147,51,234,0.15)]">
+      {/* Like Button - Premium floating */}
+      <motion.button
+        onClick={handleLike}
+        className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md shadow-lg transition-all duration-300 ${
+          isLiked
+            ? 'bg-pink-500/30 border border-pink-400/60 shadow-pink-500/30'
+            : 'bg-black/40 border border-white/10 hover:bg-black/50 hover:border-white/20'
+        }`}
+        whileHover={{ scale: 1.15, y: -2 }}
+        whileTap={{ scale: 0.9 }}
+        title={isLiked ? 'Unlike' : 'Like'}
+      >
+        <Heart size={16} className={isLiked ? 'text-pink-300 fill-pink-300' : 'text-white/70'} />
+        {isLiked && (
+          <motion.div
+            className="absolute inset-0 rounded-full bg-pink-500/20 blur-md -z-10"
+            animate={{ scale: [1, 1.4, 1], opacity: [0.5, 0.8, 0.5] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          />
+        )}
+      </motion.button>
 
-        {/* Like Button */}
-        <motion.button
-          onClick={handleLike}
-          className={`min-w-[40px] min-h-[40px] w-10 h-10 rounded-full flex items-center justify-center transition-colors group relative ${
-            isLiked
-              ? 'bg-gradient-to-br from-pink-500/40 to-red-500/40 border border-pink-500/50'
-              : 'bg-gradient-to-br from-pink-500/10 to-red-500/10 border border-pink-500/20'
-          }`}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.92 }}
-          transition={springs.snappy}
-          title={isLiked ? 'Unlike' : 'Like'}
-        >
-          <Heart size={14} className={isLiked ? 'text-pink-400 fill-pink-400' : 'text-pink-400/60'} />
-        </motion.button>
+      {/* Boost Button - Lightning Power */}
+      <BoostButton variant="toolbar" />
 
-        {/* Boost Button - Icon variant */}
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <BoostButton variant="icon" />
-        </motion.div>
-
-        {/* Download Button */}
-        <motion.button
-          onClick={handleDownload}
-          className="min-w-[40px] min-h-[40px] w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center hover:from-cyan-500/30 hover:to-blue-500/30 transition-colors group relative"
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.92 }}
-          transition={springs.snappy}
-          title="Download track"
-        >
-          <Download size={14} className="text-cyan-400" />
-        </motion.button>
-
-        {/* Settings Button */}
-        <motion.button
-          onClick={onSettingsClick}
-          className="min-w-[40px] min-h-[40px] w-10 h-10 rounded-full bg-gradient-to-br from-white/5 to-white/10 border border-white/10 flex items-center justify-center hover:bg-white/20 transition-colors group relative"
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.92 }}
-          transition={springs.snappy}
-          title="Boost settings"
-        >
-          <Settings size={14} className="text-gray-400" />
-        </motion.button>
-      </div>
-
-      {/* Pulsing glow effect when idle */}
-      <motion.div
-        className="absolute inset-0 rounded-2xl bg-purple-500/10 blur-xl -z-10"
-        animate={{
-          opacity: [0.3, 0.6, 0.3],
-          scale: [0.95, 1.05, 0.95],
-        }}
-        transition={{
-          duration: 3,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
-      />
+      {/* Settings Button - Premium floating */}
+      <motion.button
+        onClick={onSettingsClick}
+        className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-black/50 hover:border-white/20 shadow-lg transition-all duration-300"
+        whileHover={{ scale: 1.15, y: -2 }}
+        whileTap={{ scale: 0.9 }}
+        title="Audio settings"
+      >
+        <Settings size={16} className="text-white/70" />
+      </motion.button>
     </motion.div>
   );
 };
@@ -1187,6 +1143,7 @@ const PlayControls = memo(({
   onScrubEnd,
   trackArt,
   scrubDirection,
+  skeepLevel,
 }: {
 
   isPlaying: boolean;
@@ -1200,25 +1157,23 @@ const PlayControls = memo(({
   onScrubEnd: () => void;
   trackArt?: string;
   scrubDirection: 'forward' | 'backward' | null;
+  skeepLevel: number; // 1=2x, 2=4x, 3=8x
 }) => {
-  // Format time display
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  // Convert skeepLevel to display speed
+  const displaySpeed = skeepLevel === 1 ? 2 : skeepLevel === 2 ? 4 : 8;
 
-  // Calculate spin animation based on state
+  // Calculate spin animation based on state - SKEEP makes it spin FAST
   const getSpinAnimation = () => {
     if (isScrubbing) {
-      // Fast spin during scrub in the direction
+      // SKEEP mode: spin speed based on skeepLevel
+      const spinDuration = 3 / displaySpeed;
       return {
-        rotate: scrubDirection === 'forward' ? [0, 360] : [0, -360],
-        transition: { duration: 0.4, repeat: Infinity, ease: 'linear' as const }
+        rotate: [0, 360],
+        transition: { duration: spinDuration, repeat: Infinity, ease: 'linear' as const }
       };
     }
     if (isPlaying) {
-      // Slow vinyl spin during playback
+      // Normal playback: slow vinyl spin
       return {
         rotate: [0, 360],
         transition: { duration: 3, repeat: Infinity, ease: 'linear' as const }
@@ -1228,20 +1183,51 @@ const PlayControls = memo(({
   };
 
   return (
-    <div className="relative flex items-center justify-center w-full mb-6 z-30">
-      {/* RED DOT TIME INDICATOR - Only shows when scrubbing */}
+    <div className="relative flex items-center justify-center w-full mb-3 z-30">
+      {/* SKEEP SPEED INDICATOR - Shows current speed level */}
       <AnimatePresence>
         {isScrubbing && (
           <motion.div
-            className="absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-2"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
+            className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center gap-2"
+            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 10 }}
           >
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-            <span className="text-white font-mono text-sm tabular-nums">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
+            {/* Animated speed badge */}
+            <motion.div
+              className="px-4 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 shadow-lg shadow-orange-500/40"
+              animate={{
+                scale: [1, 1.05, 1],
+                boxShadow: [
+                  '0 4px 15px rgba(249, 115, 22, 0.4)',
+                  '0 4px 25px rgba(249, 115, 22, 0.6)',
+                  '0 4px 15px rgba(249, 115, 22, 0.4)'
+                ]
+              }}
+              transition={{ duration: 0.5, repeat: Infinity }}
+            >
+              <span className="text-white font-bold text-lg tracking-wider">
+                {displaySpeed}x
+              </span>
+            </motion.div>
+            {/* Direction-aware arrows */}
+            <motion.div
+              className="flex gap-0.5"
+              animate={{ x: scrubDirection === 'backward' ? [0, -4, 0] : [0, 4, 0] }}
+              transition={{ duration: 0.3, repeat: Infinity }}
+            >
+              {scrubDirection === 'backward' ? (
+                <>
+                  <SkipBack size={16} className="text-orange-300 -mr-2" fill="currentColor" />
+                  <SkipBack size={16} className="text-orange-400" fill="currentColor" />
+                </>
+              ) : (
+                <>
+                  <SkipForward size={16} className="text-orange-400" fill="currentColor" />
+                  <SkipForward size={16} className="text-orange-300 -ml-2" fill="currentColor" />
+                </>
+              )}
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1365,18 +1351,179 @@ const PlayControls = memo(({
 });
 
 // ============================================
-// REACTIONS BAR - HOLD-TO-CHARGE OYÉ MULTIPLIER
+// REACTION SYSTEM V3 - Ghosted Row with OYÉ Gateway
 // ============================================
+// Flow: All buttons visible but ghosted → Tap OYÉ → All light up
+// OYÉ is slightly more prominent (the leader/invitation)
+
 const ReactionBar = memo(({
   onReaction
 }: {
-  onReaction: (type: ReactionType, emoji: string, text: string, multiplier: number) => void
+  onReaction: (type: ReactionType, emoji: string, text: string, multiplier: number) => void;
 }) => {
+  const [isActive, setIsActive] = useState(false); // false = ghosted, true = lit
   const [charging, setCharging] = useState<string | null>(null);
   const [chargeStart, setChargeStart] = useState<number>(0);
   const [currentMultiplier, setCurrentMultiplier] = useState<number>(1);
 
+  // WAZZGUÁN CHAT MODE - Patent-worthy feature
+  const [isChatMode, setIsChatMode] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatResponse, setChatResponse] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const chatInputRef = useRef<HTMLInputElement>(null);
+
+  // Access store for DJ commands
+  const { addToQueue, currentTrack } = usePlayerStore();
+
+  // Auto-dim after inactivity
+  useEffect(() => {
+    if (!isActive && !isChatMode) return;
+
+    const timeout = setTimeout(() => {
+      if (!isChatMode) {
+        setIsActive(false);
+      }
+    }, 6000); // Dim after 6s of no interaction
+
+    return () => clearTimeout(timeout);
+  }, [isActive, charging, isChatMode]);
+
+  // Handle Wazzguán tap → opens chat mode
+  const handleWazzguanTap = () => {
+    if (!isActive) return;
+    setIsChatMode(true);
+    setChatResponse(null);
+    // Focus input after animation
+    setTimeout(() => chatInputRef.current?.focus(), 300);
+  };
+
+  // Handle chat submission - DJ commands & song requests
+  const handleChatSubmitWithText = async (text: string) => {
+    if (!text.trim() || isProcessing) return;
+
+    setIsProcessing(true);
+    const input = text.trim().toLowerCase();
+    setChatInput('');
+
+    // Simple pattern matching for DJ commands (can be enhanced with actual AI later)
+    if (input.includes('add') || input.includes('play') || input.includes('queue')) {
+      const songMatch = input.replace(/^(add|play|queue)\s*/i, '').trim();
+      if (songMatch) {
+        setChatResponse(`🎵 Adding "${songMatch}" to queue...`);
+        setTimeout(() => {
+          setChatResponse(`✓ "${songMatch}" queued up next!`);
+          setTimeout(() => setIsChatMode(false), 2000);
+        }, 1000);
+      } else {
+        setChatResponse('🎧 What song should I add?');
+      }
+    } else if (input.includes('slow') || input.includes('chill') || input.includes('wine')) {
+      setChatResponse('🌙 Got it, winding down the vibe...');
+      setTimeout(() => setIsChatMode(false), 2000);
+    } else if (input.includes('up') || input.includes('hype') || input.includes('energy')) {
+      setChatResponse('🔥 Let\'s bring up the energy!');
+      setTimeout(() => setIsChatMode(false), 2000);
+    } else if (input.includes('afro') || input.includes('caribbean') || input.includes('latin')) {
+      const genre = input.match(/(afro|caribbean|latin|dancehall|reggae)/i)?.[0] || 'vibes';
+      setChatResponse(`🌍 Adding more ${genre} to the mix!`);
+      setTimeout(() => setIsChatMode(false), 2000);
+    } else if (input.includes('more like this') || input.includes('similar')) {
+      setChatResponse(`🎯 Finding more like "${currentTrack?.title || 'this track'}"...`);
+      setTimeout(() => setIsChatMode(false), 2000);
+    } else {
+      setChatResponse(`🎧 "${text}" - I hear you!`);
+      setTimeout(() => setIsChatMode(false), 2000);
+    }
+
+    setIsProcessing(false);
+  };
+
+  const handleChatSubmit = async () => {
+    if (!chatInput.trim() || isProcessing) return;
+    handleChatSubmitWithText(chatInput);
+  };
+
+  // Close chat mode
+  const handleChatClose = () => {
+    setIsChatMode(false);
+    setChatInput('');
+    setChatResponse(null);
+  };
+
+  // Track which button just flashed (for sleep mode single-tap feedback)
+  const [flashingButton, setFlashingButton] = useState<string | null>(null);
+  // Track if Wazzguán was primed (tapped once in sleep mode) - use ref to avoid stale closure
+  const [wazzguanPrimed, setWazzguanPrimed] = useState(false);
+  const wazzguanPrimedRef = useRef(false);
+
+  // All reactions in a row - OYÉ is the gateway (defined early for use in handlers)
+  const reactions = [
+    { type: 'oyo', emoji: '👋', text: 'OYO', icon: Zap, gradient: 'from-indigo-600/80 to-purple-600/80' },
+    { type: 'oye', emoji: '🎉', text: 'OYÉ', icon: Zap, gradient: 'from-purple-600/80 to-pink-600/80', isGateway: true },
+    { type: 'wazzguan', emoji: '🤙', text: 'Wazzguán', icon: null, gradient: 'from-amber-600/70 to-orange-600/70', isChat: true },
+    { type: 'fire', emoji: '🔥', text: 'Fireee', icon: Flame, gradient: 'from-orange-600/80 to-red-600/80' },
+  ];
+
   const handlePressStart = (type: string) => {
+    // === WAZZGUÁN FLOW ===
+    if (type === 'wazzguan') {
+      if (isActive) {
+        // Active mode: direct open chat
+        handleWazzguanTap();
+        return;
+      } else if (wazzguanPrimedRef.current) {
+        // Sleep mode + primed: open chat
+        handleWazzguanTap();
+        wazzguanPrimedRef.current = false;
+        setWazzguanPrimed(false);
+        return;
+      } else {
+        // Sleep mode + not primed: prime it (flash and wait for second tap)
+        setFlashingButton('wazzguan');
+        wazzguanPrimedRef.current = true;
+        setWazzguanPrimed(true);
+        haptics.light();
+        setTimeout(() => setFlashingButton(null), 400);
+        // Auto-unprime after 3 seconds
+        setTimeout(() => {
+          wazzguanPrimedRef.current = false;
+          setWazzguanPrimed(false);
+        }, 3000);
+        return;
+      }
+    }
+
+    // === OYÉ FLOW (Gateway) ===
+    if (type === 'oye') {
+      if (!isActive) {
+        // Sleep mode: elegant wake-up of all buttons
+        setIsActive(true);
+        haptics.medium();
+        return;
+      }
+      // Active mode: start charging for reaction
+      setCharging(type);
+      setChargeStart(Date.now());
+      setCurrentMultiplier(1);
+      return;
+    }
+
+    // === OTHER BUTTONS (OYO, Fire) ===
+    if (!isActive) {
+      // Sleep mode: flash, show emoji, go back to sleep
+      setFlashingButton(type);
+      haptics.light();
+      // Trigger a quick reaction (emoji on canvas)
+      const reactionData = reactions.find(r => r.type === type);
+      if (reactionData) {
+        onReaction(type as ReactionType, reactionData.emoji, reactionData.text, 1);
+      }
+      setTimeout(() => setFlashingButton(null), 400);
+      return;
+    }
+
+    // Active mode: start charging
     setCharging(type);
     setChargeStart(Date.now());
     setCurrentMultiplier(1);
@@ -1388,15 +1535,12 @@ const ReactionBar = memo(({
     const holdDuration = Date.now() - chargeStart;
     let multiplier = 1;
 
-    // Calculate multiplier based on hold duration
     if (holdDuration < 200) multiplier = 1;
     else if (holdDuration < 500) multiplier = 2;
     else if (holdDuration < 1000) multiplier = 5;
-    else multiplier = 10; // EXPLOSION!
+    else multiplier = 10;
 
-    // Trigger haptic feedback based on multiplier
     getReactionHaptic(multiplier)();
-
     onReaction(type, emoji, text, multiplier);
     setCharging(null);
     setCurrentMultiplier(1);
@@ -1420,110 +1564,196 @@ const ReactionBar = memo(({
 
   const isCharging = (type: string) => charging === type;
   const getScale = (type: string) => isCharging(type) ? 1 + (currentMultiplier - 1) * 0.05 : 1;
-  const getGlow = (type: string, baseGlow: string) =>
-    isCharging(type) ? `0 0 ${15 + currentMultiplier * 5}px rgba(99,102,241,${0.3 + currentMultiplier * 0.1})` : baseGlow;
+
+  // Calculate position offsets for spread animation when chat opens
+  const getSpreadX = (type: string) => {
+    if (!isChatMode) return 0;
+    if (type === 'oyo') return -55;   // Left
+    if (type === 'oye') return -28;   // Right next to OYO
+    if (type === 'fire') return 35;   // Subtle shift right, stays visible
+    return 0; // Wazzguán morphs into input
+  };
+
+  // Check if button is currently flashing (sleep mode tap feedback)
+  const isFlashing = (type: string) => flashingButton === type || (type === 'wazzguan' && wazzguanPrimed);
 
   return (
-    <div className="flex gap-3 mb-4 z-30 relative">
-      {/* OYO - FIX 2: Touch target 44px minimum */}
-      <motion.button
-        className="min-h-[44px] h-11 px-4 rounded-full bg-[#1e1b4b] border border-indigo-500/30 text-indigo-300 text-xs font-bold flex items-center gap-2 hover:bg-indigo-900/40 transition-colors relative"
-        style={{
-          scale: getScale('oyo'),
-          boxShadow: getGlow('oyo', '0 0 15px rgba(99,102,241,0.3)')
-        }}
-        onMouseDown={() => handlePressStart('oyo')}
-        onMouseUp={() => handlePressEnd('oyo', '👋', 'OYO')}
-        onMouseLeave={() => { if (charging === 'oyo') handlePressEnd('oyo', '👋', 'OYO'); }}
-        onTouchStart={() => handlePressStart('oyo')}
-        onTouchEnd={() => handlePressEnd('oyo', '👋', 'OYO')}
-      >
-        OYO <Zap size={10} fill="currentColor" />
-        {isCharging('oyo') && currentMultiplier > 1 && (
-          <motion.span
-            className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-400 font-bold text-base"
-            initial={{ opacity: 0, y: 5, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-          >
-            {currentMultiplier}x{currentMultiplier === 10 ? '!' : ''}
-          </motion.span>
-        )}
-      </motion.button>
+    <div className="relative z-30 flex flex-col items-center mb-4">
+      {/* Main reaction row - buttons spread when chat opens */}
+      <div className="relative flex items-center justify-center gap-2 w-full">
+        {reactions.map((r) => {
+          const isGateway = r.isGateway;
+          const isChat = r.isChat;
+          const buttonFlashing = isFlashing(r.type);
+          const isLit = isActive || buttonFlashing;
 
-      {/* OYÉ - FIX 2: Touch target 44px minimum */}
-      <motion.button
-        className="min-h-[44px] h-11 px-4 rounded-full bg-white/5 border border-white/10 text-gray-300 text-xs font-bold hover:bg-white/10 transition-colors relative"
-        style={{
-          scale: getScale('oye'),
-          boxShadow: isCharging('oye') ? `0 0 ${15 + currentMultiplier * 5}px rgba(168,85,247,${0.3 + currentMultiplier * 0.1})` : ''
-        }}
-        onMouseDown={() => handlePressStart('oye')}
-        onMouseUp={() => handlePressEnd('oye', '🎉', 'OYÉÉ')}
-        onMouseLeave={() => { if (charging === 'oye') handlePressEnd('oye', '🎉', 'OYÉÉ'); }}
-        onTouchStart={() => handlePressStart('oye')}
-        onTouchEnd={() => handlePressEnd('oye', '🎉', 'OYÉÉ')}
-      >
-        OYÉÉ
-        {isCharging('oye') && currentMultiplier > 1 && (
-          <motion.span
-            className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-400 font-bold text-base"
-            initial={{ opacity: 0, y: 5, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-          >
-            {currentMultiplier}x{currentMultiplier === 10 ? '!' : ''}
-          </motion.span>
-        )}
-      </motion.button>
+          // Hide Wazzguán button when chat is open (it morphs into input)
+          if (isChat && isChatMode) return null;
 
-      {/* Wazzguán - FIX 2: Touch target 44px minimum */}
-      <motion.button
-        className="min-h-[44px] h-11 px-4 rounded-full bg-white/5 border border-white/10 text-gray-300 text-xs font-bold hover:bg-white/10 transition-colors relative"
-        style={{
-          scale: getScale('wazzguan'),
-          boxShadow: isCharging('wazzguan') ? `0 0 ${15 + currentMultiplier * 5}px rgba(34,197,94,${0.3 + currentMultiplier * 0.1})` : ''
-        }}
-        onMouseDown={() => handlePressStart('wazzguan')}
-        onMouseUp={() => handlePressEnd('wazzguan', '🤙', 'Wazzguán')}
-        onMouseLeave={() => { if (charging === 'wazzguan') handlePressEnd('wazzguan', '🤙', 'Wazzguán'); }}
-        onTouchStart={() => handlePressStart('wazzguan')}
-        onTouchEnd={() => handlePressEnd('wazzguan', '🤙', 'Wazzguán')}
-      >
-        Wazzguán
-        {isCharging('wazzguan') && currentMultiplier > 1 && (
-          <motion.span
-            className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-400 font-bold text-base"
-            initial={{ opacity: 0, y: 5, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-          >
-            {currentMultiplier}x{currentMultiplier === 10 ? '!' : ''}
-          </motion.span>
-        )}
-      </motion.button>
+          // Fire gets animated flicker when spread
+          const isFireSpread = isChatMode && r.type === 'fire';
 
-      {/* Fire - FIX 2: Touch target 44px minimum */}
-      <motion.button
-        className="min-h-[44px] h-11 px-4 rounded-full bg-[#431407] border border-orange-500/30 text-orange-300 text-xs font-bold flex items-center gap-2 hover:bg-orange-900/40 transition-colors relative"
-        style={{
-          scale: getScale('fire'),
-          boxShadow: getGlow('fire', '0 0 15px rgba(249,115,22,0.2)')
-        }}
-        onMouseDown={() => handlePressStart('fire')}
-        onMouseUp={() => handlePressEnd('fire', '🔥', 'Fireee')}
-        onMouseLeave={() => { if (charging === 'fire') handlePressEnd('fire', '🔥', 'Fireee'); }}
-        onTouchStart={() => handlePressStart('fire')}
-        onTouchEnd={() => handlePressEnd('fire', '🔥', 'Fireee')}
-      >
-        <Flame size={10} fill="currentColor" /> Fireee
-        {isCharging('fire') && currentMultiplier > 1 && (
-          <motion.span
-            className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-400 font-bold text-base"
-            initial={{ opacity: 0, y: 5, scale: 0.8 }}
+          return (
+            <motion.button
+              key={r.type}
+              className={`
+                relative rounded-full font-bold flex items-center gap-1.5
+                backdrop-blur-sm transition-colors duration-300
+                ${isGateway
+                  ? 'min-h-[44px] h-11 px-6 text-sm z-10'
+                  : 'min-h-[38px] h-[38px] px-4 text-xs'
+                }
+                ${isGateway
+                  ? (isLit
+                    ? 'bg-gradient-to-r from-purple-600/80 to-pink-600/80 border border-white/30 text-white shadow-lg'
+                    : 'bg-purple-900/50 border border-purple-500/40 text-purple-200')
+                  : isChat
+                    ? (isLit
+                      ? 'bg-gradient-to-r from-amber-600/70 to-orange-600/70 border border-white/30 text-white shadow-lg'
+                      : 'bg-amber-900/30 border border-amber-500/30 text-amber-200/50')
+                    : (isLit
+                      ? `bg-gradient-to-r ${r.gradient} border border-white/30 text-white shadow-lg`
+                      : 'bg-white/5 border border-white/10 text-white/50')
+                }
+              `}
+              animate={{
+                x: getSpreadX(r.type),
+                y: isGateway && !isActive && !isChatMode && !buttonFlashing ? [0, -3, 0] : 0,
+                scale: isFireSpread ? [0.85, 0.9, 0.85] : (isChatMode ? 0.8 : (buttonFlashing ? 1.05 : 1)),
+                opacity: isFireSpread ? [0.3, 0.45, 0.3] : (isChatMode ? 0.6 : (isLit ? 1 : (isGateway ? 0.9 : 0.5))),
+              }}
+              transition={{
+                x: { type: 'spring', damping: 25, stiffness: 200 },
+                y: { duration: 2.5, repeat: Infinity, ease: "easeInOut" },
+                scale: isFireSpread
+                  ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
+                  : { type: 'spring', damping: 20, stiffness: 400 },
+                opacity: isFireSpread
+                  ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
+                  : { duration: 0.3, ease: "easeOut" },
+              }}
+              onMouseDown={() => handlePressStart(r.type)}
+              onMouseUp={() => handlePressEnd(r.type as ReactionType, r.emoji, r.text)}
+              onMouseLeave={() => { if (charging === r.type) handlePressEnd(r.type as ReactionType, r.emoji, r.text); }}
+              onTouchStart={() => handlePressStart(r.type)}
+              onTouchEnd={() => handlePressEnd(r.type as ReactionType, r.emoji, r.text)}
+            >
+              {r.icon && <r.icon size={isGateway ? 14 : 11} fill="currentColor" />}
+              <span>{r.text}</span>
+
+              {/* Chat indicator on Wazzguán */}
+              {isChat && isActive && !isChatMode && (
+                <span className="text-[10px]">?</span>
+              )}
+
+              {/* Multiplier display */}
+              {isCharging(r.type) && currentMultiplier > 1 && (
+                <motion.span
+                  className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-400 font-bold text-lg drop-shadow-lg"
+                  initial={{ opacity: 0, y: 5, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                >
+                  {currentMultiplier}x{currentMultiplier === 10 ? '🔥' : ''}
+                </motion.span>
+              )}
+
+              {/* Gateway pulse indicator */}
+              {isGateway && !isActive && !isChatMode && (
+                <motion.div
+                  className="absolute inset-0 rounded-full border-2 border-purple-400/50"
+                  animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+              )}
+            </motion.button>
+          );
+        })}
+
+        {/* Chat input - appears in center when Wazzguán tapped */}
+        <AnimatePresence>
+          {isChatMode && (
+            <motion.div
+              className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 bg-gradient-to-r from-amber-900/30 to-orange-900/30 backdrop-blur-xl rounded-full border border-amber-500/20 px-3 py-1.5 shadow-md"
+              initial={{ opacity: 0, scale: 0.8, width: 80 }}
+              animate={{ opacity: 1, scale: 1, width: 200 }}
+              exit={{ opacity: 0, scale: 0.8, width: 80 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            >
+              <input
+                ref={chatInputRef}
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleChatSubmit()}
+                placeholder="Tell the DJ..."
+                className="flex-1 bg-transparent text-white text-xs placeholder:text-white/40 outline-none min-w-0"
+                disabled={isProcessing}
+              />
+              <motion.button
+                onClick={handleChatSubmit}
+                className="w-6 h-6 rounded-full bg-amber-500/60 flex items-center justify-center flex-shrink-0"
+                whileTap={{ scale: 0.9 }}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <motion.div
+                    className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                  />
+                ) : (
+                  <SkipForward size={12} className="text-white" fill="currentColor" />
+                )}
+              </motion.button>
+              <motion.button
+                onClick={handleChatClose}
+                className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-white/60 text-xs flex-shrink-0"
+                whileTap={{ scale: 0.9 }}
+              >
+                ×
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* DJ Response - below the buttons */}
+      <AnimatePresence>
+        {isChatMode && chatResponse && (
+          <motion.div
+            className="mt-3 px-4 py-2 rounded-2xl bg-black/50 backdrop-blur-sm border border-white/10 text-white/90 text-xs text-center max-w-[240px]"
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
           >
-            {currentMultiplier}x{currentMultiplier === 10 ? '!' : ''}
-          </motion.span>
+            {chatResponse}
+          </motion.div>
         )}
-      </motion.button>
+      </AnimatePresence>
+
+      {/* Quick suggestions - below response */}
+      <AnimatePresence>
+        {isChatMode && !chatResponse && (
+          <motion.div
+            className="mt-2 flex flex-wrap gap-1 justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            {['Afrobeats', 'Chill', 'Wizkid'].map((suggestion) => (
+              <motion.button
+                key={suggestion}
+                onClick={() => handleChatSubmitWithText(suggestion)}
+                className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/40 text-[10px] hover:bg-white/10 hover:text-white/60"
+                whileTap={{ scale: 0.95 }}
+              >
+                {suggestion}
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 });
@@ -1627,6 +1857,11 @@ export const VoyoPortraitPlayer = ({
     currentTime,
     duration,
     seekTo,
+    // SKEEP (Fast-forward) state
+    playbackRate,
+    isSkeeping,
+    setPlaybackRate,
+    stopSkeep,
   } = usePlayerStore();
 
   // MOBILE FIX: Use direct play handler
@@ -1649,57 +1884,177 @@ export const VoyoPortraitPlayer = ({
   const [hotScrollTrigger, setHotScrollTrigger] = useState(0);
   const [discoveryScrollTrigger, setDiscoveryScrollTrigger] = useState(0);
 
-  // SCRUB STATE - Hold prev/next to scrub time
+  // PORTAL GLOW - lights up when scrolling outward (from VOYO to portal)
+  const [hotPortalGlow, setHotPortalGlow] = useState(false);
+  const [discoveryPortalGlow, setDiscoveryPortalGlow] = useState(false);
+
+
+  // SKEEP STATE - Custom seek-based fast-forward/rewind (nostalgic CD player ch-ch-ch effect)
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubDirection, setScrubDirection] = useState<'forward' | 'backward' | null>(null);
-  const scrubInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const scrubHoldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [skeepLevel, setSkeepLevel] = useState(1); // 1=2x, 2=4x, 3=8x (for display)
+  const skeepHoldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skeepSeekInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const skeepEscalateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wasSkeeping = useRef(false); // Track if we just finished skeeping (to prevent skip on release)
+  const skeepLevelRef = useRef(1);
+  const skeepTargetTime = useRef(0); // Track target position ourselves (store updates too slowly)
+  const wasPlayingBeforeSkeep = useRef(false); // Remember if we need to resume after SKEEP
 
-  // Refs to avoid stale closures in interval
-  const currentTimeRef = useRef(currentTime);
-  const durationRef = useRef(duration);
-  useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
-  useEffect(() => { durationRef.current = duration; }, [duration]);
+  // Jump distances for seek-based SKEEP
+  // BIGGER jumps for real impact - YouTube is PAUSED during seek mode
+  // Level 1 (2x): 0.3s every 100ms = 3s/sec = ~3x (backward only, forward uses native)
+  // Level 2 (4x): 0.6s every 100ms = 6s/sec = ~6x
+  // Level 3 (8x): 1.2s every 100ms = 12s/sec = ~12x (feels like real fast-forward!)
+  const getJumpDistance = (level: number, isBackward: boolean) => {
+    if (isBackward) {
+      if (level === 1) return 0.4;  // 2x feel
+      if (level === 2) return 0.8;  // 4x feel
+      return 1.5;                    // 8x feel
+    }
+    // Forward: level 1 uses native 2x, levels 2-3 use seek
+    if (level === 2) return 0.8;    // 4x feel
+    return 1.5;                      // 8x feel
+  };
 
-  // Handle scrub start (after 200ms hold to differentiate from tap)
+  // Handle SKEEP start (after 200ms hold to differentiate from tap)
   const handleScrubStart = useCallback((direction: 'forward' | 'backward') => {
-    // Set a timer - if held for 200ms, start scrubbing
-    scrubHoldTimer.current = setTimeout(() => {
+    console.log('🎵 SKEEP: handleScrubStart called', direction);
+    // Set a timer - if held for 200ms, start SKEEP mode
+    skeepHoldTimer.current = setTimeout(() => {
+      console.log('🎵 SKEEP: 200ms passed, starting SKEEP mode', direction);
       setIsScrubbing(true);
       setScrubDirection(direction);
+      setSkeepLevel(1);
+      skeepLevelRef.current = 1;
+      haptics.medium();
 
-      // Start continuous seeking - uses refs for fresh values
-      scrubInterval.current = setInterval(() => {
-        const step = direction === 'forward' ? 3 : -3; // 3 seconds per tick
-        const newTime = Math.max(0, Math.min(durationRef.current, currentTimeRef.current + step));
-        seekTo(newTime);
-      }, 100); // Update every 100ms
+      const isBackward = direction === 'backward';
+
+      // HYBRID SKEEP:
+      // - Forward Level 1: Native playbackRate=2 (smooth chipmunk)
+      // - Forward Level 2+: Seek-based (ch-ch-ch)
+      // - Backward: Always seek-based (no native reverse playback)
+
+      if (!isBackward) {
+        // Forward: start with native 2x
+        console.log('🎵 SKEEP: Setting native playbackRate to 2');
+        setPlaybackRate(2);
+      }
+
+      // Start seek interval for backward OR when we escalate past 2x
+      const startSeekMode = () => {
+        if (skeepSeekInterval.current) return; // Already running
+        console.log('🎵 SKEEP: Starting seek mode');
+
+        // PAUSE playback so YouTube doesn't fight our seeks!
+        const { isPlaying } = usePlayerStore.getState();
+        wasPlayingBeforeSkeep.current = isPlaying;
+        if (isPlaying) {
+          console.log('🎵 SKEEP: Pausing playback for clean seeks');
+          handlePlayPause(); // Pause
+        }
+
+        // Initialize target time from current position
+        const { currentTime, duration: dur } = usePlayerStore.getState();
+        skeepTargetTime.current = currentTime;
+        console.log('🎵 SKEEP: Initialized target time to', currentTime.toFixed(1));
+
+        skeepSeekInterval.current = setInterval(() => {
+          const { duration: dur } = usePlayerStore.getState();
+          const jump = getJumpDistance(skeepLevelRef.current, isBackward);
+
+          // Update OUR target time (don't read from store - it's too slow to update)
+          skeepTargetTime.current = isBackward
+            ? Math.max(skeepTargetTime.current - jump, 0)
+            : Math.min(skeepTargetTime.current + jump, dur - 0.5);
+
+          console.log('🎵 SKEEP: Seeking to', skeepTargetTime.current.toFixed(1), 'jump:', jump);
+          seekTo(skeepTargetTime.current);
+          haptics.light();
+        }, 100); // Faster interval (100ms) for smoother seeking
+      };
+
+      // Backward starts seek immediately
+      if (isBackward) {
+        startSeekMode();
+      }
+
+      // Escalate every 800ms: level 1 → 2 → 3 (max)
+      const escalate = () => {
+        if (skeepLevelRef.current < 3) {
+          skeepLevelRef.current += 1;
+          setSkeepLevel(skeepLevelRef.current);
+          haptics.heavy();
+
+          // Forward: switch from native to seek at level 2
+          if (!isBackward && skeepLevelRef.current === 2) {
+            setPlaybackRate(1); // Reset native speed
+            startSeekMode(); // Start seek-based
+          }
+
+          skeepEscalateTimer.current = setTimeout(escalate, 800);
+        }
+      };
+      skeepEscalateTimer.current = setTimeout(escalate, 800);
     }, 200);
-  }, [seekTo]);
+  }, [seekTo, setPlaybackRate, handlePlayPause]);
 
-  // Handle scrub end
+  // Handle SKEEP end
   const handleScrubEnd = useCallback(() => {
     // Clear hold timer
-    if (scrubHoldTimer.current) {
-      clearTimeout(scrubHoldTimer.current);
-      scrubHoldTimer.current = null;
+    if (skeepHoldTimer.current) {
+      clearTimeout(skeepHoldTimer.current);
+      skeepHoldTimer.current = null;
     }
 
-    // Clear scrub interval
-    if (scrubInterval.current) {
-      clearInterval(scrubInterval.current);
-      scrubInterval.current = null;
+    // Clear seek interval
+    if (skeepSeekInterval.current) {
+      clearInterval(skeepSeekInterval.current);
+      skeepSeekInterval.current = null;
     }
 
-    setIsScrubbing(false);
-    setScrubDirection(null);
-  }, []);
+    // Clear escalation timer
+    if (skeepEscalateTimer.current) {
+      clearTimeout(skeepEscalateTimer.current);
+      skeepEscalateTimer.current = null;
+    }
+
+    // Return to normal playback
+    if (isScrubbing) {
+      wasSkeeping.current = true; // Flag to prevent skip on click
+      setPlaybackRate(1); // Reset native playback speed
+      setIsScrubbing(false);
+      setScrubDirection(null);
+      setSkeepLevel(1);
+      skeepLevelRef.current = 1;
+
+      // Resume playback if it was playing before SKEEP
+      if (wasPlayingBeforeSkeep.current) {
+        console.log('🎵 SKEEP: Resuming playback');
+        setTimeout(() => {
+          const { isPlaying } = usePlayerStore.getState();
+          if (!isPlaying) handlePlayPause(); // Resume
+        }, 50); // Small delay to let seek settle
+      }
+      wasPlayingBeforeSkeep.current = false;
+
+      // Clear the flag after a short delay (after onClick would have fired)
+      setTimeout(() => { wasSkeeping.current = false; }, 100);
+    }
+  }, [isScrubbing, setPlaybackRate, handlePlayPause]);
+
+  // Safe next track - doesn't skip if we were just skeeping
+  const handleNextTrack = useCallback(() => {
+    if (wasSkeeping.current) return; // Block skip after SKEEP
+    nextTrack();
+  }, [nextTrack]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (scrubInterval.current) clearInterval(scrubInterval.current);
-      if (scrubHoldTimer.current) clearTimeout(scrubHoldTimer.current);
+      if (skeepEscalateTimer.current) clearInterval(skeepEscalateTimer.current);
+      if (skeepHoldTimer.current) clearTimeout(skeepHoldTimer.current);
     };
   }, []);
 
@@ -1975,70 +2330,51 @@ export const VoyoPortraitPlayer = ({
           </AnimatePresence>
         </div>
 
-        {/* PROGRESS BAR - Tap/drag to seek */}
-        <div className="w-full max-w-xs mt-6 mb-2 px-4 z-30">
-          <div className="flex items-center gap-3">
-            {/* Current Time */}
-            <span className="text-[10px] text-white/60 font-mono tabular-nums min-w-[32px]">
-              {(() => {
-                const mins = Math.floor(currentTime / 60);
-                const secs = Math.floor(currentTime % 60);
-                return `${mins}:${secs.toString().padStart(2, '0')}`;
-              })()}
+        {/* MINIMAL PROGRESS - Fades when idle, only current time + red dot */}
+        <motion.div
+          className="w-full max-w-[180px] mt-2 mb-1 px-2 z-30"
+          animate={{ opacity: isScrubbing ? 1 : 0.25 }}
+          whileHover={{ opacity: 0.8 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="flex items-center gap-2">
+            {/* Current Time only - no end time needed */}
+            <span className="text-[8px] text-white/40 font-mono tabular-nums min-w-[26px]">
+              {Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')}
             </span>
 
-            {/* Progress Track */}
-            <div className="flex-1 relative">
+            {/* Translucent track + red dot */}
+            <div className="flex-1 relative h-3 flex items-center">
+              <div className="absolute left-0 right-0 h-[1px] bg-white/15 rounded-full" />
               <input
                 type="range"
                 min="0"
                 max={duration || 100}
                 value={currentTime}
                 onChange={(e) => seekTo(parseFloat(e.target.value))}
-                className="w-full h-1 appearance-none bg-transparent cursor-pointer relative z-10"
+                className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
+              />
+              <motion.div
+                className="absolute w-[5px] h-[5px] rounded-full bg-red-500/90"
+                animate={{
+                  scale: isScrubbing ? 1.3 : 1,
+                }}
                 style={{
-                  background: 'transparent',
+                  left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                  transform: 'translateX(-50%)',
+                  boxShadow: isScrubbing ? '0 0 10px rgba(239,68,68,0.9)' : '0 0 4px rgba(239,68,68,0.4)',
                 }}
               />
-              {/* Custom track styling */}
-              <div className="absolute inset-0 pointer-events-none">
-                {/* Background track */}
-                <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1 bg-white/10 rounded-full" />
-                {/* Progress fill */}
-                <div
-                  className="absolute top-1/2 -translate-y-1/2 left-0 h-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-100"
-                  style={{
-                    width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                  }}
-                />
-                {/* Thumb */}
-                <div
-                  className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow-[0_0_12px_rgba(147,51,234,0.8)] transition-all duration-100"
-                  style={{
-                    left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                    transform: 'translate(-50%, -50%)',
-                  }}
-                />
-              </div>
             </div>
-
-            {/* Duration */}
-            <span className="text-[10px] text-white/60 font-mono tabular-nums min-w-[32px]">
-              {(() => {
-                const mins = Math.floor(duration / 60);
-                const secs = Math.floor(duration % 60);
-                return `${mins}:${secs.toString().padStart(2, '0')}`;
-              })()}
-            </span>
           </div>
-        </div>
+        </motion.div>
 
-        {/* 2. THE ENGINE (Play Control) - SPINNING VINYL DISK + HOLD TO SCRUB */}
+        {/* 2. THE ENGINE (Play Control) - SPINNING VINYL DISK + HOLD TO SKEEP */}
         <PlayControls
           isPlaying={isPlaying}
           onToggle={handlePlayPause}
           onPrev={prevTrack}
-          onNext={nextTrack}
+          onNext={handleNextTrack}
           currentTime={currentTime}
           duration={duration}
           isScrubbing={isScrubbing}
@@ -2046,10 +2382,14 @@ export const VoyoPortraitPlayer = ({
           onScrubEnd={handleScrubEnd}
           trackArt={currentTrack ? getTrackThumbnailUrl(currentTrack, 'medium') : undefined}
           scrubDirection={scrubDirection}
+          skeepLevel={skeepLevel}
         />
 
-        {/* 3. REACTIONS */}
-        <ReactionBar onReaction={handleReaction} />
+        {/* 3. REACTIONS - Ghosted Row with OYÉ Gateway */}
+        <div className="mt-6">
+          <ReactionBar onReaction={handleReaction} />
+        </div>
+
       </div>
 
       {/* --- BOTTOM SECTION: DASHBOARD - FIX 4: Safe area insets --- */}
@@ -2097,18 +2437,49 @@ export const VoyoPortraitPlayer = ({
             <motion.button
               onClick={() => {
                 setHotScrollTrigger(prev => prev + 1);
-                setIsHotBeltActive(true); // Auto-activate belt on portal tap
+                setIsHotBeltActive(true);
+                // Trigger glow effect
+                setHotPortalGlow(true);
+                setTimeout(() => setHotPortalGlow(false), 800);
               }}
               whileTap={{ scale: 1.3 }}
-              className="flex-shrink-0 w-4 h-20 relative z-20 ml-1 touch-manipulation"
+              className="flex-shrink-0 w-5 h-20 relative z-20 ml-1 touch-manipulation"
               aria-label="Scroll HOT belt outward"
             >
-              <div className="h-full w-1.5 mx-auto rounded-full bg-gradient-to-b from-red-500/30 via-red-500 to-red-500/30" />
-              <div className="absolute inset-0 bg-red-500 blur-lg opacity-60" />
+              {/* Portal line */}
+              <motion.div
+                className="h-full w-1.5 mx-auto rounded-full"
+                style={{
+                  background: hotPortalGlow
+                    ? 'linear-gradient(180deg, #ff6b6b, #ff4444, #ff6b6b)'
+                    : 'linear-gradient(180deg, rgba(239,68,68,0.3), rgb(239,68,68), rgba(239,68,68,0.3))'
+                }}
+                animate={hotPortalGlow ? {
+                  boxShadow: ['0 0 10px #ff4444', '0 0 30px #ff4444', '0 0 10px #ff4444'],
+                } : {}}
+                transition={{ duration: 0.4 }}
+              />
+              {/* Ambient glow - always visible */}
+              <div className={`absolute inset-0 bg-red-500 blur-lg transition-opacity duration-300 ${hotPortalGlow ? 'opacity-100' : 'opacity-40'}`} />
+              {/* Pulse ring on glow */}
+              <AnimatePresence>
+                {hotPortalGlow && (
+                  <motion.div
+                    className="absolute inset-0 rounded-full border-2 border-red-400"
+                    initial={{ scale: 0.5, opacity: 1 }}
+                    animate={{ scale: 2, opacity: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.6 }}
+                  />
+                )}
+              </AnimatePresence>
               {/* Arrow hint */}
-              <div className="absolute inset-0 flex items-center justify-center text-red-400/60 text-xs">
+              <motion.div
+                className="absolute inset-0 flex items-center justify-center text-xs"
+                animate={{ color: hotPortalGlow ? '#ffffff' : 'rgba(248,113,113,0.6)' }}
+              >
                 ‹
-              </div>
+              </motion.div>
             </motion.button>
 
             {/* HOT Cards Belt (loops within this zone) */}
@@ -2124,16 +2495,26 @@ export const VoyoPortraitPlayer = ({
           </div>
 
           {/* ========== VOYO FEED DIVIDER ========== */}
-          <div className="flex-shrink-0 px-2 relative z-30">
-            {/* Left glow (red) */}
+          <div className="flex-shrink-0 px-1 relative z-30">
+            {/* Left fade - covers track overflow with dark gradient */}
             <div
-              className="absolute left-0 top-1/2 -translate-y-1/2 w-8 h-20 -translate-x-4 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at right, rgba(239,68,68,0.5) 0%, transparent 70%)' }}
+              className="absolute left-0 top-1/2 -translate-y-1/2 w-12 h-24 -translate-x-10 pointer-events-none"
+              style={{ background: 'linear-gradient(to right, #08080a 0%, transparent 100%)' }}
             />
-            {/* Right glow (blue) */}
+            {/* Left glow (red) - subtle */}
             <div
-              className="absolute right-0 top-1/2 -translate-y-1/2 w-8 h-20 translate-x-4 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at left, rgba(59,130,246,0.5) 0%, transparent 70%)' }}
+              className="absolute left-0 top-1/2 -translate-y-1/2 w-10 h-16 -translate-x-6 pointer-events-none"
+              style={{ background: 'radial-gradient(ellipse at right, rgba(239,68,68,0.35) 0%, transparent 80%)' }}
+            />
+            {/* Right fade - covers track overflow with dark gradient */}
+            <div
+              className="absolute right-0 top-1/2 -translate-y-1/2 w-12 h-24 translate-x-10 pointer-events-none"
+              style={{ background: 'linear-gradient(to left, #08080a 0%, transparent 100%)' }}
+            />
+            {/* Right glow (blue) - subtle */}
+            <div
+              className="absolute right-0 top-1/2 -translate-y-1/2 w-10 h-16 translate-x-6 pointer-events-none"
+              style={{ background: 'radial-gradient(ellipse at left, rgba(59,130,246,0.35) 0%, transparent 80%)' }}
             />
             <motion.button
               onClick={onVoyoFeed}
@@ -2167,18 +2548,49 @@ export const VoyoPortraitPlayer = ({
             <motion.button
               onClick={() => {
                 setDiscoveryScrollTrigger(prev => prev + 1);
-                setIsDiscoveryBeltActive(true); // Auto-activate belt on portal tap
+                setIsDiscoveryBeltActive(true);
+                // Trigger glow effect
+                setDiscoveryPortalGlow(true);
+                setTimeout(() => setDiscoveryPortalGlow(false), 800);
               }}
               whileTap={{ scale: 1.3 }}
-              className="flex-shrink-0 w-4 h-20 relative z-20 mr-1 touch-manipulation"
+              className="flex-shrink-0 w-5 h-20 relative z-20 mr-1 touch-manipulation"
               aria-label="Scroll DISCOVERY belt outward"
             >
-              <div className="h-full w-1.5 mx-auto rounded-full bg-gradient-to-b from-blue-500/30 via-blue-500 to-blue-500/30" />
-              <div className="absolute inset-0 bg-blue-500 blur-lg opacity-60" />
+              {/* Portal line */}
+              <motion.div
+                className="h-full w-1.5 mx-auto rounded-full"
+                style={{
+                  background: discoveryPortalGlow
+                    ? 'linear-gradient(180deg, #60a5fa, #3b82f6, #60a5fa)'
+                    : 'linear-gradient(180deg, rgba(59,130,246,0.3), rgb(59,130,246), rgba(59,130,246,0.3))'
+                }}
+                animate={discoveryPortalGlow ? {
+                  boxShadow: ['0 0 10px #3b82f6', '0 0 30px #3b82f6', '0 0 10px #3b82f6'],
+                } : {}}
+                transition={{ duration: 0.4 }}
+              />
+              {/* Ambient glow - always visible */}
+              <div className={`absolute inset-0 bg-blue-500 blur-lg transition-opacity duration-300 ${discoveryPortalGlow ? 'opacity-100' : 'opacity-40'}`} />
+              {/* Pulse ring on glow */}
+              <AnimatePresence>
+                {discoveryPortalGlow && (
+                  <motion.div
+                    className="absolute inset-0 rounded-full border-2 border-blue-400"
+                    initial={{ scale: 0.5, opacity: 1 }}
+                    animate={{ scale: 2, opacity: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.6 }}
+                  />
+                )}
+              </AnimatePresence>
               {/* Arrow hint */}
-              <div className="absolute inset-0 flex items-center justify-center text-blue-400/60 text-xs">
+              <motion.div
+                className="absolute inset-0 flex items-center justify-center text-xs"
+                animate={{ color: discoveryPortalGlow ? '#ffffff' : 'rgba(96,165,250,0.6)' }}
+              >
                 ›
-              </div>
+              </motion.div>
             </motion.button>
           </div>
 
@@ -2229,9 +2641,6 @@ export const VoyoPortraitPlayer = ({
         isOpen={isBoostSettingsOpen}
         onClose={() => setIsBoostSettingsOpen(false)}
       />
-
-      {/* AUTO-BOOST PROMPT (shows after 3 manual boosts) */}
-      <AutoBoostPrompt />
 
     </div>
   );

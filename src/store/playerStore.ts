@@ -28,6 +28,10 @@ interface PlayerStore {
   isVideoMode: boolean;
   seekPosition: number | null; // When set, AudioPlayer should seek to this position
 
+  // SKEEP (Fast-forward) State
+  playbackRate: number; // 1 = normal, 2/4/8 = SKEEP mode
+  isSkeeping: boolean; // True when holding skip button
+
   // Streaming Optimization (Spotify-beating features)
   networkQuality: NetworkQuality;
   streamQuality: BitrateLevel;  // Use BitrateLevel from audioEngine
@@ -78,6 +82,11 @@ interface PlayerStore {
   prevTrack: () => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
+
+  // Actions - SKEEP (Fast-forward)
+  setPlaybackRate: (rate: number) => void;
+  startSkeep: () => void; // Begin SKEEP mode (escalating 2x → 4x → 8x)
+  stopSkeep: () => void;  // Return to normal playback
 
   // Actions - View Mode
   cycleViewMode: () => void;
@@ -133,6 +142,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   isVideoMode: false,
   shuffleMode: false,
   repeatMode: 'off',
+
+  // SKEEP Initial State
+  playbackRate: 1,
+  isSkeeping: false,
 
   // Streaming Optimization Initial State
   networkQuality: 'unknown',
@@ -480,6 +493,19 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       const nextIndex = (currentIndex + 1) % modes.length;
       return { repeatMode: modes[nextIndex] };
     });
+  },
+
+  // SKEEP Actions - Nostalgic CD player fast-forward (chipmunk effect)
+  setPlaybackRate: (rate) => set({ playbackRate: rate }),
+
+  startSkeep: () => {
+    // Start at 2x, escalate via interval in the UI component
+    set({ isSkeeping: true, playbackRate: 2 });
+  },
+
+  stopSkeep: () => {
+    // Return to normal playback
+    set({ isSkeeping: false, playbackRate: 1 });
   },
 
   // Streaming Optimization Actions

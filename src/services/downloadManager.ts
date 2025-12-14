@@ -89,6 +89,28 @@ export async function isTrackCached(trackId: string): Promise<boolean> {
 }
 
 /**
+ * Get cached track quality (null if not cached)
+ */
+export async function getTrackQuality(trackId: string): Promise<'standard' | 'boosted' | null> {
+  try {
+    const database = await initDB();
+    return new Promise((resolve) => {
+      const transaction = database.transaction(STORE_NAME, 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(trackId);
+
+      request.onsuccess = () => {
+        const cached = request.result as CachedTrack | undefined;
+        resolve(cached?.quality || null);
+      };
+      request.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Get cached track URL (creates blob URL)
  */
 export async function getCachedTrackUrl(trackId: string): Promise<string | null> {
@@ -340,6 +362,82 @@ export function shouldAutoDownload(): boolean {
       return false; // Will prompt user
     default:
       return isOnWiFi();
+  }
+}
+
+/**
+ * Decode VOYO ID to raw YouTube ID
+ */
+function decodeVoyoId(voyoId: string): string {
+  if (!voyoId.startsWith('vyo_')) {
+    return voyoId;
+  }
+  const encoded = voyoId.substring(4);
+  let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4 !== 0) {
+    base64 += '=';
+  }
+  try {
+    return atob(base64);
+  } catch {
+    return voyoId;
+  }
+}
+
+/**
+ * Migrate old VOYO ID keys to raw YouTube IDs
+ * This runs once to fix tracks stored with vyo_ prefix
+ */
+export async function migrateVoyoIds(): Promise<void> {
+  try {
+    const database = await initDB();
+    const tracks = await getCachedTracks();
+
+    for (const track of tracks) {
+      // Check if this track has a VOYO ID
+      if (track.id.startsWith('vyo_')) {
+        const rawId = decodeVoyoId(track.id);
+        console.log('🔄 MIGRATE: Converting', track.id, '→', rawId, '| title:', track.title);
+
+        // Get the audio blob
+        const audioTransaction = database.transaction(STORE_NAME, 'readonly');
+        const audioStore = audioTransaction.objectStore(STORE_NAME);
+        const audioRequest = audioStore.get(track.id);
+
+        await new Promise<void>((resolve) => {
+          audioRequest.onsuccess = async () => {
+            const cachedTrack = audioRequest.result;
+            if (cachedTrack) {
+              // Write with new ID
+              const writeTransaction = database.transaction([STORE_NAME, META_STORE], 'readwrite');
+
+              // Update audio blob with new ID
+              cachedTrack.id = rawId;
+              writeTransaction.objectStore(STORE_NAME).put(cachedTrack);
+
+              // Update meta with new ID
+              const newMeta = { ...track, id: rawId };
+              writeTransaction.objectStore(META_STORE).put(newMeta);
+
+              // Delete old entries
+              writeTransaction.objectStore(STORE_NAME).delete(track.id);
+              writeTransaction.objectStore(META_STORE).delete(track.id);
+
+              writeTransaction.oncomplete = () => {
+                console.log('✅ MIGRATE: Successfully migrated', track.title);
+                resolve();
+              };
+              writeTransaction.onerror = () => resolve();
+            } else {
+              resolve();
+            }
+          };
+          audioRequest.onerror = () => resolve();
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Migration failed:', error);
   }
 }
 

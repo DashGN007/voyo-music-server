@@ -119,7 +119,7 @@ const TrackCard = ({ track, onPlay }: TrackCardProps) => {
     >
       <div className="relative w-32 h-32 rounded-xl overflow-hidden mb-2 bg-white/5">
         <img
-          src={imageError ? '/placeholder-album.png' : getThumb(track.trackId)}
+          src={imageError ? '/placeholder-album.svg' : getThumb(track.trackId)}
           alt={track.title}
           className="w-full h-full object-cover"
           onError={() => setImageError(true)}
@@ -190,8 +190,8 @@ export const HomeFeed = ({ onTrackPlay, onSearch }: HomeFeedProps) => {
 
   // Mood selection handler
   const handleMoodSelect = (mood: MoodTunnel) => {
-    // TODO: Navigate to mood tunnel view
-    console.log('Selected mood:', mood.name);
+    // TODO: Navigate to mood tunnel view - feature coming soon
+    // For now, we could filter tracks by mood tag
   };
 
   // Check if user has listening history

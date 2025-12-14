@@ -52,6 +52,7 @@ export const AudioPlayer = () => {
     isPlaying,
     volume,
     seekPosition,
+    playbackRate,
     setCurrentTime,
     setDuration,
     setProgress,
@@ -69,10 +70,12 @@ export const AudioPlayer = () => {
   const {
     initialize: initDownloads,
     checkCache,
+    cacheTrack,
   } = useDownloadStore();
 
   const lastTrackId = useRef<string | null>(null);
   const hasPrefetchedRef = useRef<boolean>(false); // Track if we've prefetched next track
+  const hasAutoCachedRef = useRef<boolean>(false); // Track if we've auto-cached this track
 
   // Initialize download system (IndexedDB)
   useEffect(() => {
@@ -132,7 +135,7 @@ export const AudioPlayer = () => {
       gainNode.connect(ctx.destination);
 
       audioEnhancedRef.current = true;
-      console.log('[VOYO] Audio Enhancement Active: +30% gain, +8dB bass, +3dB presence');
+      // Audio Enhancement Active: +30% gain, +8dB bass, +3dB presence
     } catch (e) {
       console.warn('[VOYO] Audio enhancement not available:', e);
     }
@@ -241,6 +244,7 @@ export const AudioPlayer = () => {
 
       currentVideoId.current = currentTrack.trackId;
       hasPrefetchedRef.current = false; // Reset prefetch flag for new track
+      hasAutoCachedRef.current = false; // Reset auto-cache flag for new track
 
       // End previous session
       if (lastTrackId.current && lastTrackId.current !== currentTrack.id) {
@@ -254,10 +258,25 @@ export const AudioPlayer = () => {
 
       try {
         // 1. CHECK LOCAL CACHE FIRST (User's IndexedDB - Boosted tracks)
+        console.log('🎵 AudioPlayer: Checking cache for trackId:', currentTrack.trackId, '| title:', currentTrack.title);
         const cachedUrl = await checkCache(currentTrack.trackId);
+        console.log('🎵 AudioPlayer: Cache result:', cachedUrl ? '✅ FOUND (playing boosted!)' : '❌ Not cached (using iframe)');
 
         if (cachedUrl) {
           // ⚡ BOOSTED - Play from local cache (instant, offline-ready)
+          console.log('🎵 AudioPlayer: Playing BOOSTED version from IndexedDB');
+
+          // CRITICAL: Stop iframe player if it was playing previous track
+          if (playerRef.current) {
+            try {
+              playerRef.current.stopVideo();
+              playerRef.current.destroy();
+              playerRef.current = null;
+            } catch (e) {
+              // Ignore errors during cleanup
+            }
+          }
+
           setPlaybackMode('cached');
           setPlaybackSource('cached');
 
@@ -287,7 +306,9 @@ export const AudioPlayer = () => {
                   // With Web Audio enhancement, volume is controlled by gain node
                   // Set audio element to 100% and let gain node handle boost
                   audioRef.current!.volume = 1.0;
-                }).catch(() => {});
+                }).catch(err => {
+                  console.warn('[VOYO] Cached playback failed:', err.message);
+                });
               }
             };
           }
@@ -296,6 +317,13 @@ export const AudioPlayer = () => {
 
         // 2. NOT CACHED - Use IFrame for instant playback
         // User can click "⚡ Boost HD" to download for next time
+
+        // Stop audio element if it was playing previous cached track
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = '';
+        }
+
         setPlaybackMode('iframe');
         setPlaybackSource('iframe');
 
@@ -335,6 +363,9 @@ export const AudioPlayer = () => {
     if (playbackMode === 'cached' && audioRef.current) {
       if (isPlaying) {
         audioRef.current.play().catch(err => {
+          console.warn('[VOYO] Playback failed:', err.message);
+          // Common on mobile - user needs to interact first
+          // Don't spam errors, just log once
         });
       } else {
         audioRef.current.pause();
@@ -390,6 +421,23 @@ export const AudioPlayer = () => {
     clearSeekPosition();
   }, [seekPosition, clearSeekPosition, playbackMode]);
 
+  // SKEEP: Handle playbackRate changes (nostalgic CD fast-forward chipmunk effect)
+  useEffect(() => {
+    if (playbackMode === 'cached' && audioRef.current) {
+      // HTML5 Audio: Direct playbackRate control (preserves pitch by default in modern browsers)
+      audioRef.current.playbackRate = playbackRate;
+    } else if (playbackMode === 'iframe' && playerRef.current) {
+      try {
+        // YouTube IFrame API: setPlaybackRate supports 0.25, 0.5, 1, 1.25, 1.5, 2
+        // For SKEEP we'll use the closest available rate
+        const ytRate = playbackRate <= 1 ? 1 : playbackRate <= 1.5 ? 1.5 : 2;
+        playerRef.current.setPlaybackRate(ytRate);
+      } catch (e) {
+        // Player not ready yet
+      }
+    }
+  }, [playbackRate, playbackMode]);
+
   // IFrame time tracking
   useEffect(() => {
     if (playbackMode !== 'iframe') return;
@@ -411,6 +459,19 @@ export const AudioPlayer = () => {
                 playbackRate: 1,
                 position: currentTime
               });
+            }
+
+            // 30s AUTO-CACHE: Cache track for offline after 30 seconds of playback
+            if (currentTime >= 30 && !hasAutoCachedRef.current && currentTrack) {
+              hasAutoCachedRef.current = true;
+              // Silent background cache at standard quality
+              cacheTrack(
+                currentTrack.trackId,
+                currentTrack.title,
+                currentTrack.artist,
+                Math.floor(duration),
+                `https://voyo-music-api.fly.dev/cdn/art/${currentTrack.trackId}?quality=high`
+              );
             }
 
             // 50% PREFETCH: Prefetch next track when 50% through current track (IFrame mode)

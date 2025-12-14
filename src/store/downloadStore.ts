@@ -19,6 +19,8 @@ import {
   getDownloadSetting,
   setDownloadSetting,
   shouldAutoDownload,
+  migrateVoyoIds,
+  getTrackQuality,
   type DownloadSetting,
 } from '../services/downloadManager';
 
@@ -58,8 +60,11 @@ interface DownloadStore {
   initialize: () => Promise<void>;
   checkCache: (trackId: string) => Promise<string | null>;
 
-  // MANUAL BOOST - User triggers download
+  // MANUAL BOOST - User triggers HD download
   boostTrack: (trackId: string, title: string, artist: string, duration: number, thumbnail: string) => Promise<void>;
+
+  // AUTO-CACHE - Silent background caching at standard quality
+  cacheTrack: (trackId: string, title: string, artist: string, duration: number, thumbnail: string) => Promise<void>;
 
   // Legacy queue (for auto-boost when enabled)
   queueDownload: (trackId: string, title: string, artist: string, duration: number, thumbnail: string) => void;
@@ -123,6 +128,9 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   initialize: async () => {
     if (get().isInitialized) return;
 
+    // Migrate old VOYO IDs to raw YouTube IDs (one-time fix for existing cached tracks)
+    await migrateVoyoIds();
+
     const setting = getDownloadSetting();
     const tracks = await getCachedTracks();
     const size = await getCacheSize();
@@ -143,9 +151,14 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   },
 
   checkCache: async (trackId: string) => {
-    const cached = await isTrackCached(trackId);
+    // NORMALIZE: Always check with raw YouTube ID
+    const normalizedId = decodeVoyoId(trackId);
+    console.log('🎵 CACHE: Checking if trackId is cached:', trackId, '→ normalized:', normalizedId);
+    const cached = await isTrackCached(normalizedId);
+    console.log('🎵 CACHE: isTrackCached result:', cached);
     if (cached) {
-      const url = await getCachedTrackUrl(trackId);
+      const url = await getCachedTrackUrl(normalizedId);
+      console.log('🎵 CACHE: Got blob URL:', url ? 'YES' : 'NO');
       if (url) {
         return url;
       }
@@ -155,37 +168,40 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
   // ⚡ MANUAL BOOST - User clicks button to download
   boostTrack: async (trackId, title, artist, duration, thumbnail) => {
+    // NORMALIZE: Always use raw YouTube ID for storage (not VOYO encoded)
+    const normalizedId = decodeVoyoId(trackId);
+    console.log('🎵 BOOST: Starting boost for trackId:', trackId, '→ normalized:', normalizedId, '| title:', title);
     const { downloads, manualBoostCount, autoBoostEnabled } = get();
 
     // Already downloading or complete?
-    const existing = downloads.get(trackId);
+    const existing = downloads.get(normalizedId);
     if (existing && (existing.status === 'downloading' || existing.status === 'complete')) {
       return;
     }
 
-    // Check if already cached
-    const cached = await isTrackCached(trackId);
-    if (cached) {
+    // Check if already cached at boosted quality (skip if already HD)
+    const currentQuality = await getTrackQuality(normalizedId);
+    if (currentQuality === 'boosted') {
       const newDownloads = new Map(downloads);
-      newDownloads.set(trackId, { trackId, progress: 100, status: 'complete' });
+      newDownloads.set(normalizedId, { trackId: normalizedId, progress: 100, status: 'complete' });
       set({ downloads: newDownloads });
       return;
     }
+    // If standard quality exists, we'll upgrade to boosted (re-download)
 
     // Update status to downloading
     const newDownloads = new Map(downloads);
-    newDownloads.set(trackId, { trackId, progress: 0, status: 'downloading' });
+    newDownloads.set(normalizedId, { trackId: normalizedId, progress: 0, status: 'downloading' });
     set({ downloads: newDownloads });
 
     try {
       // Build proxy URL - server will fetch and pipe to us
-      const youtubeId = decodeVoyoId(trackId);
-      const proxyUrl = `${API_URL}/proxy?v=${youtubeId}&quality=high`;
+      const proxyUrl = `${API_URL}/proxy?v=${normalizedId}&quality=high`;
 
       // Download with progress tracking (throttled to 500ms)
       let lastUpdateTime = 0;
       const success = await downloadTrack(
-        trackId,
+        normalizedId,
         proxyUrl,
         { title, artist, duration, thumbnail, quality: 'boosted' },
         'boosted',
@@ -195,8 +211,8 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
           lastUpdateTime = now;
 
           const currentDownloads = new Map(get().downloads);
-          currentDownloads.set(trackId, {
-            trackId,
+          currentDownloads.set(normalizedId, {
+            trackId: normalizedId,
             progress,
             status: 'downloading',
           });
@@ -205,8 +221,9 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       );
 
       if (success) {
+        console.log('🎵 BOOST: ✅ Successfully boosted trackId:', trackId, '→ stored as:', normalizedId, '| title:', title);
         const finalDownloads = new Map(get().downloads);
-        finalDownloads.set(trackId, { trackId, progress: 100, status: 'complete' });
+        finalDownloads.set(normalizedId, { trackId: normalizedId, progress: 100, status: 'complete' });
 
         // Increment manual boost count
         const newCount = manualBoostCount + 1;
@@ -229,13 +246,54 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
 
     } catch (error) {
       const failedDownloads = new Map(get().downloads);
-      failedDownloads.set(trackId, {
-        trackId,
+      failedDownloads.set(normalizedId, {
+        trackId: normalizedId,
         progress: 0,
         status: 'failed',
         error: error instanceof Error ? error.message : 'Download failed',
       });
       set({ downloads: failedDownloads });
+    }
+  },
+
+  // 🎵 AUTO-CACHE - Silent background caching after 30s of playback
+  cacheTrack: async (trackId, title, artist, duration, thumbnail) => {
+    const normalizedId = decodeVoyoId(trackId);
+
+    // Skip if already cached at ANY quality (don't downgrade or waste bandwidth)
+    const currentQuality = await getTrackQuality(normalizedId);
+    if (currentQuality) {
+      console.log('🎵 CACHE: Track already cached at', currentQuality, 'quality, skipping:', title);
+      return;
+    }
+
+    // Check network settings
+    if (!shouldAutoDownload()) {
+      console.log('🎵 CACHE: Network settings prevent auto-cache');
+      return;
+    }
+
+    console.log('🎵 CACHE: Auto-caching track:', title, '| quality: standard');
+
+    try {
+      // Use standard quality for auto-cache (saves bandwidth)
+      const proxyUrl = `${API_URL}/proxy?v=${normalizedId}&quality=standard`;
+
+      // Silent download - no progress UI updates
+      const success = await downloadTrack(
+        normalizedId,
+        proxyUrl,
+        { title, artist, duration, thumbnail, quality: 'standard' },
+        'standard'
+      );
+
+      if (success) {
+        console.log('🎵 CACHE: ✅ Auto-cached:', title);
+        await get().refreshCacheInfo();
+      }
+    } catch (error) {
+      // Silent fail - don't interrupt user experience
+      console.log('🎵 CACHE: Auto-cache failed for', title, error);
     }
   },
 
@@ -308,18 +366,24 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   },
 
   getDownloadStatus: (trackId) => {
-    return get().downloads.get(trackId);
+    // NORMALIZE: Always use raw YouTube ID
+    const normalizedId = decodeVoyoId(trackId);
+    return get().downloads.get(normalizedId);
   },
 
   isTrackBoosted: async (trackId: string) => {
-    return isTrackCached(trackId);
+    // NORMALIZE: Always use raw YouTube ID
+    const normalizedId = decodeVoyoId(trackId);
+    return isTrackCached(normalizedId);
   },
 
   removeDownload: async (trackId) => {
-    await deleteTrack(trackId);
+    // NORMALIZE: Always use raw YouTube ID
+    const normalizedId = decodeVoyoId(trackId);
+    await deleteTrack(normalizedId);
 
     const newDownloads = new Map(get().downloads);
-    newDownloads.delete(trackId);
+    newDownloads.delete(normalizedId);
     set({ downloads: newDownloads });
 
     await get().refreshCacheInfo();

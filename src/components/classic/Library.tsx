@@ -11,15 +11,17 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Heart, Music, Clock, MoreVertical, Play, ListPlus } from 'lucide-react';
+import { Search, Heart, Music, Clock, MoreVertical, Play, ListPlus, Zap } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
+import { useDownloadStore } from '../../store/downloadStore';
 import { getYouTubeThumbnail, TRACKS } from '../../data/tracks';
 import { Track } from '../../types';
 import { getAudioStream } from '../../services/api';
 
-// Filter tabs
+// Filter tabs - Offline includes both auto-cached and boosted
 const FILTERS = [
   { id: 'all', label: 'All' },
+  { id: 'offline', label: 'Offline' },
   { id: 'liked', label: 'Liked' },
   { id: 'saved', label: 'Saved songs' },
   { id: 'recent', label: 'Recent' },
@@ -30,6 +32,7 @@ const SongRow = ({
   track,
   index,
   isLiked = false,
+  cacheQuality,
   onClick,
   onLike,
   onAddToQueue
@@ -37,6 +40,7 @@ const SongRow = ({
   track: Track;
   index: number;
   isLiked?: boolean;
+  cacheQuality?: 'standard' | 'boosted' | null; // null = not cached
   onClick: () => void;
   onLike: () => void;
   onAddToQueue: () => void;
@@ -210,6 +214,17 @@ const SongRow = ({
         </p>
         <div className="flex items-center gap-2">
           <p className="text-white/50 text-sm truncate">{track.artist}</p>
+          {cacheQuality === 'boosted' && (
+            <span className="flex items-center gap-1 text-xs text-yellow-400 font-medium">
+              <Zap size={10} className="fill-yellow-400" />
+              HD
+            </span>
+          )}
+          {cacheQuality === 'standard' && (
+            <span className="text-xs text-emerald-400 font-medium">
+              Offline
+            </span>
+          )}
           {teaserState === 'playing' && (
             <span className="text-xs text-purple-400 font-medium">Previewing...</span>
           )}
@@ -256,25 +271,61 @@ export const Library = ({ onTrackClick }: LibraryProps) => {
   const [likedTracks, setLikedTracks] = useState<Set<string>>(new Set());
   const { setCurrentTrack, addToQueue } = usePlayerStore();
 
-  // Filter tracks based on active filter and search
-  const filteredTracks = TRACKS.filter(track => {
-    const matchesSearch = !searchQuery ||
-      track.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      track.artist.toLowerCase().includes(searchQuery.toLowerCase());
+  // Get boosted tracks from download store
+  const { cachedTracks, initialize: initDownloads, isInitialized } = useDownloadStore();
 
-    if (!matchesSearch) return false;
-
-    switch (activeFilter) {
-      case 'liked':
-        return likedTracks.has(track.id);
-      case 'saved':
-        return true; // All tracks are "saved" for now
-      case 'recent':
-        return true; // Show all for now
-      default:
-        return true;
+  // Initialize download store on mount
+  useEffect(() => {
+    if (!isInitialized) {
+      initDownloads();
     }
-  });
+  }, [initDownloads, isInitialized]);
+
+  // Convert cached tracks to Track format for display
+  const boostedTracks: Track[] = cachedTracks.map(cached => ({
+    id: cached.id,
+    trackId: cached.id,
+    title: cached.title,
+    artist: cached.artist,
+    duration: '', // We don't store duration in cache meta
+  }));
+
+  // Create maps for quick lookup of cached tracks and their quality
+  const cachedTrackIds = new Set(cachedTracks.map(t => t.id));
+  const trackQualityMap = new Map(cachedTracks.map(t => [t.id, t.quality]));
+
+  // Filter tracks based on active filter and search
+  const filteredTracks = (() => {
+    // For offline filter, show all cached tracks (both standard and boosted)
+    if (activeFilter === 'offline') {
+      return boostedTracks.filter(track => {
+        const matchesSearch = !searchQuery ||
+          track.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          track.artist.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesSearch;
+      });
+    }
+
+    // For other filters, use static TRACKS
+    return TRACKS.filter(track => {
+      const matchesSearch = !searchQuery ||
+        track.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        track.artist.toLowerCase().includes(searchQuery.toLowerCase());
+
+      if (!matchesSearch) return false;
+
+      switch (activeFilter) {
+        case 'liked':
+          return likedTracks.has(track.id);
+        case 'saved':
+          return true; // All tracks are "saved" for now
+        case 'recent':
+          return true; // Show all for now
+        default:
+          return true;
+      }
+    });
+  })();
 
   const handleTrackClick = (track: Track) => {
     setCurrentTrack(track);
@@ -335,7 +386,12 @@ export const Library = ({ onTrackClick }: LibraryProps) => {
 
       {/* Song Count */}
       <div className="px-4 py-2">
-        <p className="text-white/40 text-sm">{filteredTracks.length} songs</p>
+        <p className="text-white/40 text-sm">
+          {filteredTracks.length} {activeFilter === 'offline' ? 'offline songs' : 'songs'}
+          {activeFilter === 'offline' && filteredTracks.length === 0 && (
+            <span className="block text-xs mt-1">Play songs to build your offline library!</span>
+          )}
+        </p>
       </div>
 
       {/* Song List */}
@@ -347,6 +403,7 @@ export const Library = ({ onTrackClick }: LibraryProps) => {
               track={track}
               index={index}
               isLiked={likedTracks.has(track.id)}
+              cacheQuality={trackQualityMap.get(track.trackId) || null}
               onClick={() => handleTrackClick(track)}
               onLike={() => handleLike(track.id)}
               onAddToQueue={() => addToQueue(track)}

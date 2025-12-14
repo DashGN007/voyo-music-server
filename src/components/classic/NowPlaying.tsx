@@ -12,7 +12,7 @@
  * - VOYO DJ: Live reactions & comments (social layer)
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown,
@@ -263,8 +263,8 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
     commentIndexRef.current = 0;
   }, [currentTrack?.id]);
 
-  // Handle user reactions
-  const handleReaction = (type: FloatingReaction['type'], emoji: string) => {
+  // Handle user reactions - useCallback to avoid stale closure in useEffect
+  const handleReaction = useCallback((type: FloatingReaction['type'], emoji: string) => {
     const id = Date.now() + Math.random();
     const x = 10 + Math.random() * 80;
     const xOffset1 = (Math.random() - 0.5) * 50;
@@ -276,7 +276,7 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
     setTimeout(() => {
       setFloatingReactions(prev => prev.filter(r => r.id !== id));
     }, 2500);
-  };
+  }, []);
 
   // Auto-spawn reactions when playing (ambient vibe)
   useEffect(() => {
@@ -292,7 +292,7 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
     }, 3000 + Math.random() * 3000);
 
     return () => clearInterval(interval);
-  }, [isPlaying, isOpen]);
+  }, [isPlaying, isOpen, handleReaction]);
 
   if (!currentTrack) return null;
 
