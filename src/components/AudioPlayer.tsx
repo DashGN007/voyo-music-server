@@ -431,7 +431,8 @@ export const AudioPlayer = () => {
         // YouTube IFrame API: setPlaybackRate supports 0.25, 0.5, 1, 1.25, 1.5, 2
         // For SKEEP we'll use the closest available rate
         const ytRate = playbackRate <= 1 ? 1 : playbackRate <= 1.5 ? 1.5 : 2;
-        playerRef.current.setPlaybackRate(ytRate);
+        // Cast to any since YouTube types may not include setPlaybackRate
+        (playerRef.current as any).setPlaybackRate(ytRate);
       } catch (e) {
         // Player not ready yet
       }

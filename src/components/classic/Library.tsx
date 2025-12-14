@@ -287,7 +287,11 @@ export const Library = ({ onTrackClick }: LibraryProps) => {
     trackId: cached.id,
     title: cached.title,
     artist: cached.artist,
-    duration: '', // We don't store duration in cache meta
+    coverUrl: getYouTubeThumbnail(cached.id, 'high'),
+    duration: 0, // Duration not stored in cache metadata
+    tags: [],
+    oyeScore: 0,
+    createdAt: new Date().toISOString(),
   }));
 
   // Create maps for quick lookup of cached tracks and their quality
