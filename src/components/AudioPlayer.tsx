@@ -1,10 +1,16 @@
 /**
- * VOYO Music - Hybrid Audio Player with BOOST System
+ * VOYO Music - Hybrid Audio Player with BOOST System + AFRICAN BASS
  *
  * SIMPLE FLOW:
  * 1. Check IndexedDB cache → If BOOSTED, play from local blob (instant, offline)
  * 2. If NOT boosted → IFrame plays instantly (YouTube handles streaming)
  * 3. User clicks "⚡ Boost HD" → Downloads to IndexedDB for next time
+ *
+ * AUDIO ENHANCEMENT:
+ * - Volume always at 100% by default
+ * - Web Audio API gain boost (130% for extra punch)
+ * - Bass enhancement (+8dB at 80Hz - African bass!)
+ * - Presence boost (+3dB at 3kHz for clarity)
  *
  * NO server proxy for playback - only for downloads when user requests Boost
  */
@@ -17,12 +23,27 @@ import { getYouTubeIdForIframe, prefetchTrack } from '../services/api';
 
 type PlaybackMode = 'cached' | 'iframe';
 
+// Audio boost constants - AFRICAN BASS MODE
+const GAIN_BOOST = 1.3;      // 130% volume boost
+const BASS_FREQ = 80;        // Bass frequency (Hz)
+const BASS_GAIN = 8;         // Bass boost (dB)
+const PRESENCE_FREQ = 3000;  // Presence frequency (Hz)
+const PRESENCE_GAIN = 3;     // Presence boost (dB)
+
 export const AudioPlayer = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const playerRef = useRef<YT.Player | null>(null);
   const currentVideoId = useRef<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const cachedUrlRef = useRef<string | null>(null);
+
+  // Web Audio API for boost & bass enhancement
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const bassFilterRef = useRef<BiquadFilterNode | null>(null);
+  const presenceFilterRef = useRef<BiquadFilterNode | null>(null);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const audioEnhancedRef = useRef<boolean>(false);
 
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>('iframe');
 
@@ -65,6 +86,55 @@ export const AudioPlayer = () => {
       tag.src = 'https://www.youtube.com/iframe_api';
       const firstScript = document.getElementsByTagName('script')[0];
       firstScript.parentNode?.insertBefore(tag, firstScript);
+    }
+  }, []);
+
+  // Setup audio enhancement (gain boost + bass + presence)
+  const setupAudioEnhancement = useCallback(() => {
+    if (!audioRef.current || audioEnhancedRef.current) return;
+
+    try {
+      // Create AudioContext (handle Safari)
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      const ctx = new AudioContextClass();
+      audioContextRef.current = ctx;
+
+      // Create source from audio element
+      const source = ctx.createMediaElementSource(audioRef.current);
+      sourceNodeRef.current = source;
+
+      // Create bass boost filter (lowshelf at 80Hz, +8dB)
+      const bassFilter = ctx.createBiquadFilter();
+      bassFilter.type = 'lowshelf';
+      bassFilter.frequency.value = BASS_FREQ;
+      bassFilter.gain.value = BASS_GAIN;
+      bassFilterRef.current = bassFilter;
+
+      // Create presence boost filter (peaking at 3kHz, +3dB)
+      const presenceFilter = ctx.createBiquadFilter();
+      presenceFilter.type = 'peaking';
+      presenceFilter.frequency.value = PRESENCE_FREQ;
+      presenceFilter.Q.value = 1;
+      presenceFilter.gain.value = PRESENCE_GAIN;
+      presenceFilterRef.current = presenceFilter;
+
+      // Create gain node for volume boost
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = GAIN_BOOST;
+      gainNodeRef.current = gainNode;
+
+      // Connect: source -> bass -> presence -> gain -> destination
+      source.connect(bassFilter);
+      bassFilter.connect(presenceFilter);
+      presenceFilter.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      audioEnhancedRef.current = true;
+      console.log('[VOYO] Audio Enhancement Active: +30% gain, +8dB bass, +3dB presence');
+    } catch (e) {
+      console.warn('[VOYO] Audio enhancement not available:', e);
     }
   }, []);
 
@@ -124,10 +194,11 @@ export const AudioPlayer = () => {
           } else if (state === 1) { // PLAYING
             setBufferHealth(100, 'healthy');
             // FIX: Smooth volume fade-in to prevent click sound
+            // ALWAYS fade to 100% - AFRICAN BASS MODE
             const player = playerRef.current;
             if (player) {
               let currentVol = 0;
-              const targetVol = volume;
+              const targetVol = 100; // Always max volume
               const fadeInterval = setInterval(() => {
                 currentVol = Math.min(currentVol + 10, targetVol);
                 try {
@@ -197,6 +268,9 @@ export const AudioPlayer = () => {
             }
             cachedUrlRef.current = cachedUrl;
 
+            // Setup audio enhancement (bass + gain boost) BEFORE setting src
+            setupAudioEnhancement();
+
             // FIX: Start at volume 0 to prevent click/pop
             audioRef.current.volume = 0;
             audioRef.current.src = cachedUrl;
@@ -205,19 +279,14 @@ export const AudioPlayer = () => {
             // FIX: Use oncanplaythrough for smoother start
             audioRef.current.oncanplaythrough = () => {
               if (isPlaying && audioRef.current) {
+                // Resume AudioContext if suspended (browser policy)
+                if (audioContextRef.current?.state === 'suspended') {
+                  audioContextRef.current.resume();
+                }
                 audioRef.current.play().then(() => {
-                  // Smooth volume fade-in
-                  let currentVol = 0;
-                  const targetVol = volume / 100;
-                  const fadeInterval = setInterval(() => {
-                    currentVol = Math.min(currentVol + 0.1, targetVol);
-                    if (audioRef.current) {
-                      audioRef.current.volume = currentVol;
-                    }
-                    if (currentVol >= targetVol) {
-                      clearInterval(fadeInterval);
-                    }
-                  }, 30);
+                  // With Web Audio enhancement, volume is controlled by gain node
+                  // Set audio element to 100% and let gain node handle boost
+                  audioRef.current!.volume = 1.0;
                 }).catch(() => {});
               }
             };
@@ -259,7 +328,7 @@ export const AudioPlayer = () => {
         cachedUrlRef.current = null;
       }
     };
-  }, [currentTrack?.trackId, initIframePlayer, isPlaying, startListenSession, endListenSession, checkCache, setPlaybackSource]);
+  }, [currentTrack?.trackId, initIframePlayer, isPlaying, startListenSession, endListenSession, checkCache, setPlaybackSource, setupAudioEnhancement]);
 
   // Handle play/pause
   useEffect(() => {
@@ -286,10 +355,19 @@ export const AudioPlayer = () => {
   // Handle volume
   useEffect(() => {
     if (playbackMode === 'cached' && audioRef.current) {
-      audioRef.current.volume = volume / 100;
+      if (audioEnhancedRef.current && gainNodeRef.current) {
+        // With Web Audio: keep audio at 100%, use gain node for volume + boost
+        // GAIN_BOOST (1.3) is the base boost, multiply by user volume
+        audioRef.current.volume = 1.0;
+        gainNodeRef.current.gain.value = GAIN_BOOST * (volume / 100);
+      } else {
+        // Fallback: direct volume control
+        audioRef.current.volume = volume / 100;
+      }
     } else if (playbackMode === 'iframe' && playerRef.current) {
       try {
-        playerRef.current.setVolume(volume);
+        // YouTube: max volume (100) - no Web Audio enhancement for iframe
+        playerRef.current.setVolume(100);
       } catch (e) {
         // Player not ready yet
       }

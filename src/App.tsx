@@ -15,7 +15,6 @@ import { Search, User, Home, Radio, Sparkles } from 'lucide-react';
 import { PortraitVOYO } from './components/voyo/PortraitVOYO';
 import { LandscapeVOYO } from './components/voyo/LandscapeVOYO';
 import { VideoMode } from './components/voyo/VideoMode';
-import { DJSessionMode } from './components/voyo/DJSessionMode';
 import { ClassicMode } from './components/classic/ClassicMode';
 import { AudioPlayer } from './components/AudioPlayer';
 import { SearchOverlayV2 as SearchOverlay } from './components/search/SearchOverlayV2';
@@ -27,7 +26,7 @@ import { InstallButton } from './components/ui/InstallButton';
 import { OfflineIndicator } from './components/ui/OfflineIndicator';
 
 // App modes
-type AppMode = 'classic' | 'voyo' | 'video' | 'dj';
+type AppMode = 'classic' | 'voyo' | 'video';
 
 // Detect orientation
 const useOrientation = () => {
@@ -83,12 +82,11 @@ function App() {
 
   // Handle video mode entry/exit
   const handleVideoModeEnter = () => setAppMode('video');
-  const handleVideoModeExit = () => setAppMode('dj');
+  const handleVideoModeExit = () => setAppMode('voyo');
 
   // Handle mode switching
   const handleSwitchToVOYO = () => setAppMode('voyo');
   const handleSwitchToClassic = () => setAppMode('classic');
-  const handleSwitchToDJ = () => setAppMode('dj');
 
   return (
     <div className="relative h-full w-full bg-[#0a0a0f] overflow-hidden">
@@ -128,49 +126,7 @@ function App() {
 
       {/* Main Content */}
       <AnimatePresence mode="wait">
-        {appMode === 'dj' ? (
-          <motion.div
-            key="dj"
-            className="relative z-10 h-full"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-          >
-            {/* DJ Mode Header */}
-            <header className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3">
-              <motion.div
-                className="flex items-center gap-2"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-              >
-                <span className="text-2xl font-black bg-gradient-to-r from-purple-400 via-pink-500 to-purple-600 bg-clip-text text-transparent">
-                  VOYO
-                </span>
-                <span className="text-yellow-400 text-xs font-bold">DJ</span>
-              </motion.div>
-              <div className="flex items-center gap-2">
-                <motion.button
-                  className="p-2 rounded-full bg-white/10 hover:bg-white/20"
-                  onClick={handleSwitchToVOYO}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  title="Player Mode"
-                >
-                  <Radio className="w-5 h-5 text-white/70" />
-                </motion.button>
-                <motion.button
-                  className="p-2 rounded-full bg-white/10 hover:bg-white/20"
-                  onClick={() => setIsSearchOpen(true)}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <Search className="w-5 h-5 text-white/70" />
-                </motion.button>
-              </div>
-            </header>
-            <DJSessionMode />
-          </motion.div>
-        ) : appMode === 'classic' ? (
+        {appMode === 'classic' ? (
           <motion.div
             key="classic"
             className="relative z-10 h-full"
@@ -179,7 +135,7 @@ function App() {
             exit={{ opacity: 0, x: -50 }}
           >
             <ClassicMode
-              onSwitchToVOYO={handleSwitchToDJ}
+              onSwitchToVOYO={handleSwitchToVOYO}
               onSearch={() => setIsSearchOpen(true)}
             />
           </motion.div>

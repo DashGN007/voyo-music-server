@@ -127,7 +127,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   progress: 0,
   currentTime: 0,
   duration: 0,
-  volume: parseInt(localStorage.getItem('voyo-volume') || '80', 10),
+  volume: parseInt(localStorage.getItem('voyo-volume') || '100', 10),
   seekPosition: null,
   viewMode: 'card',
   isVideoMode: false,
