@@ -146,6 +146,32 @@ User Device
 
 ---
 
+## NORTH STAR - Audio Quality Settings (Spotify-style)
+
+**Current Implementation:**
+- GAIN_BOOST = 1.3 (130% volume)
+- BASS_FREQ = 80Hz, BASS_GAIN = +8dB (lowshelf)
+- PRESENCE_FREQ = 3kHz, PRESENCE_GAIN = +3dB (peaking)
+- Result: "African Bass Mode" - heavy, punchy, bass heads love it
+
+**Problem:** Too hot for some speakers (clipping/distortion on max volume)
+
+**Future Presets:**
+| Preset | Gain | Bass | Presence | Description |
+|--------|------|------|----------|-------------|
+| **Balanced** | 1.1x | +3dB | +2dB | Clean, safe for all speakers |
+| **Bass Boost** | 1.3x | +8dB | +3dB | Current heavy mode (Mad Bass) |
+| **Studio Hi-Fi** | 1.0x | 0dB | 0dB | Flat, true to source |
+| **Loud** | 1.4x | +5dB | +4dB | Spotify "Loud" equivalent |
+
+**Implementation:**
+- Add preset selector in Settings
+- Store preference in localStorage
+- Apply preset values to Web Audio API filters
+- Default: "Balanced" (safer), let users opt into "Bass Boost"
+
+---
+
 ## MANTRAS
 
 - "Your library grows with you"

@@ -72,40 +72,137 @@ const LightningIcon = ({ isGlowing, isCharging, size = 14 }: { isGlowing: boolea
   </svg>
 );
 
-// Orbital circles animation (3 circles before loading)
-const OrbitalCircles = () => (
-  <div className="absolute inset-0 pointer-events-none">
-    {[0, 1, 2].map((i) => (
-      <motion.div
-        key={i}
-        className="absolute w-2 h-2 rounded-full"
-        style={{
-          background: 'linear-gradient(135deg, #fde047, #f59e0b)',
-          boxShadow: '0 0 8px rgba(251, 191, 36, 0.8)',
-          top: '50%',
-          left: '50%',
+// Circular progress ring with priming animation
+// Phase 1: 2 full spins (priming) → Phase 2: actual progress
+const ProgressRing = ({ progress, isStarting, size = 44 }: { progress: number; isStarting: boolean; size?: number }) => {
+  const [phase, setPhase] = useState<'priming' | 'progress'>('priming');
+  const [primingRound, setPrimingRound] = useState(0);
+
+  const strokeWidth = 3;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  // Handle priming animation (2 full rounds)
+  useEffect(() => {
+    if (!isStarting) {
+      setPhase('priming');
+      setPrimingRound(0);
+      return;
+    }
+
+    // If we have real progress > 10%, skip to progress phase
+    if (progress > 10) {
+      setPhase('progress');
+      return;
+    }
+
+    // Priming: 2 rounds of ~400ms each
+    if (phase === 'priming' && primingRound < 2) {
+      const timer = setTimeout(() => {
+        setPrimingRound(prev => prev + 1);
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+
+    // After 2 rounds, switch to progress phase
+    if (primingRound >= 2) {
+      setPhase('progress');
+    }
+  }, [isStarting, progress, phase, primingRound]);
+
+  // Reset when not downloading
+  useEffect(() => {
+    if (!isStarting) {
+      setPhase('priming');
+      setPrimingRound(0);
+    }
+  }, [isStarting]);
+
+  // Calculate stroke offset based on phase
+  const getStrokeOffset = () => {
+    if (phase === 'priming') {
+      // Animate full circle based on priming round
+      return 0; // Full circle during priming animation
+    }
+    // Real progress
+    return circumference - (circumference * progress) / 100;
+  };
+
+  return (
+    <svg
+      className="absolute inset-0 -rotate-90 pointer-events-none"
+      width={size}
+      height={size}
+      style={{ filter: 'drop-shadow(0 0 4px rgba(251, 191, 36, 0.6))' }}
+    >
+      {/* Background ring (dim) */}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="rgba(251, 191, 36, 0.15)"
+        strokeWidth={strokeWidth}
+      />
+      {/* Progress ring */}
+      <motion.circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="url(#boostGradient)"
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        initial={{ strokeDashoffset: circumference }}
+        animate={phase === 'priming' ? {
+          // Priming: fill up completely, then reset
+          strokeDashoffset: [circumference, 0, circumference, 0],
+        } : {
+          // Progress: show actual progress
+          strokeDashoffset: getStrokeOffset(),
         }}
-        animate={{
-          x: [
-            Math.cos((i * 2 * Math.PI) / 3) * 16 - 4,
-            Math.cos((i * 2 * Math.PI) / 3 + Math.PI * 2) * 16 - 4,
-          ],
-          y: [
-            Math.sin((i * 2 * Math.PI) / 3) * 16 - 4,
-            Math.sin((i * 2 * Math.PI) / 3 + Math.PI * 2) * 16 - 4,
-          ],
-          scale: [1, 1.2, 0.8, 1],
-        }}
-        transition={{
-          duration: 1.2,
-          repeat: Infinity,
-          ease: 'linear',
-          delay: i * 0.1,
+        transition={phase === 'priming' ? {
+          duration: 0.8,
+          times: [0, 0.45, 0.5, 1],
+          ease: 'easeInOut',
+        } : {
+          duration: 0.3,
+          ease: 'easeOut',
         }}
       />
-    ))}
-  </div>
-);
+      {/* Gradient definition */}
+      <defs>
+        <linearGradient id="boostGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#fde047" />
+          <stop offset="50%" stopColor="#fbbf24" />
+          <stop offset="100%" stopColor="#f59e0b" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+};
+
+// Completion burst animation
+const CompletionBurst = ({ onComplete }: { onComplete: () => void }) => {
+  useEffect(() => {
+    const timer = setTimeout(onComplete, 800);
+    return () => clearTimeout(timer);
+  }, [onComplete]);
+
+  return (
+    <motion.div
+      className="absolute inset-0 rounded-full pointer-events-none"
+      initial={{ scale: 1, opacity: 1 }}
+      animate={{
+        scale: [1, 1.8, 2.2],
+        opacity: [1, 0.6, 0],
+        background: ['rgba(251,191,36,0.6)', 'rgba(249,115,22,0.4)', 'rgba(249,115,22,0)']
+      }}
+      transition={{ duration: 0.8, ease: 'easeOut' }}
+    />
+  );
+};
 
 // Spark particles when boosting
 const BoostSparks = () => (
@@ -150,6 +247,7 @@ export const BoostButton = ({ variant = 'toolbar', className = '' }: BoostButton
   const [isBoosted, setIsBoosted] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [showSparks, setShowSparks] = useState(false);
+  const [showBurst, setShowBurst] = useState(false);
 
   // Check if current track is already boosted
   useEffect(() => {
@@ -175,9 +273,13 @@ export const BoostButton = ({ variant = 'toolbar', className = '' }: BoostButton
 
     const status = downloads.get(currentTrack.trackId);
     if (status?.status === 'complete') {
-      setIsBoosted(true);
+      // Trigger completion burst, then show boosted state
+      setShowBurst(true);
       setShowSparks(true);
-      setTimeout(() => setShowSparks(false), 2000);
+      setTimeout(() => {
+        setIsBoosted(true);
+        setShowSparks(false);
+      }, 800);
     }
   }, [downloads, currentTrack?.trackId]);
 
@@ -227,22 +329,15 @@ export const BoostButton = ({ variant = 'toolbar', className = '' }: BoostButton
             transition={{ duration: 2, repeat: Infinity }}
           />
         )}
-        {/* Orbital circles when queued (preparing) */}
-        {isQueued && <OrbitalCircles />}
 
-        {/* Progress ring when downloading */}
-        {isDownloading && (
-          <svg className="absolute inset-0 w-full h-full -rotate-90">
-            <circle cx="22" cy="22" r="20" fill="none" stroke="rgba(251,191,36,0.2)" strokeWidth="2" />
-            <motion.circle
-              cx="22" cy="22" r="20" fill="none"
-              stroke="#fbbf24" strokeWidth="2" strokeLinecap="round"
-              strokeDasharray={126}
-              strokeDashoffset={126 - (126 * progress) / 100}
-            />
-          </svg>
-        )}
-        <LightningIcon isGlowing={isActive} isCharging={isDownloading || isQueued} size={isQueued ? 14 : 16} />
+        {/* Completion burst when boost finishes */}
+        {showBurst && <CompletionBurst onComplete={() => setShowBurst(false)} />}
+
+        {/* Progress ring - fills around the button edge */}
+        {(isDownloading || isQueued) && <ProgressRing progress={progress} isStarting={isDownloading || isQueued} size={44} />}
+
+        {/* Lightning icon */}
+        <LightningIcon isGlowing={isActive} isCharging={isDownloading || isQueued} size={16} />
         {showSparks && <BoostSparks />}
       </motion.button>
     );
