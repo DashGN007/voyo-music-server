@@ -877,11 +877,13 @@ const StreamCard = memo(({ track, onTap, isPlayed, onTeaser }: { track: Track; o
   const [showTeaserFeedback, setShowTeaserFeedback] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [wasDragged, setWasDragged] = useState(false);
+  const [isFlying, setIsFlying] = useState(false); // Card flying to queue animation
 
   // Timeout refs for cleanup - prevents memory leaks on rapid scrolling
   const teaserTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queueTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Detect touch device
   useEffect(() => {
@@ -897,6 +899,7 @@ const StreamCard = memo(({ track, onTap, isPlayed, onTeaser }: { track: Track; o
       if (teaserTimeoutRef.current) clearTimeout(teaserTimeoutRef.current);
       if (queueTimeoutRef.current) clearTimeout(queueTimeoutRef.current);
       if (dragTimeoutRef.current) clearTimeout(dragTimeoutRef.current);
+      if (flyTimeoutRef.current) clearTimeout(flyTimeoutRef.current);
     };
   }, []);
 
@@ -937,31 +940,67 @@ const StreamCard = memo(({ track, onTap, isPlayed, onTeaser }: { track: Track; o
           setWasDragged(true);
         }
 
-        // Drag UP to add to queue (simple upward gesture)
-        if (info.offset.y < -40) {
+        // Drag UP (or up-right toward queue) to add to queue
+        // Trigger if dragged up at least 30px, or diagonal toward top-right
+        const isSwipeToQueue = info.offset.y < -30 || (info.offset.y < -15 && info.offset.x > 15);
+
+        if (isSwipeToQueue) {
           haptics.success();
-          addToQueue(track);
-          setShowQueueFeedback(true);
+          // Trigger flying animation
+          setIsFlying(true);
+
+          // Add to queue after a short delay (let animation start)
+          if (flyTimeoutRef.current) clearTimeout(flyTimeoutRef.current);
+          flyTimeoutRef.current = setTimeout(() => {
+            addToQueue(track);
+            setShowQueueFeedback(true);
+          }, 200);
+
+          // Reset flying state after animation completes
           if (queueTimeoutRef.current) clearTimeout(queueTimeoutRef.current);
-          queueTimeoutRef.current = setTimeout(() => setShowQueueFeedback(false), 1500);
+          queueTimeoutRef.current = setTimeout(() => {
+            setIsFlying(false);
+            setShowQueueFeedback(false);
+          }, 1200);
         }
+
         // Reset drag state after a short delay to prevent tap from firing
         if (dragTimeoutRef.current) clearTimeout(dragTimeoutRef.current);
         dragTimeoutRef.current = setTimeout(() => setWasDragged(false), 150);
       }}
       whileTap={{ cursor: 'grabbing' }}
     >
-      {/* Queue Feedback Indicator */}
+      {/* Queue Feedback - Shows after card flies */}
       <AnimatePresence>
-        {showQueueFeedback && (
+        {showQueueFeedback && !isFlying && (
           <motion.div
-            className="absolute -top-8 left-1/2 -translate-x-1/2 z-50 bg-purple-500 text-white text-[9px] font-bold px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap"
-            initial={{ opacity: 0, y: 10, scale: 0.85 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.85 }}
-            transition={springs.smooth}
+            className="absolute -top-6 left-1/2 -translate-x-1/2 z-50"
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
           >
-            Added to Queue
+            <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[8px] font-bold px-2 py-1 rounded-full shadow-lg whitespace-nowrap flex items-center gap-1">
+              <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              Queued
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Flying trail effect - shows during flight */}
+      <AnimatePresence>
+        {isFlying && (
+          <motion.div
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+            initial={{ opacity: 1, scale: 1 }}
+            animate={{ opacity: 0, scale: 2 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-r from-purple-500/40 to-pink-500/40 blur-md" />
           </motion.div>
         )}
       </AnimatePresence>
@@ -984,9 +1023,22 @@ const StreamCard = memo(({ track, onTap, isPlayed, onTeaser }: { track: Track; o
       <motion.button
         className="flex flex-col items-center group w-full"
         onClick={handleTap}
-        whileHover={{ scale: 1.06, y: -2 }}
-        whileTap={{ scale: 0.96 }}
-        transition={springs.smooth}
+        whileHover={!isFlying ? { scale: 1.06, y: -2 } : {}}
+        whileTap={!isFlying ? { scale: 0.96 } : {}}
+        animate={isFlying ? {
+          // Fly toward top-right (queue area)
+          x: [0, 60, 120],
+          y: [0, -80, -160],
+          rotate: [0, 180, 360],
+          scale: [1, 0.8, 0.4],
+          opacity: [1, 0.9, 0],
+        } : {
+          x: 0, y: 0, rotate: 0, scale: 1, opacity: 1
+        }}
+        transition={isFlying ? {
+          duration: 0.5,
+          ease: [0.4, 0, 0.2, 1], // ease-out-cubic
+        } : springs.smooth}
       >
         <div className="w-14 h-14 rounded-xl overflow-hidden mb-1.5 relative border border-white/5 shadow-md bg-gradient-to-br from-purple-900/30 to-pink-900/20">
           <SmartImage
