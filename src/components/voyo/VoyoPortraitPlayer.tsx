@@ -27,6 +27,138 @@ import { BoostSettings } from '../ui/BoostSettings';
 import { haptics, getReactionHaptic } from '../../utils/haptics';
 
 // ============================================
+// NEON BILLBOARD CARD - Animated taglines like radio commercials
+// "Hits on Hits!", "From Lagos to Accra", "Another One!"
+// ============================================
+const NeonBillboardCard = memo(({
+  title,
+  taglines,
+  neon,
+  glow,
+  delay = 0,
+}: {
+  title: string;
+  taglines: string[];
+  neon: string;
+  glow: string;
+  delay?: number;
+}) => {
+  const [currentTagline, setCurrentTagline] = useState(0);
+
+  // Cycle through taglines every 2.5s
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const interval = setInterval(() => {
+        setCurrentTagline(prev => (prev + 1) % taglines.length);
+      }, 2500);
+      return () => clearInterval(interval);
+    }, delay * 1000);
+    return () => clearTimeout(timer);
+  }, [taglines.length, delay]);
+
+  return (
+    <motion.button
+      className="flex-shrink-0 w-32 h-16 rounded-lg relative overflow-hidden group"
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      style={{
+        background: 'linear-gradient(135deg, rgba(10,10,15,0.98) 0%, rgba(5,5,8,0.99) 100%)',
+      }}
+    >
+      {/* Neon border glow - pulses subtly */}
+      <motion.div
+        className="absolute inset-0 rounded-lg"
+        animate={{
+          boxShadow: [
+            `inset 0 0 0 1.5px ${neon}, 0 0 15px ${glow}, 0 0 5px ${glow}`,
+            `inset 0 0 0 2px ${neon}, 0 0 20px ${glow}, 0 0 8px ${glow}`,
+            `inset 0 0 0 1.5px ${neon}, 0 0 15px ${glow}, 0 0 5px ${glow}`,
+          ],
+        }}
+        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* Scanline effect */}
+      <div
+        className="absolute inset-0 opacity-15 pointer-events-none"
+        style={{
+          background: `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.02) 2px, rgba(255,255,255,0.02) 4px)`,
+        }}
+      />
+
+      {/* Content */}
+      <div className="relative z-10 h-full flex flex-col items-center justify-center px-2">
+        {/* Title - Static */}
+        <div
+          className="text-[11px] font-black tracking-wider uppercase"
+          style={{ color: neon, textShadow: `0 0 10px ${glow}, 0 0 20px ${glow}` }}
+        >
+          {title}
+        </div>
+
+        {/* Animated Tagline - Billboard style */}
+        <div className="h-4 relative overflow-hidden w-full mt-1">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentTagline}
+              className="absolute inset-0 flex items-center justify-center"
+              initial={{ y: 15, opacity: 0, scale: 0.8 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: -15, opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            >
+              <span
+                className="text-[8px] font-bold tracking-wide whitespace-nowrap"
+                style={{
+                  color: 'rgba(255,255,255,0.7)',
+                  textShadow: `0 0 4px ${glow}`,
+                }}
+              >
+                {taglines[currentTagline]}
+              </span>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Corner accents - double corner */}
+      <div
+        className="absolute top-0 left-0 w-2 h-2"
+        style={{
+          borderTop: `2px solid ${neon}`,
+          borderLeft: `2px solid ${neon}`,
+          opacity: 0.8,
+        }}
+      />
+      <div
+        className="absolute top-0 right-0 w-2 h-2"
+        style={{
+          borderTop: `2px solid ${neon}`,
+          borderRight: `2px solid ${neon}`,
+          opacity: 0.8,
+        }}
+      />
+      <div
+        className="absolute bottom-0 left-0 w-2 h-2"
+        style={{
+          borderBottom: `2px solid ${neon}`,
+          borderLeft: `2px solid ${neon}`,
+          opacity: 0.8,
+        }}
+      />
+      <div
+        className="absolute bottom-0 right-0 w-2 h-2"
+        style={{
+          borderBottom: `2px solid ${neon}`,
+          borderRight: `2px solid ${neon}`,
+          opacity: 0.8,
+        }}
+      />
+    </motion.button>
+  );
+});
+
+// ============================================
 // FULLSCREEN BACKGROUND LAYER - Album art with dark overlay
 // Creates the "floating in space" atmosphere
 // ============================================
@@ -3007,68 +3139,46 @@ export const VoyoPortraitPlayer = ({
 
         </div>
 
-        {/* PLAYLIST RECOMMENDATION BAR - NEON 2050 */}
+        {/* PLAYLIST RECOMMENDATION BAR - NEON BILLBOARD 2050 */}
         <div className="mt-4 px-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[9px] font-bold tracking-[0.15em] text-purple-400 uppercase">Your Playlists</span>
             <span className="text-[8px] text-gray-500">See all</span>
           </div>
           <div className="overflow-x-auto no-scrollbar flex gap-3 pb-3">
-            {/* Neon Playlist Cards - Punk 2050 */}
-            {[
-              { id: 'pl1', title: 'Afro Heat 2024', count: 45, neon: '#ef4444', glow: 'rgba(239,68,68,0.4)' },
-              { id: 'pl2', title: 'Chill Vibes', count: 32, neon: '#3b82f6', glow: 'rgba(59,130,246,0.4)' },
-              { id: 'pl3', title: 'Party Mode', count: 58, neon: '#ec4899', glow: 'rgba(236,72,153,0.4)' },
-              { id: 'pl4', title: 'Late Night', count: 24, neon: '#8b5cf6', glow: 'rgba(139,92,246,0.4)' },
-            ].map(pl => (
-              <motion.button
-                key={pl.id}
-                className="flex-shrink-0 w-28 h-14 rounded-lg relative overflow-hidden group"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                transition={springs.smooth}
-                style={{
-                  background: 'linear-gradient(135deg, rgba(15,15,22,0.95) 0%, rgba(10,10,15,0.98) 100%)',
-                }}
-              >
-                {/* Neon border glow */}
-                <div
-                  className="absolute inset-0 rounded-lg opacity-60 group-hover:opacity-100 transition-opacity duration-300"
-                  style={{
-                    boxShadow: `inset 0 0 0 1.5px ${pl.neon}, 0 0 12px ${pl.glow}, 0 0 4px ${pl.glow}`,
-                  }}
-                />
-                {/* Inner scanline effect */}
-                <div
-                  className="absolute inset-0 opacity-10 pointer-events-none"
-                  style={{
-                    background: `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)`,
-                  }}
-                />
-                {/* Content */}
-                <div className="relative z-10 h-full flex flex-col items-center justify-center">
-                  <div
-                    className="text-[10px] font-bold tracking-wide"
-                    style={{ color: pl.neon, textShadow: `0 0 8px ${pl.glow}` }}
-                  >
-                    {pl.title}
-                  </div>
-                  <div className="text-[8px] text-white/40 mt-0.5">{pl.count} tracks</div>
-                </div>
-                {/* Corner accent */}
-                <div
-                  className="absolute top-0 right-0 w-3 h-3"
-                  style={{
-                    background: `linear-gradient(135deg, transparent 50%, ${pl.neon} 50%)`,
-                    opacity: 0.6,
-                  }}
-                />
-              </motion.button>
-            ))}
+            {/* Neon Billboard Cards */}
+            <NeonBillboardCard
+              title="Afro Heat"
+              taglines={["Hits on Hits!", "Lagos to Accra", "Pump It Up!", "Fire Fire!"]}
+              neon="#ef4444"
+              glow="rgba(239,68,68,0.4)"
+              delay={0}
+            />
+            <NeonBillboardCard
+              title="Chill Vibes"
+              taglines={["Easy Does It", "Smooth & Soft", "Relax Mode", "Float Away"]}
+              neon="#3b82f6"
+              glow="rgba(59,130,246,0.4)"
+              delay={0.5}
+            />
+            <NeonBillboardCard
+              title="Party Mode"
+              taglines={["Another One!", "Turn It Up!", "Let's Gooo!", "DJ Khaled!"]}
+              neon="#ec4899"
+              glow="rgba(236,72,153,0.4)"
+              delay={1}
+            />
+            <NeonBillboardCard
+              title="Workout"
+              taglines={["Mega Pumps!", "Beats 4 Beats", "Ouuh Yeahhh!", "Go Harder!"]}
+              neon="#8b5cf6"
+              glow="rgba(139,92,246,0.4)"
+              delay={1.5}
+            />
             {/* Add New - Neon style */}
             <motion.button
               onClick={onSearch}
-              className="flex-shrink-0 w-28 h-14 rounded-lg relative overflow-hidden group"
+              className="flex-shrink-0 w-28 h-16 rounded-lg relative overflow-hidden group"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               style={{
