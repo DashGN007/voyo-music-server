@@ -2096,19 +2096,20 @@ export const VoyoPortraitPlayer = ({
     lastTapRef.current = now;
   }, [isControlsRevealed, isReactionsRevealed, showTutorialHint, oyeBarBehavior, showDJWakeToast]);
 
-  // AUTO-HIDE for 'disappear' mode - hide controls after 4 seconds
+  // AUTO-HIDE controls after 2.5s - encourages double-tap discovery
   const controlsHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    // Only auto-hide in 'disappear' mode when controls are revealed (not in DJ mode)
-    if (oyeBarBehavior === 'disappear' && isControlsRevealed && !isReactionsRevealed) {
+    // Auto-hide when controls are revealed but not in full DJ mode
+    // Quick fade encourages users to discover double-tap for full mode
+    if (isControlsRevealed && !isReactionsRevealed) {
       controlsHideTimerRef.current = setTimeout(() => {
         setIsControlsRevealed(false);
-      }, 4000); // Hide after 4 seconds
+      }, 2500); // Hide after 2.5 seconds - quick enough to try double-tap
     }
     return () => {
       if (controlsHideTimerRef.current) clearTimeout(controlsHideTimerRef.current);
     };
-  }, [isControlsRevealed, isReactionsRevealed, oyeBarBehavior]);
+  }, [isControlsRevealed, isReactionsRevealed]);
 
   // PORTAL SCROLL CONTROLS - tap red/blue portal to scroll outward (reverse direction)
   const [hotScrollTrigger, setHotScrollTrigger] = useState(0);
