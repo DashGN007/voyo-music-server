@@ -2866,22 +2866,33 @@ export const VoyoPortraitPlayer = ({
               transition={(isHotBeltActive || isDiscoveryBeltActive) ? { duration: 2.5, repeat: Infinity, ease: 'easeInOut', delay: 1.25 } : { duration: 0.3 }}
             />
 
-            {/* VOYO Portal Button - Simple stale, enhanced active */}
+            {/* VOYO Portal Button - Premium stale, enhanced active */}
             <motion.button
               onClick={onVoyoFeed}
               whileTap={{ scale: 0.9 }}
               whileHover={{ scale: 1.05 }}
-              transition={springs.snappy}
               className="relative w-14 h-14 rounded-full flex flex-col items-center justify-center"
-              style={(isHotBeltActive || isDiscoveryBeltActive) ? {
-                background: 'radial-gradient(circle at center, #1a1a2e 0%, #0f0f16 100%)',
-                border: '2px solid rgba(255,255,255,0.2)',
+              animate={(isHotBeltActive || isDiscoveryBeltActive) ? {
                 boxShadow: '-8px 0 25px rgba(239,68,68,0.5), 8px 0 25px rgba(59,130,246,0.5), 0 0 20px rgba(147,51,234,0.3)',
               } : {
-                background: '#1a1a2e',
-                border: '1px solid rgba(255,255,255,0.15)',
+                boxShadow: '0 0 12px rgba(139,92,246,0.15)',
+              }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+              style={{
+                background: 'radial-gradient(circle at center, #1a1a2e 0%, #0f0f16 100%)',
               }}
             >
+              {/* Stale: Subtle VOYO brand gradient ring */}
+              <motion.div
+                className="absolute inset-0 rounded-full pointer-events-none"
+                style={{
+                  background: 'linear-gradient(#0f0f16, #0f0f16) padding-box, linear-gradient(135deg, rgba(139,92,246,0.3), rgba(236,72,153,0.2), rgba(139,92,246,0.3)) border-box',
+                  border: '1.5px solid transparent',
+                }}
+                animate={{ opacity: (isHotBeltActive || isDiscoveryBeltActive) ? 0 : 1 }}
+                transition={{ duration: 0.3 }}
+              />
+
               {/* Active: Outer rotating ring */}
               <AnimatePresence>
                 {(isHotBeltActive || isDiscoveryBeltActive) && (
@@ -2893,10 +2904,11 @@ export const VoyoPortraitPlayer = ({
                     initial={{ opacity: 0, rotate: 0 }}
                     animate={{ opacity: 1, rotate: 360 }}
                     exit={{ opacity: 0 }}
-                    transition={{ rotate: { duration: 8, repeat: Infinity, ease: 'linear' }, opacity: { duration: 0.3 } }}
+                    transition={{ rotate: { duration: 8, repeat: Infinity, ease: 'linear' }, opacity: { duration: 0.4 } }}
                   />
                 )}
               </AnimatePresence>
+
               {/* Active: Inner glow - very smooth and subtle */}
               <AnimatePresence>
                 {(isHotBeltActive || isDiscoveryBeltActive) && (
@@ -2910,7 +2922,22 @@ export const VoyoPortraitPlayer = ({
                   />
                 )}
               </AnimatePresence>
-              <span className={`font-bold tracking-widest relative z-10 ${(isHotBeltActive || isDiscoveryBeltActive) ? 'text-[9px] text-white' : 'text-[8px] text-white/70'}`}>VOYO</span>
+
+              {/* VOYO text - gradient on stale, white on active */}
+              {(isHotBeltActive || isDiscoveryBeltActive) ? (
+                <span className="text-[9px] font-bold text-white tracking-widest relative z-10">VOYO</span>
+              ) : (
+                <span
+                  className="text-[8px] font-bold tracking-widest relative z-10"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(139,92,246,0.8), rgba(236,72,153,0.7))',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                  }}
+                >
+                  VOYO
+                </span>
+              )}
             </motion.button>
           </div>
 
