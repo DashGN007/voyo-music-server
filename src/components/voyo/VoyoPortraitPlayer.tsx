@@ -3007,41 +3007,88 @@ export const VoyoPortraitPlayer = ({
 
         </div>
 
-        {/* PLAYLIST RECOMMENDATION BAR */}
+        {/* PLAYLIST RECOMMENDATION BAR - NEON 2050 */}
         <div className="mt-4 px-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[9px] font-bold tracking-[0.15em] text-purple-400 uppercase">Your Playlists</span>
             <span className="text-[8px] text-gray-500">See all</span>
           </div>
           <div className="overflow-x-auto no-scrollbar flex gap-3 pb-3">
-            {/* Playlist Cards */}
+            {/* Neon Playlist Cards - Punk 2050 */}
             {[
-              { id: 'pl1', title: 'Afro Heat 2024', count: 45, color: 'from-orange-500/30 to-red-500/20' },
-              { id: 'pl2', title: 'Chill Vibes', count: 32, color: 'from-cyan-500/30 to-blue-500/20' },
-              { id: 'pl3', title: 'Party Mode', count: 58, color: 'from-purple-500/30 to-pink-500/20' },
-              { id: 'pl4', title: 'Workout', count: 24, color: 'from-green-500/30 to-emerald-500/20' },
+              { id: 'pl1', title: 'Afro Heat 2024', count: 45, neon: '#ef4444', glow: 'rgba(239,68,68,0.4)' },
+              { id: 'pl2', title: 'Chill Vibes', count: 32, neon: '#3b82f6', glow: 'rgba(59,130,246,0.4)' },
+              { id: 'pl3', title: 'Party Mode', count: 58, neon: '#ec4899', glow: 'rgba(236,72,153,0.4)' },
+              { id: 'pl4', title: 'Late Night', count: 24, neon: '#8b5cf6', glow: 'rgba(139,92,246,0.4)' },
             ].map(pl => (
               <motion.button
                 key={pl.id}
-                className={`flex-shrink-0 w-28 h-14 rounded-xl bg-gradient-to-br ${pl.color} border border-white/5 flex items-center justify-center relative overflow-hidden`}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
+                className="flex-shrink-0 w-28 h-14 rounded-lg relative overflow-hidden group"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 transition={springs.smooth}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(15,15,22,0.95) 0%, rgba(10,10,15,0.98) 100%)',
+                }}
               >
-                <div className="text-center">
-                  <div className="text-[10px] font-bold text-white">{pl.title}</div>
-                  <div className="text-[8px] text-white/50">{pl.count} tracks</div>
+                {/* Neon border glow */}
+                <div
+                  className="absolute inset-0 rounded-lg opacity-60 group-hover:opacity-100 transition-opacity duration-300"
+                  style={{
+                    boxShadow: `inset 0 0 0 1.5px ${pl.neon}, 0 0 12px ${pl.glow}, 0 0 4px ${pl.glow}`,
+                  }}
+                />
+                {/* Inner scanline effect */}
+                <div
+                  className="absolute inset-0 opacity-10 pointer-events-none"
+                  style={{
+                    background: `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)`,
+                  }}
+                />
+                {/* Content */}
+                <div className="relative z-10 h-full flex flex-col items-center justify-center">
+                  <div
+                    className="text-[10px] font-bold tracking-wide"
+                    style={{ color: pl.neon, textShadow: `0 0 8px ${pl.glow}` }}
+                  >
+                    {pl.title}
+                  </div>
+                  <div className="text-[8px] text-white/40 mt-0.5">{pl.count} tracks</div>
                 </div>
+                {/* Corner accent */}
+                <div
+                  className="absolute top-0 right-0 w-3 h-3"
+                  style={{
+                    background: `linear-gradient(135deg, transparent 50%, ${pl.neon} 50%)`,
+                    opacity: 0.6,
+                  }}
+                />
               </motion.button>
             ))}
-            {/* Add New */}
-            <button
+            {/* Add New - Neon style */}
+            <motion.button
               onClick={onSearch}
-              className="flex-shrink-0 w-28 h-14 rounded-xl bg-white/5 border border-dashed border-white/10 flex items-center justify-center gap-1 hover:bg-white/10 transition-colors"
+              className="flex-shrink-0 w-28 h-14 rounded-lg relative overflow-hidden group"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              style={{
+                background: 'linear-gradient(135deg, rgba(15,15,22,0.9) 0%, rgba(10,10,15,0.95) 100%)',
+              }}
             >
-              <Plus size={12} className="text-gray-500" />
-              <span className="text-[9px] text-gray-500 font-bold">New</span>
-            </button>
+              <div
+                className="absolute inset-0 rounded-lg opacity-30 group-hover:opacity-60 transition-opacity duration-300"
+                style={{
+                  boxShadow: 'inset 0 0 0 1px rgba(139,92,246,0.5)',
+                }}
+              />
+              <div
+                className="absolute inset-0 rounded-lg border border-dashed border-purple-500/30 group-hover:border-purple-500/50 transition-colors"
+              />
+              <div className="relative z-10 h-full flex items-center justify-center gap-1.5">
+                <Plus size={12} className="text-purple-400/70 group-hover:text-purple-400 transition-colors" />
+                <span className="text-[9px] text-purple-400/70 group-hover:text-purple-400 font-bold transition-colors">New</span>
+              </div>
+            </motion.button>
           </div>
         </div>
 

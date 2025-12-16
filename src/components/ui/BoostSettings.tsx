@@ -68,17 +68,17 @@ export const BoostSettings = ({ isOpen, onClose }: BoostSettingsProps) => {
 
           {/* Panel */}
           <motion.div
-            className="relative w-full max-w-md bg-[#0a0a0f]/95 backdrop-blur-xl border-t border-white/10 rounded-t-3xl overflow-hidden"
+            className="relative w-full max-w-md max-h-[75vh] bg-[#0a0a0f]/95 backdrop-blur-xl border-t border-white/10 rounded-t-3xl overflow-hidden flex flex-col"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
           >
             {/* Handle */}
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1 bg-white/20 rounded-full" />
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1 bg-white/20 rounded-full z-10" />
 
             {/* Header */}
-            <div className="flex items-center justify-between p-6 pb-4">
+            <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 flex items-center justify-center">
                   <Zap size={18} className="text-purple-400" />
@@ -96,8 +96,8 @@ export const BoostSettings = ({ isOpen, onClose }: BoostSettingsProps) => {
               </button>
             </div>
 
-            {/* Content */}
-            <div className="px-6 pb-8 space-y-4">
+            {/* Content - Scrollable */}
+            <div className="px-6 pb-24 space-y-4 overflow-y-auto flex-1">
               {/* Audio Enhancement Preset */}
               <div className="bg-white/5 rounded-2xl p-4">
                 <div className="text-sm font-medium text-white mb-3">Audio Enhancement</div>
