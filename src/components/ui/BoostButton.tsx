@@ -22,59 +22,114 @@ interface BoostButtonProps {
   className?: string;
 }
 
-// Clean Lightning Bolt SVG Icon
-const LightningIcon = ({ isGlowing, isCharging, size = 14 }: { isGlowing: boolean; isCharging: boolean; size?: number }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    className="relative"
-  >
-    {/* Outer glow when boosted */}
-    {isGlowing && (
+// Preset color configurations
+// 🟡 boosted (Yellow) | 🔵 calm (Blue) | 🟣 voyex (Purple) | 🔴 xtreme (Red)
+const PRESET_COLORS = {
+  boosted: {
+    primary: '#fbbf24',    // Yellow
+    secondary: '#f59e0b',
+    light: '#fde047',
+    glow: 'rgba(251,191,36,0.6)',
+    bg: 'bg-yellow-500/30',
+    border: 'border-yellow-400/60',
+    shadow: 'shadow-yellow-500/30',
+    text: 'text-yellow-400',
+  },
+  calm: {
+    primary: '#3b82f6',    // Blue
+    secondary: '#1d4ed8',
+    light: '#60a5fa',
+    glow: 'rgba(59,130,246,0.6)',
+    bg: 'bg-blue-500/30',
+    border: 'border-blue-400/60',
+    shadow: 'shadow-blue-500/30',
+    text: 'text-blue-400',
+  },
+  voyex: {
+    primary: '#a855f7',    // Purple
+    secondary: '#7c3aed',
+    light: '#c084fc',
+    glow: 'rgba(168,85,247,0.6)',
+    bg: 'bg-purple-500/30',
+    border: 'border-purple-400/60',
+    shadow: 'shadow-purple-500/30',
+    text: 'text-purple-400',
+  },
+  xtreme: {
+    primary: '#ef4444',    // Red
+    secondary: '#dc2626',
+    light: '#f87171',
+    glow: 'rgba(239,68,68,0.6)',
+    bg: 'bg-red-500/30',
+    border: 'border-red-400/60',
+    shadow: 'shadow-red-500/30',
+    text: 'text-red-400',
+  },
+};
+
+type BoostPreset = 'boosted' | 'calm' | 'voyex' | 'xtreme';
+
+// Clean Lightning Bolt SVG Icon - Color changes based on preset
+const LightningIcon = ({ isGlowing, isCharging, size = 14, preset = 'boosted' }: { isGlowing: boolean; isCharging: boolean; size?: number; preset?: BoostPreset }) => {
+  const colors = PRESET_COLORS[preset];
+  const gradientId = `lightningGradient-${preset}`;
+  const glowId = `lightningGlow-${preset}`;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="relative"
+    >
+      {/* Outer glow when boosted */}
+      {isGlowing && (
+        <motion.path
+          d="M13 2L4 14h7l-2 8 11-12h-7l2-8z"
+          fill={`url(#${glowId})`}
+          filter="blur(4px)"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0.4, 0.8, 0.4] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        />
+      )}
+
+      {/* Main lightning bolt */}
       <motion.path
         d="M13 2L4 14h7l-2 8 11-12h-7l2-8z"
-        fill="url(#lightningGlow)"
-        filter="blur(4px)"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: [0.4, 0.8, 0.4] }}
-        transition={{ duration: 1.5, repeat: Infinity }}
+        fill={isGlowing ? `url(#${gradientId})` : "#6b6b7a"}
+        stroke={isGlowing ? colors.primary : "transparent"}
+        strokeWidth="0.5"
+        animate={isCharging ? {
+          opacity: [1, 0.6, 1],
+          scale: [1, 1.1, 1]
+        } : {}}
+        transition={{ duration: 0.4, repeat: isCharging ? Infinity : 0 }}
       />
-    )}
 
-    {/* Main lightning bolt */}
-    <motion.path
-      d="M13 2L4 14h7l-2 8 11-12h-7l2-8z"
-      fill={isGlowing ? "url(#lightningGradient)" : "#6b6b7a"}
-      stroke={isGlowing ? "#fbbf24" : "transparent"}
-      strokeWidth="0.5"
-      animate={isCharging ? {
-        opacity: [1, 0.6, 1],
-        scale: [1, 1.1, 1]
-      } : {}}
-      transition={{ duration: 0.4, repeat: isCharging ? Infinity : 0 }}
-    />
-
-    {/* Gradients */}
-    <defs>
-      <linearGradient id="lightningGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#fde047" />
-        <stop offset="50%" stopColor="#fbbf24" />
-        <stop offset="100%" stopColor="#f59e0b" />
-      </linearGradient>
-      <linearGradient id="lightningGlow" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#fde047" stopOpacity="0.6" />
-        <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.3" />
-      </linearGradient>
-    </defs>
-  </svg>
-);
+      {/* Gradients - dynamic based on preset */}
+      <defs>
+        <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={colors.light} />
+          <stop offset="50%" stopColor={colors.primary} />
+          <stop offset="100%" stopColor={colors.secondary} />
+        </linearGradient>
+        <linearGradient id={glowId} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={colors.light} stopOpacity="0.6" />
+          <stop offset="100%" stopColor={colors.secondary} stopOpacity="0.3" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+};
 
 // Circular progress ring with priming animation
 // Phase 1: 2 full spins (priming) → Phase 2: actual progress
-const ProgressRing = ({ progress, isStarting, size = 44 }: { progress: number; isStarting: boolean; size?: number }) => {
+const ProgressRing = ({ progress, isStarting, size = 44, preset = 'boosted' }: { progress: number; isStarting: boolean; size?: number; preset?: BoostPreset }) => {
+  const colors = PRESET_COLORS[preset];
+  const ringGradientId = `boostGradient-${preset}`;
   const [phase, setPhase] = useState<'priming' | 'progress'>('priming');
   const [primingRound, setPrimingRound] = useState(0);
 
@@ -133,7 +188,7 @@ const ProgressRing = ({ progress, isStarting, size = 44 }: { progress: number; i
       className="absolute inset-0 -rotate-90 pointer-events-none"
       width={size}
       height={size}
-      style={{ filter: 'drop-shadow(0 0 4px rgba(251, 191, 36, 0.6))' }}
+      style={{ filter: `drop-shadow(0 0 4px ${colors.glow})` }}
     >
       {/* Background ring (dim) */}
       <circle
@@ -141,7 +196,7 @@ const ProgressRing = ({ progress, isStarting, size = 44 }: { progress: number; i
         cy={size / 2}
         r={radius}
         fill="none"
-        stroke="rgba(251, 191, 36, 0.15)"
+        stroke={`${colors.primary}26`}
         strokeWidth={strokeWidth}
       />
       {/* Progress ring */}
@@ -150,7 +205,7 @@ const ProgressRing = ({ progress, isStarting, size = 44 }: { progress: number; i
         cy={size / 2}
         r={radius}
         fill="none"
-        stroke="url(#boostGradient)"
+        stroke={`url(#${ringGradientId})`}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeDasharray={circumference}
@@ -171,12 +226,12 @@ const ProgressRing = ({ progress, isStarting, size = 44 }: { progress: number; i
           ease: 'easeOut',
         }}
       />
-      {/* Gradient definition */}
+      {/* Gradient definition - dynamic based on preset */}
       <defs>
-        <linearGradient id="boostGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#fde047" />
-          <stop offset="50%" stopColor="#fbbf24" />
-          <stop offset="100%" stopColor="#f59e0b" />
+        <linearGradient id={ringGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor={colors.light} />
+          <stop offset="50%" stopColor={colors.primary} />
+          <stop offset="100%" stopColor={colors.secondary} />
         </linearGradient>
       </defs>
     </svg>
@@ -184,7 +239,9 @@ const ProgressRing = ({ progress, isStarting, size = 44 }: { progress: number; i
 };
 
 // Completion burst animation
-const CompletionBurst = ({ onComplete }: { onComplete: () => void }) => {
+const CompletionBurst = ({ onComplete, preset = 'boosted' }: { onComplete: () => void; preset?: BoostPreset }) => {
+  const colors = PRESET_COLORS[preset];
+
   useEffect(() => {
     const timer = setTimeout(onComplete, 800);
     return () => clearTimeout(timer);
@@ -197,7 +254,7 @@ const CompletionBurst = ({ onComplete }: { onComplete: () => void }) => {
       animate={{
         scale: [1, 1.8, 2.2],
         opacity: [1, 0.6, 0],
-        background: ['rgba(251,191,36,0.6)', 'rgba(249,115,22,0.4)', 'rgba(249,115,22,0)']
+        background: [`${colors.primary}99`, `${colors.secondary}66`, `${colors.secondary}00`]
       }}
       transition={{ duration: 0.8, ease: 'easeOut' }}
     />
@@ -205,37 +262,44 @@ const CompletionBurst = ({ onComplete }: { onComplete: () => void }) => {
 };
 
 // Spark particles when boosting
-const BoostSparks = () => (
-  <div className="absolute inset-0 pointer-events-none overflow-visible">
-    {[...Array(6)].map((_, i) => (
-      <motion.div
-        key={i}
-        className="absolute w-1 h-1 bg-yellow-400 rounded-full"
-        style={{
-          left: '50%',
-          top: '50%',
-        }}
-        initial={{ opacity: 0, scale: 0 }}
-        animate={{
-          opacity: [0, 1, 0],
-          scale: [0, 1, 0],
-          x: [0, (Math.random() - 0.5) * 40],
-          y: [0, (Math.random() - 0.5) * 40],
-        }}
-        transition={{
-          duration: 0.6,
-          delay: i * 0.1,
-          repeat: Infinity,
-          repeatDelay: 1,
-        }}
-      />
-    ))}
-  </div>
-);
+const BoostSparks = ({ preset = 'boosted' }: { preset?: BoostPreset }) => {
+  const colors = PRESET_COLORS[preset];
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-visible">
+      {[...Array(6)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute w-1 h-1 rounded-full"
+          style={{
+            left: '50%',
+            top: '50%',
+            backgroundColor: colors.primary,
+          }}
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{
+            opacity: [0, 1, 0],
+            scale: [0, 1, 0],
+            x: [0, (Math.random() - 0.5) * 40],
+            y: [0, (Math.random() - 0.5) * 40],
+          }}
+          transition={{
+            duration: 0.6,
+            delay: i * 0.1,
+            repeat: Infinity,
+            repeatDelay: 1,
+          }}
+        />
+      ))}
+    </div>
+  );
+};
 
 export const BoostButton = ({ variant = 'toolbar', className = '' }: BoostButtonProps) => {
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const playbackSource = usePlayerStore((state) => state.playbackSource);
+  const boostProfile = usePlayerStore((state) => state.boostProfile) as BoostPreset;
+  const colors = PRESET_COLORS[boostProfile];
 
   const {
     boostTrack,
@@ -306,6 +370,7 @@ export const BoostButton = ({ variant = 'toolbar', className = '' }: BoostButton
 
   // ============================================
   // TOOLBAR VARIANT - Premium floating style (matches Like/Settings buttons)
+  // Dynamic colors based on active preset
   // ============================================
   if (variant === 'toolbar') {
     return (
@@ -314,37 +379,39 @@ export const BoostButton = ({ variant = 'toolbar', className = '' }: BoostButton
         disabled={isDownloading || isQueued || isActive}
         className={`w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md shadow-lg transition-all duration-300 relative ${
           isActive
-            ? 'bg-yellow-500/30 border border-yellow-400/60 shadow-yellow-500/30'
+            ? `${colors.bg} border ${colors.border} ${colors.shadow}`
             : 'bg-black/40 border border-white/10 hover:bg-black/50 hover:border-white/20'
         } ${className}`}
         whileHover={{ scale: 1.15, y: -2 }}
         whileTap={{ scale: 0.9 }}
-        title={isActive ? 'Boosted' : isDownloading ? `Boosting ${progress}%` : 'Boost (HD + Enhanced Audio)'}
+        title={isActive ? `${boostProfile.charAt(0).toUpperCase() + boostProfile.slice(1)} Mode` : isDownloading ? `Boosting ${progress}%` : 'Boost (HD + Enhanced Audio)'}
       >
-        {/* Glow effect when boosted */}
+        {/* Glow effect when boosted - color based on preset */}
         {isActive && (
           <motion.div
-            className="absolute inset-0 rounded-full bg-yellow-500/20 blur-md -z-10"
+            className="absolute inset-0 rounded-full blur-md -z-10"
+            style={{ backgroundColor: `${colors.primary}33` }}
             animate={{ scale: [1, 1.4, 1], opacity: [0.5, 0.8, 0.5] }}
             transition={{ duration: 2, repeat: Infinity }}
           />
         )}
 
         {/* Completion burst when boost finishes */}
-        {showBurst && <CompletionBurst onComplete={() => setShowBurst(false)} />}
+        {showBurst && <CompletionBurst onComplete={() => setShowBurst(false)} preset={boostProfile} />}
 
         {/* Progress ring - fills around the button edge */}
-        {(isDownloading || isQueued) && <ProgressRing progress={progress} isStarting={isDownloading || isQueued} size={44} />}
+        {(isDownloading || isQueued) && <ProgressRing progress={progress} isStarting={isDownloading || isQueued} size={44} preset={boostProfile} />}
 
-        {/* Lightning icon */}
-        <LightningIcon isGlowing={isActive} isCharging={isDownloading || isQueued} size={16} />
-        {showSparks && <BoostSparks />}
+        {/* Lightning icon - color based on preset */}
+        <LightningIcon isGlowing={isActive} isCharging={isDownloading || isQueued} size={16} preset={boostProfile} />
+        {showSparks && <BoostSparks preset={boostProfile} />}
       </motion.button>
     );
   }
 
   // ============================================
   // FLOATING VARIANT - Standalone ergonomic position
+  // Dynamic colors based on active preset
   // ============================================
   if (variant === 'floating') {
     return (
@@ -360,22 +427,22 @@ export const BoostButton = ({ variant = 'toolbar', className = '' }: BoostButton
         {isActive && (
           <motion.div
             className="absolute inset-0 rounded-full"
-            style={{ background: 'radial-gradient(circle, rgba(251,191,36,0.3) 0%, transparent 70%)', filter: 'blur(8px)' }}
+            style={{ background: `radial-gradient(circle, ${colors.primary}4D 0%, transparent 70%)`, filter: 'blur(8px)' }}
             animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0.8, 0.5] }}
             transition={{ duration: 2, repeat: Infinity }}
           />
         )}
         <div className={`relative w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
-          isActive ? 'bg-gradient-to-br from-yellow-400/20 to-amber-500/20 border border-yellow-500/40' : 'bg-white/5 border border-white/10 hover:bg-white/10'
+          isActive ? `bg-gradient-to-br ${colors.bg.replace('/30', '/20')} border ${colors.border.replace('/60', '/40')}` : 'bg-white/5 border border-white/10 hover:bg-white/10'
         }`}>
           {(isDownloading || isQueued) && (
             <svg className="absolute inset-0 w-full h-full -rotate-90">
-              <circle cx="24" cy="24" r="22" fill="none" stroke="rgba(251,191,36,0.2)" strokeWidth="2" />
-              <motion.circle cx="24" cy="24" r="22" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeDasharray={138} strokeDashoffset={138 - (138 * progress) / 100} />
+              <circle cx="24" cy="24" r="22" fill="none" stroke={`${colors.primary}33`} strokeWidth="2" />
+              <motion.circle cx="24" cy="24" r="22" fill="none" stroke={colors.primary} strokeWidth="2" strokeLinecap="round" strokeDasharray={138} strokeDashoffset={138 - (138 * progress) / 100} />
             </svg>
           )}
-          <LightningIcon isGlowing={isActive} isCharging={isDownloading || isQueued} size={20} />
-          {showSparks && <BoostSparks />}
+          <LightningIcon isGlowing={isActive} isCharging={isDownloading || isQueued} size={20} preset={boostProfile} />
+          {showSparks && <BoostSparks preset={boostProfile} />}
         </div>
       </motion.button>
     );
@@ -383,35 +450,37 @@ export const BoostButton = ({ variant = 'toolbar', className = '' }: BoostButton
 
   // ============================================
   // MINI VARIANT - For tight spaces
+  // Dynamic colors based on active preset
   // ============================================
   if (variant === 'mini') {
     return (
       <motion.button
         onClick={handleBoost}
         disabled={isDownloading || isQueued || isActive}
-        className={`relative w-8 h-8 rounded-full flex items-center justify-center ${isActive ? 'bg-yellow-500/20' : 'bg-white/5 hover:bg-white/10'} ${className}`}
+        className={`relative w-8 h-8 rounded-full flex items-center justify-center ${isActive ? colors.bg.replace('/30', '/20') : 'bg-white/5 hover:bg-white/10'} ${className}`}
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
       >
-        <LightningIcon isGlowing={isActive} isCharging={isDownloading} size={12} />
+        <LightningIcon isGlowing={isActive} isCharging={isDownloading} size={12} preset={boostProfile} />
       </motion.button>
     );
   }
 
   // ============================================
   // INLINE VARIANT - Text with icon
+  // Dynamic colors based on active preset
   // ============================================
   return (
     <motion.button
       onClick={handleBoost}
       disabled={isDownloading || isQueued || isActive}
-      className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${isActive ? 'bg-yellow-500/10 border border-yellow-500/30' : 'bg-white/5 border border-white/10 hover:bg-white/10'} ${className}`}
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${isActive ? `${colors.bg.replace('/30', '/10')} border ${colors.border.replace('/60', '/30')}` : 'bg-white/5 border border-white/10 hover:bg-white/10'} ${className}`}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
     >
-      <LightningIcon isGlowing={isActive} isCharging={isDownloading} size={14} />
-      <span className={`text-xs font-medium ${isActive ? 'text-yellow-400' : 'text-white/60'}`}>
-        {isActive ? 'Boosted' : isDownloading ? `${progress}%` : 'Boost'}
+      <LightningIcon isGlowing={isActive} isCharging={isDownloading} size={14} preset={boostProfile} />
+      <span className={`text-xs font-medium ${isActive ? colors.text : 'text-white/60'}`}>
+        {isActive ? boostProfile.charAt(0).toUpperCase() + boostProfile.slice(1) : isDownloading ? `${progress}%` : 'Boost'}
       </span>
     </motion.button>
   );

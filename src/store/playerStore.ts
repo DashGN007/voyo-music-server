@@ -40,6 +40,18 @@ interface PlayerStore {
   prefetchStatus: Map<string, PrefetchStatus>; // trackId -> status
   playbackSource: 'cached' | 'direct' | 'iframe' | null; // VOYO Boost indicator
 
+  // Boost Audio Preset - African Bass with speaker protection
+  // 🟡 boosted (Yellow) - Standard warm boost (default)
+  // 🔵 calm (Blue) - Relaxed, balanced
+  // 🟣 voyex (Purple) - Full holistic experience
+  // 🔴 xtreme (Red) - Maximum bass power
+  boostProfile: 'boosted' | 'calm' | 'voyex' | 'xtreme';
+
+  // OYÉ Bar Behavior - Signature VOYO element
+  // 'fade' - stays visible but ghosted after timeout
+  // 'disappear' - hides completely after timeout
+  oyeBarBehavior: 'fade' | 'disappear';
+
   // Playback Modes
   shuffleMode: boolean;
   repeatMode: 'off' | 'all' | 'one';
@@ -127,6 +139,8 @@ interface PlayerStore {
   setPlaybackSource: (source: 'cached' | 'direct' | 'iframe' | null) => void;
   setPrefetchStatus: (trackId: string, status: PrefetchStatus) => void;
   detectNetworkQuality: () => void;
+  setBoostProfile: (profile: 'boosted' | 'calm' | 'voyex' | 'xtreme') => void;
+  setOyeBarBehavior: (behavior: 'fade' | 'disappear') => void;
 }
 
 export const usePlayerStore = create<PlayerStore>((set, get) => ({
@@ -154,6 +168,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   bufferStatus: 'healthy',
   prefetchStatus: new Map(),
   playbackSource: null,
+  boostProfile: 'boosted', // Default to BOOSTED (warm standard with protection)
+  oyeBarBehavior: 'fade', // Default to FADE (signature always visible)
 
   queue: TRACKS.slice(1, 4).map((track) => ({
     track,
@@ -519,6 +535,9 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   }),
 
   setPlaybackSource: (source) => set({ playbackSource: source }),
+
+  setBoostProfile: (profile) => set({ boostProfile: profile }),
+  setOyeBarBehavior: (behavior) => set({ oyeBarBehavior: behavior }),
 
   setPrefetchStatus: (trackId, status) => {
     set((state) => {

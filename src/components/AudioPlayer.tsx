@@ -6,11 +6,14 @@
  * 2. If NOT boosted → IFrame plays instantly (YouTube handles streaming)
  * 3. User clicks "⚡ Boost HD" → Downloads to IndexedDB for next time
  *
- * AUDIO ENHANCEMENT:
- * - Volume always at 100% by default
- * - Web Audio API gain boost (130% for extra punch)
- * - Bass enhancement (+8dB at 80Hz - African bass!)
- * - Presence boost (+3dB at 3kHz for clarity)
+ * AUDIO ENHANCEMENT (v2 - with LIMITER for speaker protection):
+ * - Two profiles: Standard (safe killer) and Extreme (full power)
+ * - DynamicsCompressor prevents clipping and speaker damage
+ * - African bass character preserved in both modes
+ *
+ * PROFILES:
+ * - Standard: +5dB bass, +2dB presence, 1.15x gain, gentle compression
+ * - Extreme: +8dB bass, +3dB presence, 1.3x gain, brick wall limiter
  *
  * NO server proxy for playback - only for downloads when user requests Boost
  */
@@ -22,13 +25,104 @@ import { useDownloadStore } from '../store/downloadStore';
 import { getYouTubeIdForIframe, prefetchTrack } from '../services/api';
 
 type PlaybackMode = 'cached' | 'iframe';
+export type BoostPreset = 'boosted' | 'calm' | 'voyex' | 'xtreme';
 
-// Audio boost constants - AFRICAN BASS MODE
-const GAIN_BOOST = 1.3;      // 130% volume boost
-const BASS_FREQ = 80;        // Bass frequency (Hz)
-const BASS_GAIN = 8;         // Bass boost (dB)
-const PRESENCE_FREQ = 3000;  // Presence frequency (Hz)
-const PRESENCE_GAIN = 3;     // Presence boost (dB)
+// Audio boost presets - Client-side processing on cached files
+// 🟡 Boosted (Yellow) - Standard warm boost
+// 🔵 Calm (Blue) - Relaxed, balanced
+// 🟣 VOYEX (Purple) - Full holistic experience
+// 🔴 Xtreme (Red) - Maximum bass power
+const BOOST_PRESETS = {
+  // 🟡 BOOSTED: Standard warm boost (default when cached)
+  boosted: {
+    gain: 1.15,           // 115% volume
+    bassFreq: 80,         // Bass frequency (Hz)
+    bassGain: 5,          // +5dB bass - warm
+    presenceFreq: 3000,   // Presence frequency (Hz)
+    presenceGain: 2,      // +2dB presence
+    subBassFreq: 40,
+    subBassGain: 2,       // Slight sub-bass
+    warmthFreq: 250,
+    warmthGain: 1,        // Touch of warmth
+    airFreq: 10000,
+    airGain: 1,           // Slight air
+    harmonicAmount: 0,    // No harmonic exciter
+    compressor: {
+      threshold: -12,
+      knee: 10,
+      ratio: 4,
+      attack: 0.003,
+      release: 0.25,
+    }
+  },
+  // 🔵 CALM: Relaxed, balanced - easy listening
+  calm: {
+    gain: 1.05,           // 105% - subtle boost
+    bassFreq: 80,
+    bassGain: 3,          // +3dB bass - gentle
+    presenceFreq: 3000,
+    presenceGain: 1,      // +1dB presence - soft
+    subBassFreq: 50,
+    subBassGain: 1,       // Minimal sub-bass
+    warmthFreq: 250,
+    warmthGain: 2,        // More warmth for smoothness
+    airFreq: 8000,
+    airGain: 2,           // Softer air frequency
+    harmonicAmount: 0,    // No harmonic exciter
+    compressor: {
+      threshold: -15,     // More headroom
+      knee: 15,           // Very soft knee
+      ratio: 3,           // Gentle compression
+      attack: 0.005,
+      release: 0.3,
+    }
+  },
+  // 🟣 VOYEX: Full holistic audio experience - APEX MODE
+  voyex: {
+    gain: 1.25,           // 125% - balanced power
+    bassFreq: 80,         // African bass knock
+    bassGain: 7,          // Strong bass
+    presenceFreq: 3000,   // Vocal clarity
+    presenceGain: 3,      // Good presence
+    subBassFreq: 45,      // Sub-bass you can FEEL
+    subBassGain: 5,       // Substantial foundation
+    warmthFreq: 250,      // Low-mid body
+    warmthGain: 2,        // Warmth and fullness
+    airFreq: 12000,       // Air/sparkle
+    airGain: 3,           // Heavenly top end
+    harmonicAmount: 15,   // Psychoacoustic enhancement
+    compressor: {
+      threshold: -8,
+      knee: 6,
+      ratio: 8,
+      attack: 0.002,
+      release: 0.15,
+    }
+  },
+  // 🔴 XTREME: Maximum bass power - FINISH ME mode
+  xtreme: {
+    gain: 1.35,           // 135% - full power
+    bassFreq: 80,
+    bassGain: 10,         // +10dB bass - AFRICAN MODE
+    presenceFreq: 3000,
+    presenceGain: 4,      // +4dB presence - cut through
+    subBassFreq: 40,
+    subBassGain: 7,       // Heavy sub-bass
+    warmthFreq: 250,
+    warmthGain: 1,        // Less warmth, more punch
+    airFreq: 10000,
+    airGain: 2,           // Some sparkle
+    harmonicAmount: 20,   // More harmonics for presence
+    compressor: {
+      threshold: -4,      // Brick wall
+      knee: 0,            // Hard knee
+      ratio: 20,          // Limiting
+      attack: 0.001,      // Fast catch
+      release: 0.1,
+    }
+  }
+};
+
 
 export const AudioPlayer = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -37,13 +131,20 @@ export const AudioPlayer = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const cachedUrlRef = useRef<string | null>(null);
 
-  // Web Audio API for boost & bass enhancement
+  // Web Audio API for boost & bass enhancement + LIMITER + VOYEX
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const bassFilterRef = useRef<BiquadFilterNode | null>(null);
   const presenceFilterRef = useRef<BiquadFilterNode | null>(null);
+  const compressorRef = useRef<DynamicsCompressorNode | null>(null); // LIMITER - prevents clipping!
+  // VOYEX Extended EQ
+  const subBassFilterRef = useRef<BiquadFilterNode | null>(null);  // Sub-bass you can FEEL
+  const warmthFilterRef = useRef<BiquadFilterNode | null>(null);   // Low-mid body/warmth
+  const airFilterRef = useRef<BiquadFilterNode | null>(null);      // High-end sparkle
+  const harmonicExciterRef = useRef<WaveShaperNode | null>(null);  // Psychoacoustic enhancement
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioEnhancedRef = useRef<boolean>(false);
+  const currentProfileRef = useRef<BoostPreset>('boosted'); // Track current preset
 
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>('iframe');
 
@@ -53,6 +154,7 @@ export const AudioPlayer = () => {
     volume,
     seekPosition,
     playbackRate,
+    boostProfile,
     setCurrentTime,
     setDuration,
     setProgress,
@@ -92,8 +194,24 @@ export const AudioPlayer = () => {
     }
   }, []);
 
-  // Setup audio enhancement (gain boost + bass + presence)
-  const setupAudioEnhancement = useCallback(() => {
+  // Generate harmonic exciter curve (soft saturation for warmth + psychoacoustic enhancement)
+  // Based on research: adds 2nd/3rd harmonics for perceived bass depth
+  const makeHarmonicExciterCurve = (amount: number): Float32Array => {
+    const samples = 44100;
+    const curve = new Float32Array(samples);
+    const deg = Math.PI / 180;
+
+    for (let i = 0; i < samples; i++) {
+      const x = (i * 2) / samples - 1;
+      // Soft saturation curve - adds subtle harmonics without harsh clipping
+      // amount controls intensity (0 = bypass, 100 = heavy saturation)
+      curve[i] = ((3 + amount / 100) * x * 20 * deg) / (Math.PI + (amount / 100) * Math.abs(x));
+    }
+    return curve;
+  };
+
+  // Setup audio enhancement with LIMITER + VOYEX FULL SPECTRUM
+  const setupAudioEnhancement = useCallback((preset: BoostPreset = 'boosted') => {
     if (!audioRef.current || audioEnhancedRef.current) return;
 
     try {
@@ -104,41 +222,164 @@ export const AudioPlayer = () => {
       const ctx = new AudioContextClass();
       audioContextRef.current = ctx;
 
+      const settings = BOOST_PRESETS[preset];
+      currentProfileRef.current = preset;
+
       // Create source from audio element
       const source = ctx.createMediaElementSource(audioRef.current);
       sourceNodeRef.current = source;
 
-      // Create bass boost filter (lowshelf at 80Hz, +8dB)
+      // === VOYEX FULL SPECTRUM EQ CHAIN ===
+
+      // 1. SUB-BASS FOUNDATION (lowshelf at 40-45Hz) - The bass you FEEL
+      const subBassFilter = ctx.createBiquadFilter();
+      subBassFilter.type = 'lowshelf';
+      subBassFilter.frequency.value = settings.subBassFreq;
+      subBassFilter.gain.value = settings.subBassGain;
+      subBassFilterRef.current = subBassFilter;
+
+      // 2. AFRICAN BASS KNOCK (lowshelf at 80Hz) - Characteristic punch
       const bassFilter = ctx.createBiquadFilter();
       bassFilter.type = 'lowshelf';
-      bassFilter.frequency.value = BASS_FREQ;
-      bassFilter.gain.value = BASS_GAIN;
+      bassFilter.frequency.value = settings.bassFreq;
+      bassFilter.gain.value = settings.bassGain;
       bassFilterRef.current = bassFilter;
 
-      // Create presence boost filter (peaking at 3kHz, +3dB)
+      // 3. LOW-MID WARMTH (peaking at 250Hz) - Body and fullness
+      const warmthFilter = ctx.createBiquadFilter();
+      warmthFilter.type = 'peaking';
+      warmthFilter.frequency.value = settings.warmthFreq;
+      warmthFilter.Q.value = 1.5;
+      warmthFilter.gain.value = settings.warmthGain;
+      warmthFilterRef.current = warmthFilter;
+
+      // 4. HARMONIC EXCITER (WaveShaperNode) - Psychoacoustic enhancement
+      // Adds subtle harmonics that enhance perceived bass (missing fundamental effect)
+      const harmonicExciter = ctx.createWaveShaper();
+      if (settings.harmonicAmount > 0) {
+        harmonicExciter.curve = makeHarmonicExciterCurve(settings.harmonicAmount);
+        harmonicExciter.oversample = '2x'; // Better quality, reduce aliasing
+      }
+      harmonicExciterRef.current = harmonicExciter;
+
+      // 5. VOCAL PRESENCE (peaking at 3kHz) - Clarity and intelligibility
       const presenceFilter = ctx.createBiquadFilter();
       presenceFilter.type = 'peaking';
-      presenceFilter.frequency.value = PRESENCE_FREQ;
+      presenceFilter.frequency.value = settings.presenceFreq;
       presenceFilter.Q.value = 1;
-      presenceFilter.gain.value = PRESENCE_GAIN;
+      presenceFilter.gain.value = settings.presenceGain;
       presenceFilterRef.current = presenceFilter;
 
-      // Create gain node for volume boost
+      // 6. AIR/SPARKLE (highshelf at 10-12kHz) - Open, heavenly top end
+      const airFilter = ctx.createBiquadFilter();
+      airFilter.type = 'highshelf';
+      airFilter.frequency.value = settings.airFreq;
+      airFilter.gain.value = settings.airGain;
+      airFilterRef.current = airFilter;
+
+      // 7. GAIN NODE - Volume boost
       const gainNode = ctx.createGain();
-      gainNode.gain.value = GAIN_BOOST;
+      gainNode.gain.value = settings.gain;
       gainNodeRef.current = gainNode;
 
-      // Connect: source -> bass -> presence -> gain -> destination
-      source.connect(bassFilter);
-      bassFilter.connect(presenceFilter);
-      presenceFilter.connect(gainNode);
-      gainNode.connect(ctx.destination);
+      // 8. COMPRESSOR/LIMITER - PREVENTS SPEAKER DAMAGE!
+      const compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.value = settings.compressor.threshold;
+      compressor.knee.value = settings.compressor.knee;
+      compressor.ratio.value = settings.compressor.ratio;
+      compressor.attack.value = settings.compressor.attack;
+      compressor.release.value = settings.compressor.release;
+      compressorRef.current = compressor;
+
+      // === CONNECT THE CHAIN ===
+      // source -> subBass -> bass -> warmth -> harmonics -> presence -> air -> gain -> compressor -> destination
+      source.connect(subBassFilter);
+      subBassFilter.connect(bassFilter);
+      bassFilter.connect(warmthFilter);
+      warmthFilter.connect(harmonicExciter);
+      harmonicExciter.connect(presenceFilter);
+      presenceFilter.connect(airFilter);
+      airFilter.connect(gainNode);
+      gainNode.connect(compressor);
+      compressor.connect(ctx.destination);
 
       audioEnhancedRef.current = true;
-      // Audio Enhancement Active: +30% gain, +8dB bass, +3dB presence
+
+      // Log preset activation
+      const voyexInfo = preset === 'voyex'
+        ? `, SubBass +${settings.subBassGain}dB, Warmth +${settings.warmthGain}dB, Air +${settings.airGain}dB, Harmonics ${settings.harmonicAmount}%`
+        : '';
+      console.log(`🎵 [VOYO] Audio Enhancement Active (${preset.toUpperCase()}): +${Math.round((settings.gain - 1) * 100)}% gain, +${settings.bassGain}dB bass, +${settings.presenceGain}dB presence${voyexInfo}, Limiter ON`);
     } catch (e) {
       console.warn('[VOYO] Audio enhancement not available:', e);
     }
+  }, []);
+
+  // Update boost preset dynamically (without recreating the chain)
+  const updateBoostPreset = useCallback((preset: BoostPreset) => {
+    if (!audioEnhancedRef.current) return;
+
+    const settings = BOOST_PRESETS[preset];
+    currentProfileRef.current = preset;
+
+    // Update sub-bass filter (VOYEX)
+    if (subBassFilterRef.current) {
+      subBassFilterRef.current.frequency.value = settings.subBassFreq;
+      subBassFilterRef.current.gain.value = settings.subBassGain;
+    }
+
+    // Update bass filter
+    if (bassFilterRef.current) {
+      bassFilterRef.current.gain.value = settings.bassGain;
+    }
+
+    // Update warmth filter (VOYEX)
+    if (warmthFilterRef.current) {
+      warmthFilterRef.current.frequency.value = settings.warmthFreq;
+      warmthFilterRef.current.gain.value = settings.warmthGain;
+    }
+
+    // Update harmonic exciter (VOYEX)
+    if (harmonicExciterRef.current) {
+      if (settings.harmonicAmount > 0) {
+        harmonicExciterRef.current.curve = makeHarmonicExciterCurve(settings.harmonicAmount);
+        harmonicExciterRef.current.oversample = '2x';
+      } else {
+        // Bypass - linear curve (no effect)
+        harmonicExciterRef.current.curve = null;
+      }
+    }
+
+    // Update presence filter
+    if (presenceFilterRef.current) {
+      presenceFilterRef.current.gain.value = settings.presenceGain;
+    }
+
+    // Update air filter (VOYEX)
+    if (airFilterRef.current) {
+      airFilterRef.current.frequency.value = settings.airFreq;
+      airFilterRef.current.gain.value = settings.airGain;
+    }
+
+    // Update gain
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = settings.gain;
+    }
+
+    // Update compressor
+    if (compressorRef.current) {
+      compressorRef.current.threshold.value = settings.compressor.threshold;
+      compressorRef.current.knee.value = settings.compressor.knee;
+      compressorRef.current.ratio.value = settings.compressor.ratio;
+      compressorRef.current.attack.value = settings.compressor.attack;
+      compressorRef.current.release.value = settings.compressor.release;
+    }
+
+    // Log preset switch
+    const voyexInfo = preset === 'voyex'
+      ? ` | SubBass +${settings.subBassGain}dB, Warmth +${settings.warmthGain}dB, Air +${settings.airGain}dB, Harmonics ${settings.harmonicAmount}%`
+      : '';
+    console.log(`🎵 [VOYO] Switched to ${preset.toUpperCase()} preset${voyexInfo}`);
   }, []);
 
   // Initialize IFrame player
@@ -288,7 +529,9 @@ export const AudioPlayer = () => {
             cachedUrlRef.current = cachedUrl;
 
             // Setup audio enhancement (bass + gain boost) BEFORE setting src
-            setupAudioEnhancement();
+            // Use the current boost profile from store
+            const { boostProfile: currentProfile } = usePlayerStore.getState();
+            setupAudioEnhancement(currentProfile);
 
             // FIX: Start at volume 0 to prevent click/pop
             audioRef.current.volume = 0;
@@ -388,9 +631,10 @@ export const AudioPlayer = () => {
     if (playbackMode === 'cached' && audioRef.current) {
       if (audioEnhancedRef.current && gainNodeRef.current) {
         // With Web Audio: keep audio at 100%, use gain node for volume + boost
-        // GAIN_BOOST (1.3) is the base boost, multiply by user volume
+        // Use current profile's gain setting, multiply by user volume
+        const profileGain = BOOST_PRESETS[currentProfileRef.current].gain;
         audioRef.current.volume = 1.0;
-        gainNodeRef.current.gain.value = GAIN_BOOST * (volume / 100);
+        gainNodeRef.current.gain.value = profileGain * (volume / 100);
       } else {
         // Fallback: direct volume control
         audioRef.current.volume = volume / 100;
@@ -438,6 +682,13 @@ export const AudioPlayer = () => {
       }
     }
   }, [playbackRate, playbackMode]);
+
+  // Handle boost preset changes - apply EQ settings dynamically
+  useEffect(() => {
+    if (playbackMode === 'cached' && audioEnhancedRef.current) {
+      updateBoostPreset(boostProfile as BoostPreset);
+    }
+  }, [boostProfile, playbackMode, updateBoostPreset]);
 
   // IFrame time tracking
   useEffect(() => {
@@ -550,6 +801,62 @@ export const AudioPlayer = () => {
     navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
 
   }, [currentTrack, isPlaying, playbackMode, nextTrack]);
+
+  // === QUEUE PRE-BOOST ===
+  // Like Spotify: Pre-cache upcoming tracks in background for instant playback
+  // ONLY when Auto-Boost is enabled in Boost Settings
+  const preBoostingRef = useRef<Set<string>>(new Set()); // Track what's already being pre-boosted
+  const { autoBoostEnabled } = useDownloadStore();
+
+  useEffect(() => {
+    // Only pre-boost if Auto-Boost is enabled in settings
+    if (!autoBoostEnabled) return;
+
+    const preBoostQueue = async () => {
+      const state = usePlayerStore.getState();
+      const queueTracks = state.queue.slice(0, 3); // Pre-boost next 3 tracks
+
+      for (const queueItem of queueTracks) {
+        const track = queueItem.track;
+        if (!track?.trackId) continue;
+
+        // Skip if already pre-boosting this track
+        if (preBoostingRef.current.has(track.trackId)) continue;
+
+        // Check if already cached
+        const cachedUrl = await checkCache(track.trackId);
+        if (cachedUrl) continue; // Already cached, skip
+
+        // Mark as pre-boosting
+        preBoostingRef.current.add(track.trackId);
+
+        // Pre-boost in background (silent, no UI)
+        console.log(`🚀 [VOYO] Pre-boosting: ${track.title}`);
+        try {
+          await cacheTrack(
+            track.trackId,
+            track.title,
+            track.artist,
+            0, // Duration unknown, will be updated on play
+            `https://voyo-music-api.fly.dev/cdn/art/${track.trackId}?quality=high`
+          );
+          console.log(`✅ [VOYO] Pre-boosted: ${track.title}`);
+        } catch (e) {
+          // Ignore errors, it's background optimization
+          console.log(`⚠️ [VOYO] Pre-boost failed: ${track.title}`);
+        }
+
+        // Remove from tracking
+        preBoostingRef.current.delete(track.trackId);
+
+        // Small delay between downloads to not overwhelm
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    };
+
+    // Run pre-boost when queue changes or current track changes
+    preBoostQueue();
+  }, [currentTrack?.trackId, checkCache, cacheTrack, autoBoostEnabled]);
 
   // Audio element event handlers (for cached playback)
   const handleTimeUpdate = useCallback(() => {

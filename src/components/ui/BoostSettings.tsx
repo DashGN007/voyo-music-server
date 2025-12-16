@@ -10,8 +10,9 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Wifi, WifiOff, Trash2, X, HardDrive, Download, Settings } from 'lucide-react';
+import { Zap, Wifi, WifiOff, Trash2, X, HardDrive, Download, Settings, Flame, Crown, Eye, EyeOff } from 'lucide-react';
 import { useDownloadStore } from '../../store/downloadStore';
+import { usePlayerStore } from '../../store/playerStore';
 
 interface BoostSettingsProps {
   isOpen: boolean;
@@ -30,6 +31,8 @@ export const BoostSettings = ({ isOpen, onClose }: BoostSettingsProps) => {
     clearAllDownloads,
     manualBoostCount,
   } = useDownloadStore();
+
+  const { boostProfile, setBoostProfile, oyeBarBehavior, setOyeBarBehavior } = usePlayerStore();
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
@@ -95,6 +98,74 @@ export const BoostSettings = ({ isOpen, onClose }: BoostSettingsProps) => {
 
             {/* Content */}
             <div className="px-6 pb-8 space-y-4">
+              {/* Audio Enhancement Preset */}
+              <div className="bg-white/5 rounded-2xl p-4">
+                <div className="text-sm font-medium text-white mb-3">Audio Enhancement</div>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[
+                    {
+                      value: 'boosted',
+                      label: 'Warm',
+                      icon: Zap,
+                      desc: 'Bass Boost',
+                      gradient: 'from-yellow-500/20 to-orange-500/20',
+                      border: 'border-yellow-500/30',
+                      text: 'text-yellow-300'
+                    },
+                    {
+                      value: 'calm',
+                      label: 'Calm',
+                      icon: Zap,
+                      desc: 'Relaxed',
+                      gradient: 'from-blue-500/20 to-cyan-500/20',
+                      border: 'border-blue-500/30',
+                      text: 'text-blue-300',
+                      iconStyle: 'rotate-180 opacity-60' // Inverted & faded lightning
+                    },
+                    {
+                      value: 'voyex',
+                      label: 'VOYEX',
+                      icon: Crown,
+                      desc: 'Full Exp',
+                      gradient: 'from-purple-500/20 to-pink-500/20',
+                      border: 'border-purple-500/30',
+                      text: 'text-purple-300'
+                    },
+                    {
+                      value: 'xtreme',
+                      label: 'Xtreme',
+                      icon: Flame,
+                      desc: 'Max Bass',
+                      gradient: 'from-red-500/20 to-orange-500/20',
+                      border: 'border-red-500/30',
+                      text: 'text-red-300'
+                    },
+                  ].map(({ value, label, icon: Icon, desc, gradient, border, text, iconStyle }) => (
+                    <motion.button
+                      key={value}
+                      onClick={() => setBoostProfile(value as any)}
+                      className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border transition-all ${
+                        boostProfile === value
+                          ? `bg-gradient-to-br ${gradient} ${border} ${text}`
+                          : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                      }`}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Icon size={18} className={`${boostProfile === value ? text : ''} ${iconStyle || ''}`} />
+                      <span className="text-[10px] font-bold">{label}</span>
+                      <span className="text-[8px] opacity-70">{desc}</span>
+                    </motion.button>
+                  ))}
+                </div>
+                <div className="text-[10px] text-gray-500 mt-3 text-center">
+                  {boostProfile === 'boosted' && '🔊 Warm bass boost with speaker protection'}
+                  {boostProfile === 'calm' && '🎵 Relaxed, balanced listening'}
+                  {boostProfile === 'voyex' && '✨ Full spectrum: Sub-bass, warmth, air & harmonics'}
+                  {boostProfile === 'xtreme' && '🔥 Maximum bass power with brick-wall limiter'}
+                </div>
+              </div>
+
               {/* Auto-Boost Toggle */}
               <div className="bg-white/5 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -149,6 +220,45 @@ export const BoostSettings = ({ isOpen, onClose }: BoostSettingsProps) => {
                       <span className="text-[10px] font-medium">{label}</span>
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* OYÉ Bar Behavior */}
+              <div className="bg-white/5 rounded-2xl p-4">
+                <div className="text-sm font-medium text-white mb-3">OYÉ Bar Behavior</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    {
+                      value: 'fade',
+                      label: 'Fade',
+                      icon: Eye,
+                      desc: 'Always visible',
+                    },
+                    {
+                      value: 'disappear',
+                      label: 'Disappear',
+                      icon: EyeOff,
+                      desc: 'Hides after tap',
+                    },
+                  ].map(({ value, label, icon: Icon, desc }) => (
+                    <button
+                      key={value}
+                      onClick={() => setOyeBarBehavior(value as 'fade' | 'disappear')}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all ${
+                        oyeBarBehavior === value
+                          ? 'bg-purple-500/20 border-purple-500/30 text-purple-300'
+                          : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                      }`}
+                    >
+                      <Icon size={18} />
+                      <span className="text-[10px] font-medium">{label}</span>
+                      <span className="text-[8px] opacity-70">{desc}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[10px] text-gray-500 mt-3 text-center">
+                  {oyeBarBehavior === 'fade' && '✨ OYÉ bar stays visible (signature)'}
+                  {oyeBarBehavior === 'disappear' && '👻 OYÉ bar hides for clean look'}
                 </div>
               </div>
 

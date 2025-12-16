@@ -12,12 +12,14 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Maximize2, Film, Settings, Heart
+  Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Maximize2, Film, Settings, Heart,
+  Shuffle, Repeat, Repeat1, Share2
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import { getThumbnailUrl, getTrackThumbnailUrl } from '../../utils/imageHelpers';
 import { Track, ReactionType } from '../../types';
 import { SmartImage } from '../ui/SmartImage';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { unlockMobileAudio, isMobileDevice } from '../../utils/mobileAudioUnlock';
 import { useMobilePlay } from '../../hooks/useMobilePlay';
 import { BoostButton } from '../ui/BoostButton';
@@ -1351,15 +1353,95 @@ const PlayControls = memo(({
 });
 
 // ============================================
+// SUGGESTION CHAIN - Glowing pills that cycle then fade to grey
+// ============================================
+const SUGGESTIONS = ['Shuffle', 'Run it back', 'Slow down', 'Afrobeats', 'Pump it up'];
+
+const SuggestionChain = memo(({ onSelect }: { onSelect: (text: string) => void }) => {
+  const [glowIndex, setGlowIndex] = useState(-1); // -1 = all grey, 0-4 = that pill glows
+  const [cycleComplete, setCycleComplete] = useState(false);
+
+  // Glowing chain effect: cycle through pills one by one, then settle to grey
+  useEffect(() => {
+    let index = 0;
+    const interval = setInterval(() => {
+      if (index < SUGGESTIONS.length) {
+        setGlowIndex(index);
+        index++;
+      } else {
+        // Chain complete - all go grey
+        setGlowIndex(-1);
+        setCycleComplete(true);
+        clearInterval(interval);
+      }
+    }, 300); // 300ms per pill
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <motion.div
+      className="mt-4 flex flex-wrap gap-2 justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      {SUGGESTIONS.map((suggestion, index) => {
+        const isGlowing = glowIndex === index;
+        const isStale = cycleComplete || glowIndex > index || glowIndex === -1;
+
+        return (
+          <motion.button
+            key={suggestion}
+            onClick={() => onSelect(suggestion)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${
+              isGlowing
+                ? 'bg-purple-600/60 border border-purple-400/60 text-white shadow-lg shadow-purple-500/30'
+                : isStale
+                  ? 'bg-stone-800/40 border border-stone-600/30 text-stone-400 hover:bg-stone-700/50 hover:text-stone-300'
+                  : 'bg-purple-900/40 border border-purple-500/30 text-purple-200'
+            }`}
+            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            animate={{
+              opacity: 1,
+              scale: isGlowing ? 1.05 : 1,
+              y: 0,
+            }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{
+              delay: 0.15 + (index * 0.1),
+              type: 'spring',
+              damping: 20,
+              stiffness: 300
+            }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {suggestion}
+          </motion.button>
+        );
+      })}
+    </motion.div>
+  );
+});
+
+// ============================================
 // REACTION SYSTEM V3 - Ghosted Row with OYÉ Gateway
 // ============================================
 // Flow: All buttons visible but ghosted → Tap OYÉ → All light up
 // OYÉ is slightly more prominent (the leader/invitation)
 
 const ReactionBar = memo(({
-  onReaction
+  onReaction,
+  isRevealed,
+  onRevealChange,
+  oyeBarBehavior = 'fade',
+  activateChatTrigger = 0,
 }: {
   onReaction: (type: ReactionType, emoji: string, text: string, multiplier: number) => void;
+  isRevealed: boolean;
+  onRevealChange: (revealed: boolean) => void;
+  oyeBarBehavior?: 'fade' | 'disappear';
+  activateChatTrigger?: number;
 }) => {
   const [isActive, setIsActive] = useState(false); // false = ghosted, true = lit
   const [charging, setCharging] = useState<string | null>(null);
@@ -1372,22 +1454,41 @@ const ReactionBar = memo(({
   const [chatResponse, setChatResponse] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const chatInputRef = useRef<HTMLInputElement>(null);
+  const prevTriggerRef = useRef(activateChatTrigger);
 
   // Access store for DJ commands
   const { addToQueue, currentTrack } = usePlayerStore();
 
-  // Auto-dim after inactivity
+  // DOUBLE TAP → Straight to Wazzguan chat
   useEffect(() => {
-    if (!isActive && !isChatMode) return;
+    // Only activate on actual changes (not initial mount)
+    if (activateChatTrigger > prevTriggerRef.current) {
+      prevTriggerRef.current = activateChatTrigger;
+      // Small delay to ensure parent state updates have propagated
+      requestAnimationFrame(() => {
+        // Activate chat directly - wake up and open
+        setIsActive(true);
+        setIsChatMode(true);
+        setChatResponse(null);
+        // Focus input after animation completes
+        setTimeout(() => chatInputRef.current?.focus(), 400);
+      });
+    }
+  }, [activateChatTrigger]);
+
+  // Auto-hide after inactivity (when revealed but not interacting)
+  useEffect(() => {
+    if (!isRevealed || isChatMode) return;
 
     const timeout = setTimeout(() => {
-      if (!isChatMode) {
+      if (!isChatMode && !charging) {
         setIsActive(false);
+        onRevealChange(false); // Hide buttons after timeout
       }
-    }, 6000); // Dim after 6s of no interaction
+    }, 6000); // Hide after 6s of no interaction
 
     return () => clearTimeout(timeout);
-  }, [isActive, charging, isChatMode]);
+  }, [isRevealed, isActive, charging, isChatMode, onRevealChange]);
 
   // Handle Wazzguán tap → opens chat mode
   const handleWazzguanTap = () => {
@@ -1407,7 +1508,16 @@ const ReactionBar = memo(({
     setChatInput('');
 
     // Simple pattern matching for DJ commands (can be enhanced with actual AI later)
-    if (input.includes('add') || input.includes('play') || input.includes('queue')) {
+    // DJ CONTROLS - Shuffle, Run it back, Slow down
+    if (input.includes('shuffle')) {
+      setChatResponse('🔀 Shuffling the vibes...');
+      // TODO: Wire to actual shuffle toggle in playerStore
+      setTimeout(() => setIsChatMode(false), 1500);
+    } else if (input.includes('run it back') || input.includes('again') || input.includes('replay') || input.includes('repeat')) {
+      setChatResponse('🔁 Running it back!');
+      // TODO: Wire to actual replay/seek to start
+      setTimeout(() => setIsChatMode(false), 1500);
+    } else if (input.includes('add') || input.includes('play') || input.includes('queue')) {
       const songMatch = input.replace(/^(add|play|queue)\s*/i, '').trim();
       if (songMatch) {
         setChatResponse(`🎵 Adding "${songMatch}" to queue...`);
@@ -1458,11 +1568,12 @@ const ReactionBar = memo(({
   const wazzguanPrimedRef = useRef(false);
 
   // All reactions in a row - OYÉ is the gateway (defined early for use in handlers)
+  // REFINED PREMIUM COLORS - sophisticated, muted, elegant (not "kid style")
   const reactions = [
-    { type: 'oyo', emoji: '👋', text: 'OYO', icon: Zap, gradient: 'from-indigo-600/80 to-purple-600/80' },
-    { type: 'oye', emoji: '🎉', text: 'OYÉ', icon: Zap, gradient: 'from-purple-600/80 to-pink-600/80', isGateway: true },
-    { type: 'wazzguan', emoji: '🤙', text: 'Wazzguán', icon: null, gradient: 'from-amber-600/70 to-orange-600/70', isChat: true },
-    { type: 'fire', emoji: '🔥', text: 'Fireee', icon: Flame, gradient: 'from-orange-600/80 to-red-600/80' },
+    { type: 'oyo', emoji: '👋', text: 'OYO', icon: Zap, gradient: 'from-violet-800/70 to-purple-900/60' },
+    { type: 'oye', emoji: '🎉', text: 'OYÉ', icon: Zap, gradient: 'from-purple-700/70 to-fuchsia-900/60', isGateway: true },
+    { type: 'wazzguan', emoji: '🤙', text: 'Wazzguán', icon: null, gradient: 'from-stone-600/50 to-stone-700/40', isChat: true },
+    { type: 'fire', emoji: '🔥', text: 'Fireee', icon: Flame, gradient: 'from-rose-900/70 to-red-950/60' },
   ];
 
   const handlePressStart = (type: string) => {
@@ -1499,6 +1610,9 @@ const ReactionBar = memo(({
       if (!isActive) {
         // Sleep mode: elegant wake-up of all buttons
         setIsActive(true);
+        // Flash Wazzguán to draw attention (grey → orange → back)
+        setFlashingButton('wazzguan');
+        setTimeout(() => setFlashingButton(null), 800);
         haptics.medium();
         return;
       }
@@ -1565,14 +1679,8 @@ const ReactionBar = memo(({
   const isCharging = (type: string) => charging === type;
   const getScale = (type: string) => isCharging(type) ? 1 + (currentMultiplier - 1) * 0.05 : 1;
 
-  // Calculate position offsets for spread animation when chat opens
-  const getSpreadX = (type: string) => {
-    if (!isChatMode) return 0;
-    if (type === 'oyo') return -55;   // Left
-    if (type === 'oye') return -28;   // Right next to OYO
-    if (type === 'fire') return 35;   // Subtle shift right, stays visible
-    return 0; // Wazzguán morphs into input
-  };
+  // Position offsets - all buttons hidden when chat opens, so no spread needed
+  const getSpreadX = (_type: string) => 0;
 
   // Check if button is currently flashing (sleep mode tap feedback)
   const isFlashing = (type: string) => flashingButton === type || (type === 'wazzguan' && wazzguanPrimed);
@@ -1580,18 +1688,27 @@ const ReactionBar = memo(({
   return (
     <div className="relative z-30 flex flex-col items-center mb-4">
       {/* Main reaction row - buttons spread when chat opens */}
-      <div className="relative flex items-center justify-center gap-2 w-full">
+      {/* min-h-[44px] when chat active to prevent collapse (absolute chat bar doesn't take space) */}
+      <div className={`relative flex items-center justify-center gap-2 w-full ${isChatMode ? 'min-h-[44px]' : ''}`}>
         {reactions.map((r) => {
           const isGateway = r.isGateway;
           const isChat = r.isChat;
           const buttonFlashing = isFlashing(r.type);
           const isLit = isActive || buttonFlashing;
 
-          // Hide Wazzguán button when chat is open (it morphs into input)
-          if (isChat && isChatMode) return null;
+          // Hide ALL reaction buttons when chat is open - completely clean
+          if (isChatMode) return null;
 
-          // Fire gets animated flicker when spread
-          const isFireSpread = isChatMode && r.type === 'fire';
+          // VISIBILITY LOGIC based on oyeBarBehavior:
+          // 'fade' mode: ALWAYS visible (signature), just more ghosted when not revealed
+          // 'disappear' mode: Only show when revealed
+          if (oyeBarBehavior === 'disappear' && !isRevealed) return null;
+
+          // In fade mode, buttons are always visible but more transparent when not revealed
+          const isFadeGhosted = oyeBarBehavior === 'fade' && !isRevealed;
+
+          // Fire flicker animation (only used when not in chat mode)
+          const isFireSpread = false;
 
           return (
             <motion.button
@@ -1605,22 +1722,28 @@ const ReactionBar = memo(({
                 }
                 ${isGateway
                   ? (isLit
-                    ? 'bg-gradient-to-r from-purple-600/80 to-pink-600/80 border border-white/30 text-white shadow-lg'
-                    : 'bg-purple-900/50 border border-purple-500/40 text-purple-200')
+                    ? 'bg-gradient-to-r from-purple-700/70 to-fuchsia-900/60 border border-purple-400/30 text-white shadow-lg shadow-purple-900/30'
+                    : 'bg-purple-950/50 border border-purple-600/30 text-purple-300/80')
                   : isChat
-                    ? (isLit
-                      ? 'bg-gradient-to-r from-amber-600/70 to-orange-600/70 border border-white/30 text-white shadow-lg'
-                      : 'bg-amber-900/30 border border-amber-500/30 text-amber-200/50')
+                    ? (buttonFlashing
+                      ? 'bg-gradient-to-r from-amber-500/70 to-orange-500/60 border border-amber-400/40 text-white shadow-lg shadow-orange-500/30'
+                      : isLit
+                        ? 'bg-gradient-to-r from-stone-600/50 to-stone-700/40 border border-stone-400/20 text-white shadow-lg'
+                        : 'bg-stone-900/30 border border-stone-600/20 text-stone-300/50')
                     : (isLit
-                      ? `bg-gradient-to-r ${r.gradient} border border-white/30 text-white shadow-lg`
+                      ? `bg-gradient-to-r ${r.gradient} border border-white/20 text-white shadow-lg`
                       : 'bg-white/5 border border-white/10 text-white/50')
                 }
               `}
               animate={{
                 x: getSpreadX(r.type),
-                y: isGateway && !isActive && !isChatMode && !buttonFlashing ? [0, -3, 0] : 0,
-                scale: isFireSpread ? [0.85, 0.9, 0.85] : (isChatMode ? 0.8 : (buttonFlashing ? 1.05 : 1)),
-                opacity: isFireSpread ? [0.3, 0.45, 0.3] : (isChatMode ? 0.6 : (isLit ? 1 : (isGateway ? 0.9 : 0.5))),
+                y: isGateway && !isActive && !isChatMode && !buttonFlashing && !isFadeGhosted ? [0, -3, 0] : 0,
+                scale: isFireSpread ? [0.85, 0.9, 0.85] : (isFadeGhosted ? 0.9 : (isChatMode ? 0.8 : (buttonFlashing && isChat ? [1, 1.15, 1] : (buttonFlashing ? 1.05 : 1)))),
+                opacity: isFireSpread
+                  ? [0.3, 0.45, 0.3]
+                  : isFadeGhosted
+                    ? (isGateway ? 0.35 : 0.25) // Extra ghosted in fade mode when not revealed
+                    : (isChatMode ? 0.6 : (isLit ? 1 : (isGateway ? 0.9 : 0.5))),
               }}
               transition={{
                 x: { type: 'spring', damping: 25, stiffness: 200 },
@@ -1670,12 +1793,13 @@ const ReactionBar = memo(({
         })}
 
         {/* Chat input - appears in center when Wazzguán tapped */}
+        {/* PREMIUM STYLING: Muted stone/neutral tones with subtle purple accent */}
         <AnimatePresence>
           {isChatMode && (
             <motion.div
-              className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 bg-gradient-to-r from-amber-900/30 to-orange-900/30 backdrop-blur-xl rounded-full border border-amber-500/20 px-3 py-1.5 shadow-md"
+              className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 bg-gradient-to-r from-stone-800/50 to-stone-900/40 backdrop-blur-xl rounded-full border border-stone-500/20 px-3 py-1.5 shadow-lg shadow-black/30"
               initial={{ opacity: 0, scale: 0.8, width: 80 }}
-              animate={{ opacity: 1, scale: 1, width: 200 }}
+              animate={{ opacity: 1, scale: 1, width: 220 }}
               exit={{ opacity: 0, scale: 0.8, width: 80 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             >
@@ -1686,12 +1810,12 @@ const ReactionBar = memo(({
                 onChange={(e) => setChatInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleChatSubmit()}
                 placeholder="Tell the DJ..."
-                className="flex-1 bg-transparent text-white text-xs placeholder:text-white/40 outline-none min-w-0"
+                className="flex-1 bg-transparent text-white text-xs placeholder:text-stone-400 outline-none min-w-0"
                 disabled={isProcessing}
               />
               <motion.button
                 onClick={handleChatSubmit}
-                className="w-6 h-6 rounded-full bg-amber-500/60 flex items-center justify-center flex-shrink-0"
+                className="w-6 h-6 rounded-full bg-purple-600/60 flex items-center justify-center flex-shrink-0"
                 whileTap={{ scale: 0.9 }}
                 disabled={isProcessing}
               >
@@ -1731,27 +1855,10 @@ const ReactionBar = memo(({
         )}
       </AnimatePresence>
 
-      {/* Quick suggestions - below response */}
+      {/* Quick suggestions - Glowing chain effect, then stale grey */}
       <AnimatePresence>
         {isChatMode && !chatResponse && (
-          <motion.div
-            className="mt-2 flex flex-wrap gap-1 justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ delay: 0.15 }}
-          >
-            {['Afrobeats', 'Chill', 'Wizkid'].map((suggestion) => (
-              <motion.button
-                key={suggestion}
-                onClick={() => handleChatSubmitWithText(suggestion)}
-                className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/40 text-[10px] hover:bg-white/10 hover:text-white/60"
-                whileTap={{ scale: 0.95 }}
-              >
-                {suggestion}
-              </motion.button>
-            ))}
-          </motion.div>
+          <SuggestionChain onSelect={handleChatSubmitWithText} />
         )}
       </AnimatePresence>
     </div>
@@ -1862,6 +1969,8 @@ export const VoyoPortraitPlayer = ({
     isSkeeping,
     setPlaybackRate,
     stopSkeep,
+    // OYÉ Bar behavior
+    oyeBarBehavior,
   } = usePlayerStore();
 
   // MOBILE FIX: Use direct play handler
@@ -1879,6 +1988,125 @@ export const VoyoPortraitPlayer = ({
   // PORTAL BELT toggle state - tap HOT/DISCOVERY to activate scrolling
   const [isHotBeltActive, setIsHotBeltActive] = useState(false);
   const [isDiscoveryBeltActive, setIsDiscoveryBeltActive] = useState(false);
+
+  // CLEAN STATE: Two levels of reveal
+  // TAP: Quick controls only (shuffle, repeat, share)
+  // HOLD or DOUBLE TAP: Full DJ Mode (reactions + chat)
+  const [isControlsRevealed, setIsControlsRevealed] = useState(false); // Level 1: Quick controls
+  const [isReactionsRevealed, setIsReactionsRevealed] = useState(false); // Level 2: Full DJ
+  const [activateChatTrigger, setActivateChatTrigger] = useState(0); // Increment to trigger chat
+  const [showDJWakeMessage, setShowDJWakeMessage] = useState(false); // Tutorial toast
+  const [djWakeMessageText, setDjWakeMessageText] = useState(''); // Dynamic message content
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTapRef = useRef<number>(0);
+  const didHoldRef = useRef(false);
+  const djWakeCountRef = useRef(0); // Track how many times DJ mode was activated
+
+  // Quick controls state
+  const [repeatMode, setRepeatMode] = useState<'off' | 'one' | 'all'>('off'); // off → one → all
+  const [isShuffleOn, setIsShuffleOn] = useState(false);
+
+  // Tutorial messages for DJ wake - rotates through different messages
+  const DJ_WAKE_MESSAGES = [
+    "Fiouuuh ✌🏾",
+    "Now Peace ✌🏾",
+    "DJ Mode Active ✌🏾",
+    "Let's gooo ✌🏾",
+  ];
+
+  // Single tap counter for tutorial hint
+  const singleTapCountRef = useRef(0);
+  const hasShownHintRef = useRef(false);
+
+  const showDJWakeToast = useCallback(() => {
+    const messageIndex = djWakeCountRef.current % DJ_WAKE_MESSAGES.length;
+    setDjWakeMessageText(DJ_WAKE_MESSAGES[messageIndex]);
+    setShowDJWakeMessage(true);
+    djWakeCountRef.current++;
+    singleTapCountRef.current = 0; // Reset single tap counter
+    hasShownHintRef.current = true; // User has discovered DJ mode
+    setTimeout(() => setShowDJWakeMessage(false), 1500);
+  }, []);
+
+  // Show tutorial hint after 3 single taps
+  const showTutorialHint = useCallback(() => {
+    if (hasShownHintRef.current) return; // Already discovered DJ mode
+    setDjWakeMessageText("Don't forget, double tap to wake DJ ✌🏾");
+    setShowDJWakeMessage(true);
+    setTimeout(() => setShowDJWakeMessage(false), 2000);
+  }, []);
+
+  // Handle tap/hold/double-tap
+  const handleCanvasPointerDown = useCallback(() => {
+    didHoldRef.current = false;
+    // Start hold timer (400ms to trigger DJ mode)
+    holdTimerRef.current = setTimeout(() => {
+      didHoldRef.current = true;
+      setIsControlsRevealed(true);
+      setIsReactionsRevealed(true);
+      showDJWakeToast();
+      haptics.medium();
+    }, 400);
+  }, [showDJWakeToast]);
+
+  const handleCanvasPointerUp = useCallback(() => {
+    // Cancel hold timer
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  }, []);
+
+  const handleCanvasTap = useCallback(() => {
+    // Skip if this was a hold
+    if (didHoldRef.current) {
+      didHoldRef.current = false;
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      // Double tap → Straight to Wazzguan chat!
+      setIsControlsRevealed(true);
+      setIsReactionsRevealed(true);
+      setActivateChatTrigger(prev => prev + 1); // Trigger chat activation
+      haptics.medium();
+    } else {
+      // Single tap → Toggle quick controls only
+      if (!isReactionsRevealed) {
+        const wasHidden = !isControlsRevealed;
+        setIsControlsRevealed(prev => !prev);
+        if (wasHidden) {
+          haptics.light();
+          // In 'disappear' mode: show Peace toast on reveal (tutorial moment)
+          if (oyeBarBehavior === 'disappear') {
+            showDJWakeToast();
+          }
+        }
+
+        // Track single taps for tutorial hint
+        singleTapCountRef.current++;
+        if (singleTapCountRef.current === 3 && !hasShownHintRef.current) {
+          showTutorialHint();
+        }
+      }
+    }
+    lastTapRef.current = now;
+  }, [isControlsRevealed, isReactionsRevealed, showTutorialHint, oyeBarBehavior, showDJWakeToast]);
+
+  // AUTO-HIDE for 'disappear' mode - hide controls after 4 seconds
+  const controlsHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    // Only auto-hide in 'disappear' mode when controls are revealed (not in DJ mode)
+    if (oyeBarBehavior === 'disappear' && isControlsRevealed && !isReactionsRevealed) {
+      controlsHideTimerRef.current = setTimeout(() => {
+        setIsControlsRevealed(false);
+      }, 4000); // Hide after 4 seconds
+    }
+    return () => {
+      if (controlsHideTimerRef.current) clearTimeout(controlsHideTimerRef.current);
+    };
+  }, [isControlsRevealed, isReactionsRevealed, oyeBarBehavior]);
 
   // PORTAL SCROLL CONTROLS - tap red/blue portal to scroll outward (reverse direction)
   const [hotScrollTrigger, setHotScrollTrigger] = useState(0);
@@ -2283,22 +2511,107 @@ export const VoyoPortraitPlayer = ({
       </div>
 
       {/* --- CENTER SECTION (Hero + Engine) --- */}
-      <div className="flex-1 flex flex-col items-center relative z-10 -mt-2">
+      {/* TAP: Quick controls | HOLD/DOUBLE TAP: Full DJ Mode */}
+      <div
+        className="flex-1 flex flex-col items-center relative z-10 -mt-2"
+        onPointerDown={handleCanvasPointerDown}
+        onPointerUp={handleCanvasPointerUp}
+        onPointerLeave={handleCanvasPointerUp}
+        onClick={handleCanvasTap}
+      >
 
-        {/* RIGHT-SIDE TOOLBAR */}
+        {/* RIGHT-SIDE TOOLBAR - Always visible */}
         <RightToolbar onSettingsClick={() => setIsBoostSettingsOpen(true)} />
 
         {/* 1. Main Artwork with Expand Video Button */}
-        {currentTrack ? (
-          <BigCenterCard
-            track={currentTrack}
-            onExpandVideo={() => setIsFullscreenVideo(true)}
-          />
-        ) : (
-          <div className="w-48 h-48 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center">
-            <Play size={32} className="text-white/20" />
-          </div>
-        )}
+        <div className="relative">
+          {currentTrack ? (
+            <BigCenterCard
+              track={currentTrack}
+              onExpandVideo={() => setIsFullscreenVideo(true)}
+            />
+          ) : (
+            <div className="w-48 h-48 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center">
+              <Play size={32} className="text-white/20" />
+            </div>
+          )}
+
+          {/* LEFT QUICK CONTROLS - ")" arc: center reaches IN toward card */}
+          <AnimatePresence>
+            {isControlsRevealed && (
+              <motion.div
+                className="absolute top-1/2 -translate-y-1/2 -left-14 flex flex-col gap-4"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ type: 'spring', damping: 20 }}
+              >
+                {/* Shuffle - Top of ")", slightly OUT */}
+                <motion.button
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors -translate-x-[2px] ${
+                    isShuffleOn
+                      ? 'bg-fuchsia-500/30 border border-fuchsia-500/50 text-fuchsia-400'
+                      : 'bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-300/70 hover:bg-fuchsia-500/30'
+                  }`}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsShuffleOn(prev => !prev);
+                    haptics.light();
+                  }}
+                  title={isShuffleOn ? 'Shuffle On' : 'Shuffle Off'}
+                >
+                  <Shuffle size={16} />
+                </motion.button>
+
+                {/* Repeat - Middle of ")", reaches IN closest to card */}
+                <motion.button
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors translate-x-[6px] ${
+                    repeatMode === 'one'
+                      ? 'bg-orange-500/30 border border-orange-500/50 text-orange-400'
+                      : repeatMode === 'all'
+                      ? 'bg-fuchsia-500/30 border border-fuchsia-500/50 text-fuchsia-400'
+                      : 'bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-300/70 hover:bg-fuchsia-500/30'
+                  }`}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRepeatMode(prev => {
+                      if (prev === 'off') return 'one';
+                      if (prev === 'one') return 'all';
+                      return 'off';
+                    });
+                    haptics.light();
+                  }}
+                  title={repeatMode === 'one' ? 'Repeat One' : repeatMode === 'all' ? 'Repeat All' : 'Repeat Off'}
+                >
+                  {repeatMode === 'one' ? <Repeat1 size={16} /> : <Repeat size={16} />}
+                </motion.button>
+
+                {/* Share - Bottom of ")", slightly OUT */}
+                <motion.button
+                  className="w-9 h-9 rounded-full bg-fuchsia-500/20 border border-fuchsia-500/30 flex items-center justify-center text-fuchsia-300/70 hover:bg-fuchsia-500/30 transition-colors -translate-x-[2px]"
+                  whileTap={{ scale: 0.9 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (currentTrack && navigator.share) {
+                      navigator.share({
+                        title: currentTrack.title,
+                        text: `Listen to ${currentTrack.title} by ${currentTrack.artist} on VOYO`,
+                        url: window.location.href,
+                      }).catch(() => {});
+                    }
+                    haptics.light();
+                  }}
+                  title="Share"
+                >
+                  <Share2 size={16} />
+                </motion.button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+        </div>
 
         {/* FLOATING REACTIONS OVERLAY */}
         <div className="absolute inset-0 pointer-events-none">
@@ -2385,10 +2698,40 @@ export const VoyoPortraitPlayer = ({
           skeepLevel={skeepLevel}
         />
 
-        {/* 3. REACTIONS - Ghosted Row with OYÉ Gateway */}
-        <div className="mt-6">
-          <ReactionBar onReaction={handleReaction} />
+        {/* 3. OYÉ REACTIONS - ALWAYS visible (ghosted in fade mode), lights up on tap */}
+        <div className="mt-6 min-h-[60px] flex items-center justify-center">
+          <ReactionBar
+            onReaction={handleReaction}
+            isRevealed={isControlsRevealed || isReactionsRevealed}
+            onRevealChange={setIsReactionsRevealed}
+            oyeBarBehavior={oyeBarBehavior}
+            activateChatTrigger={activateChatTrigger}
+          />
         </div>
+
+        {/* DJ Wake Toast - "Now Peace ✌🏾" */}
+        <AnimatePresence>
+          {showDJWakeMessage && (
+            <motion.div
+              className="fixed inset-0 flex items-center justify-center pointer-events-none z-50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                className="px-6 py-3 rounded-full bg-black/60 backdrop-blur-xl border border-white/10"
+                initial={{ scale: 0.8, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: -10, opacity: 0 }}
+                transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+              >
+                <span className="text-white text-lg font-medium tracking-wide">
+                  {djWakeMessageText}
+                </span>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </div>
 

@@ -11,7 +11,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, User, Home, Radio, Sparkles, X, Settings, Volume2, Zap } from 'lucide-react';
+import { Search, User, Home, Radio, Sparkles, X, Zap } from 'lucide-react';
 import { PortraitVOYO } from './components/voyo/PortraitVOYO';
 import { LandscapeVOYO } from './components/voyo/LandscapeVOYO';
 import { VideoMode } from './components/voyo/VideoMode';
