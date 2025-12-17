@@ -4,21 +4,30 @@
  * The CORE of voyomusic.com/username architecture
  *
  * Philosophy:
- * - Your browser IS your server
- * - localStorage IS your database
- * - Your URL IS your portal
+ * - URL IS your identity (voyomusic.com/username)
+ * - PIN IS your key (no email, no OAuth)
+ * - Supabase IS the smart KV (username → universe)
+ * - localStorage IS offline cache
+ * - Downloads stay LOCAL
  *
  * This store manages:
- * - Universe export/import (backup/restore)
- * - Passphrase-based encrypted backup
- * - P2P portal sharing (WebRTC)
- * - Universe sync between devices
+ * - Authentication (PIN-based)
+ * - Universe sync (Supabase ↔ localStorage)
+ * - Portal real-time (Supabase Realtime)
+ * - Backup/restore
  */
 
 import { create } from 'zustand';
 import { usePreferenceStore } from './preferenceStore';
-import { useAccountStore } from './accountStore';
 import { usePlayerStore } from './playerStore';
+import {
+  universeAPI,
+  isSupabaseConfigured,
+  UniverseRow,
+  UniverseState,
+  PublicProfile,
+  NowPlaying,
+} from '../lib/supabase';
 
 // ============================================
 // TYPES
@@ -28,31 +37,12 @@ export interface UniverseData {
   version: string;
   exportedAt: string;
   username: string;
-
-  // Account data
-  account: {
-    id: string;
-    username: string;
-    displayName: string;
-    bio?: string;
-    avatarUrl?: string;
-    subscription: string;
-    friendIds: string[];
-    totalListeningHours: number;
-    totalOyeGiven: number;
-    totalOyeReceived: number;
-    createdAt: string;
-  } | null;
-
-  // Music preferences (this is the gold - user's taste DNA)
   preferences: {
     trackPreferences: Record<string, any>;
     artistPreferences: Record<string, any>;
     tagPreferences: Record<string, any>;
     moodPreferences: Record<string, any>;
   };
-
-  // Player state
   player: {
     currentTrackId?: string;
     currentTime?: number;
@@ -61,24 +51,9 @@ export interface UniverseData {
     shuffleMode: boolean;
     repeatMode: string;
   };
-
-  // Boosted tracks (HD cache metadata - actual files stay in browser cache)
-  boostedTracks: string[]; // trackIds that have been boosted
-
-  // Custom playlists
-  playlists: {
-    id: string;
-    name: string;
-    trackIds: string[];
-    createdAt: string;
-  }[];
-
-  // Listen history (last 100)
-  history: {
-    trackId: string;
-    playedAt: string;
-    duration: number;
-  }[];
+  boostedTracks: string[];
+  playlists: { id: string; name: string; trackIds: string[]; createdAt: string }[];
+  history: { trackId: string; playedAt: string; duration: number }[];
 }
 
 export interface PortalSession {
@@ -90,180 +65,149 @@ export interface PortalSession {
   startedAt: string;
 }
 
+// Viewing someone else's universe
+export interface ViewingUniverse {
+  username: string;
+  profile: PublicProfile;
+  nowPlaying: NowPlaying | null;
+  portalOpen: boolean;
+}
+
 interface UniverseStore {
-  // State
+  // Auth State
+  isLoggedIn: boolean;
+  currentUsername: string | null;
+  isLoading: boolean;
+  error: string | null;
+
+  // Viewing State (when visiting /username)
+  viewingUniverse: ViewingUniverse | null;
+  isViewingOther: boolean;
+
+  // Portal State
+  portalSession: PortalSession | null;
+  isPortalOpen: boolean;
+  portalSubscription: any | null;
+
+  // Backup State
   isExporting: boolean;
   isImporting: boolean;
   lastBackupAt: string | null;
 
-  // Portal (P2P sharing)
-  portalSession: PortalSession | null;
-  isPortalOpen: boolean;
+  // Auth Actions
+  signup: (username: string, pin: string, displayName?: string) => Promise<boolean>;
+  login: (username: string, pin: string) => Promise<boolean>;
+  logout: () => void;
+  checkUsername: (username: string) => Promise<boolean>;
 
-  // Actions - Export/Import
-  exportUniverse: () => UniverseData;
-  importUniverse: (data: UniverseData) => Promise<boolean>;
-  exportToJSON: () => string;
-  downloadBackup: () => void;
+  // View Actions (for visitors)
+  viewUniverse: (username: string) => Promise<boolean>;
+  leaveUniverse: () => void;
 
-  // Actions - Passphrase Backup (Web3 style)
-  generatePassphrase: () => string;
-  encryptUniverse: (passphrase: string) => Promise<string>;
-  decryptUniverse: (encrypted: string, passphrase: string) => Promise<UniverseData | null>;
-  saveToCloud: (passphrase: string) => Promise<boolean>;
-  restoreFromCloud: (passphrase: string) => Promise<boolean>;
+  // Sync Actions
+  syncToCloud: () => Promise<boolean>;
+  syncFromCloud: () => Promise<boolean>;
+  updateNowPlaying: () => Promise<void>;
 
-  // Actions - Portal (P2P)
-  openPortal: () => Promise<string>; // Returns portal URL
-  closePortal: () => void;
-  joinPortal: (portalUrl: string) => Promise<boolean>;
+  // Portal Actions
+  openPortal: () => Promise<string>;
+  closePortal: () => Promise<void>;
+  joinPortal: (username: string) => Promise<boolean>;
   leavePortal: () => void;
 
-  // Sync
-  syncToPortal: () => void;
+  // Backup Actions
+  exportUniverse: () => UniverseData;
+  importUniverse: (data: UniverseData) => Promise<boolean>;
+  downloadBackup: () => void;
+  generatePassphrase: () => string;
+  saveToCloud: (passphrase: string) => Promise<boolean>;
+  restoreFromCloud: (passphrase: string) => Promise<boolean>;
 }
 
 // ============================================
-// WORD LIST FOR PASSPHRASE GENERATION
-// (African-inspired words for VOYO flavor)
+// LOCAL STORAGE KEYS
+// ============================================
+const STORAGE_KEYS = {
+  username: 'voyo-username',
+  session: 'voyo-session',
+  lastBackup: 'voyo-last-backup',
+};
+
+// ============================================
+// PASSPHRASE WORDS (African-inspired)
 // ============================================
 const PASSPHRASE_WORDS = [
-  // Nature
   'mango', 'baobab', 'savanna', 'sunset', 'ocean', 'river', 'mountain', 'desert',
   'jungle', 'forest', 'sunrise', 'thunder', 'rain', 'wind', 'fire', 'earth',
-  // Music
   'rhythm', 'melody', 'drum', 'bass', 'guitar', 'voice', 'harmony', 'beat',
   'groove', 'vibe', 'soul', 'spirit', 'dance', 'flow', 'wave', 'pulse',
-  // African
   'africa', 'guinea', 'lagos', 'accra', 'dakar', 'nairobi', 'abuja', 'conakry',
   'freetown', 'bamako', 'kinshasa', 'addis', 'cairo', 'tunis', 'algiers', 'rabat',
-  // Culture
   'kente', 'dashiki', 'ankara', 'gele', 'beads', 'gold', 'bronze', 'ivory',
   'jollof', 'fufu', 'suya', 'palm', 'coconut', 'pepper', 'spice', 'honey',
-  // Vibes
   'peace', 'love', 'unity', 'power', 'wisdom', 'truth', 'light', 'hope',
   'dream', 'magic', 'star', 'moon', 'sun', 'sky', 'cloud', 'rainbow'
 ];
 
-// ============================================
-// HELPERS
-// ============================================
-
-function generateRandomWord(): string {
-  return PASSPHRASE_WORDS[Math.floor(Math.random() * PASSPHRASE_WORDS.length)];
-}
-
 function generatePassphrase(): string {
-  // Generate 4-word passphrase + year (easy to remember)
-  const words = [
-    generateRandomWord(),
-    generateRandomWord(),
-    generateRandomWord(),
-    generateRandomWord()
-  ];
-  const year = new Date().getFullYear();
-  return `${words.join(' ')} ${year}`;
+  const words = Array.from({ length: 4 }, () =>
+    PASSPHRASE_WORDS[Math.floor(Math.random() * PASSPHRASE_WORDS.length)]
+  );
+  return `${words.join(' ')} ${new Date().getFullYear()}`;
 }
 
-// Simple encryption using Web Crypto API
+// Simple encryption
 async function encryptData(data: string, passphrase: string): Promise<string> {
   const encoder = new TextEncoder();
-  const dataBuffer = encoder.encode(data);
-
-  // Derive key from passphrase
   const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(passphrase),
-    'PBKDF2',
-    false,
-    ['deriveKey']
+    'raw', encoder.encode(passphrase), 'PBKDF2', false, ['deriveKey']
   );
-
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt,
-      iterations: 100000,
-      hash: 'SHA-256'
-    },
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
     false,
     ['encrypt']
   );
-
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    dataBuffer
-  );
-
-  // Combine salt + iv + encrypted data
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoder.encode(data));
   const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
   combined.set(salt, 0);
   combined.set(iv, salt.length);
   combined.set(new Uint8Array(encrypted), salt.length + iv.length);
-
-  // Return as base64
   return btoa(String.fromCharCode(...combined));
 }
 
 async function decryptData(encrypted: string, passphrase: string): Promise<string | null> {
   try {
     const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
-
-    // Decode from base64
     const combined = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0));
-
-    // Extract salt, iv, and data
     const salt = combined.slice(0, 16);
     const iv = combined.slice(16, 28);
     const data = combined.slice(28);
-
-    // Derive key
     const keyMaterial = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(passphrase),
-      'PBKDF2',
-      false,
-      ['deriveKey']
+      'raw', encoder.encode(passphrase), 'PBKDF2', false, ['deriveKey']
     );
-
     const key = await crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt,
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
+      { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
       keyMaterial,
       { name: 'AES-GCM', length: 256 },
       false,
       ['decrypt']
     );
-
-    const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      data
-    );
-
-    return decoder.decode(decrypted);
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+    return new TextDecoder().decode(decrypted);
   } catch {
     return null;
   }
 }
 
-// Get boosted track IDs from download store
 function getBoostedTrackIds(): string[] {
   try {
-    const downloadStore = localStorage.getItem('voyo-downloads');
-    if (!downloadStore) return [];
-    const parsed = JSON.parse(downloadStore);
-    return Object.keys(parsed.state?.downloads || {});
+    const store = localStorage.getItem('voyo-downloads');
+    if (!store) return [];
+    return Object.keys(JSON.parse(store).state?.downloads || {});
   } catch {
     return [];
   }
@@ -274,347 +218,471 @@ function getBoostedTrackIds(): string[] {
 // ============================================
 
 export const useUniverseStore = create<UniverseStore>((set, get) => ({
-  // Initial state
-  isExporting: false,
-  isImporting: false,
-  lastBackupAt: localStorage.getItem('voyo-last-backup'),
+  // Initial State - check localStorage for existing session
+  isLoggedIn: Boolean(localStorage.getItem(STORAGE_KEYS.username)),
+  currentUsername: localStorage.getItem(STORAGE_KEYS.username),
+  isLoading: false,
+  error: null,
+
+  viewingUniverse: null,
+  isViewingOther: false,
+
   portalSession: null,
   isPortalOpen: false,
+  portalSubscription: null,
+
+  isExporting: false,
+  isImporting: false,
+  lastBackupAt: localStorage.getItem(STORAGE_KEYS.lastBackup),
 
   // ========================================
-  // EXPORT UNIVERSE
-  // Collect all user data into one object
+  // AUTH: SIGNUP
   // ========================================
-  exportUniverse: (): UniverseData => {
-    const account = useAccountStore.getState().currentAccount;
+  signup: async (username: string, pin: string, displayName?: string) => {
+    set({ isLoading: true, error: null });
+
+    if (!isSupabaseConfigured) {
+      // Offline mode - just store locally
+      const normalized = username.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      localStorage.setItem(STORAGE_KEYS.username, normalized);
+      set({ isLoggedIn: true, currentUsername: normalized, isLoading: false });
+      return true;
+    }
+
+    const result = await universeAPI.create(username, pin, displayName);
+
+    if (result.success) {
+      const normalized = username.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      localStorage.setItem(STORAGE_KEYS.username, normalized);
+      set({ isLoggedIn: true, currentUsername: normalized, isLoading: false });
+      return true;
+    } else {
+      set({ error: result.error || 'Signup failed', isLoading: false });
+      return false;
+    }
+  },
+
+  // ========================================
+  // AUTH: LOGIN
+  // ========================================
+  login: async (username: string, pin: string) => {
+    set({ isLoading: true, error: null });
+
+    if (!isSupabaseConfigured) {
+      // Offline mode
+      const normalized = username.toLowerCase();
+      localStorage.setItem(STORAGE_KEYS.username, normalized);
+      set({ isLoggedIn: true, currentUsername: normalized, isLoading: false });
+      return true;
+    }
+
+    const result = await universeAPI.login(username, pin);
+
+    if (result.success && result.universe) {
+      localStorage.setItem(STORAGE_KEYS.username, result.universe.username);
+
+      // Sync state from cloud to local
+      // TODO: Merge with local state intelligently
+      set({
+        isLoggedIn: true,
+        currentUsername: result.universe.username,
+        isLoading: false,
+      });
+      return true;
+    } else {
+      set({ error: result.error || 'Login failed', isLoading: false });
+      return false;
+    }
+  },
+
+  // ========================================
+  // AUTH: LOGOUT
+  // ========================================
+  logout: () => {
+    localStorage.removeItem(STORAGE_KEYS.username);
+    localStorage.removeItem(STORAGE_KEYS.session);
+    set({
+      isLoggedIn: false,
+      currentUsername: null,
+      portalSession: null,
+      isPortalOpen: false,
+    });
+  },
+
+  // ========================================
+  // AUTH: CHECK USERNAME
+  // ========================================
+  checkUsername: async (username: string) => {
+    if (!isSupabaseConfigured) return true;
+    return universeAPI.checkUsername(username);
+  },
+
+  // ========================================
+  // VIEW: Visit someone's universe
+  // ========================================
+  viewUniverse: async (username: string) => {
+    set({ isLoading: true });
+
+    const { currentUsername } = get();
+
+    // If viewing own universe, just return
+    if (username.toLowerCase() === currentUsername?.toLowerCase()) {
+      set({ isLoading: false, isViewingOther: false, viewingUniverse: null });
+      return true;
+    }
+
+    if (!isSupabaseConfigured) {
+      set({ isLoading: false, error: 'Cannot view universes offline' });
+      return false;
+    }
+
+    const result = await universeAPI.getPublicProfile(username);
+
+    if (result.profile) {
+      set({
+        viewingUniverse: {
+          username: username.toLowerCase(),
+          profile: result.profile,
+          nowPlaying: result.nowPlaying,
+          portalOpen: result.portalOpen,
+        },
+        isViewingOther: true,
+        isLoading: false,
+      });
+
+      // If portal is open, subscribe to real-time updates
+      if (result.portalOpen) {
+        const subscription = universeAPI.subscribeToUniverse(username, (payload) => {
+          const updated = payload.new;
+          set((state) => ({
+            viewingUniverse: state.viewingUniverse
+              ? {
+                  ...state.viewingUniverse,
+                  nowPlaying: updated.now_playing,
+                  portalOpen: updated.portal_open,
+                }
+              : null,
+          }));
+        });
+        set({ portalSubscription: subscription });
+      }
+
+      return true;
+    } else {
+      set({ isLoading: false, error: 'Universe not found' });
+      return false;
+    }
+  },
+
+  // ========================================
+  // VIEW: Leave someone's universe
+  // ========================================
+  leaveUniverse: () => {
+    const { portalSubscription } = get();
+    if (portalSubscription) {
+      universeAPI.unsubscribe(portalSubscription);
+    }
+    set({
+      viewingUniverse: null,
+      isViewingOther: false,
+      portalSubscription: null,
+    });
+  },
+
+  // ========================================
+  // SYNC: Push local state to cloud
+  // ========================================
+  syncToCloud: async () => {
+    const { currentUsername, isLoggedIn } = get();
+    if (!isLoggedIn || !currentUsername || !isSupabaseConfigured) return false;
+
     const preferences = usePreferenceStore.getState();
     const player = usePlayerStore.getState();
 
-    // Get history from player store
-    const history = player.history.slice(-100).map(h => ({
-      trackId: h.track.trackId || h.track.id,
-      playedAt: h.playedAt,
-      duration: h.duration
-    }));
+    const state: Partial<UniverseState> = {
+      likes: Object.keys(preferences.trackPreferences).filter(
+        (id) => preferences.trackPreferences[id]?.explicitLike === true
+      ),
+      preferences: {
+        boostProfile: player.boostProfile,
+        shuffleMode: player.shuffleMode,
+        repeatMode: player.repeatMode,
+      },
+      stats: {
+        totalListens: Object.values(preferences.trackPreferences).reduce(
+          (sum, p) => sum + (p.totalListens || 0),
+          0
+        ),
+        totalMinutes: Math.round(
+          Object.values(preferences.trackPreferences).reduce(
+            (sum, p) => sum + (p.totalDuration || 0),
+            0
+          ) / 60
+        ),
+        totalOyes: Object.values(preferences.trackPreferences).reduce(
+          (sum, p) => sum + (p.reactions || 0),
+          0
+        ),
+      },
+    };
 
-    const universe: UniverseData = {
-      version: '1.0.0',
+    return universeAPI.updateState(currentUsername, state);
+  },
+
+  // ========================================
+  // SYNC: Pull cloud state to local
+  // ========================================
+  syncFromCloud: async () => {
+    // TODO: Implement cloud → local sync
+    return true;
+  },
+
+  // ========================================
+  // SYNC: Update now playing for portal
+  // ========================================
+  updateNowPlaying: async () => {
+    const { currentUsername, isPortalOpen } = get();
+    if (!currentUsername || !isPortalOpen || !isSupabaseConfigured) return;
+
+    const player = usePlayerStore.getState();
+    if (!player.currentTrack) {
+      await universeAPI.updateNowPlaying(currentUsername, null);
+      return;
+    }
+
+    const nowPlaying: NowPlaying = {
+      trackId: player.currentTrack.trackId || player.currentTrack.id,
+      title: player.currentTrack.title,
+      artist: player.currentTrack.artist,
+      thumbnail: player.currentTrack.coverUrl,
+      currentTime: player.currentTime,
+      duration: player.duration,
+      isPlaying: player.isPlaying,
+    };
+
+    await universeAPI.updateNowPlaying(currentUsername, nowPlaying);
+  },
+
+  // ========================================
+  // PORTAL: Open your portal
+  // ========================================
+  openPortal: async () => {
+    const { currentUsername } = get();
+    if (!currentUsername) return '';
+
+    if (isSupabaseConfigured) {
+      await universeAPI.setPortalOpen(currentUsername, true);
+      await get().updateNowPlaying();
+    }
+
+    const portalUrl = `${window.location.origin}/${currentUsername}`;
+
+    set({
+      isPortalOpen: true,
+      portalSession: {
+        id: `portal-${currentUsername}-${Date.now()}`,
+        hostUsername: currentUsername,
+        isHost: true,
+        connectedPeers: [],
+        isLive: true,
+        startedAt: new Date().toISOString(),
+      },
+    });
+
+    return portalUrl;
+  },
+
+  // ========================================
+  // PORTAL: Close your portal
+  // ========================================
+  closePortal: async () => {
+    const { currentUsername } = get();
+
+    if (currentUsername && isSupabaseConfigured) {
+      await universeAPI.setPortalOpen(currentUsername, false);
+      await universeAPI.updateNowPlaying(currentUsername, null);
+    }
+
+    set({
+      isPortalOpen: false,
+      portalSession: null,
+    });
+  },
+
+  // ========================================
+  // PORTAL: Join someone's portal
+  // ========================================
+  joinPortal: async (username: string) => {
+    const result = await get().viewUniverse(username);
+    return result;
+  },
+
+  // ========================================
+  // PORTAL: Leave portal
+  // ========================================
+  leavePortal: () => {
+    get().leaveUniverse();
+  },
+
+  // ========================================
+  // BACKUP: Export universe
+  // ========================================
+  exportUniverse: () => {
+    const preferences = usePreferenceStore.getState();
+    const player = usePlayerStore.getState();
+    const { currentUsername } = get();
+
+    return {
+      version: '2.0.0',
       exportedAt: new Date().toISOString(),
-      username: account?.username || 'anonymous',
-
-      account: account ? {
-        id: account.id,
-        username: account.username,
-        displayName: account.displayName,
-        bio: account.bio,
-        avatarUrl: account.avatarUrl,
-        subscription: account.subscription,
-        friendIds: account.friendIds,
-        totalListeningHours: account.totalListeningHours,
-        totalOyeGiven: account.totalOyeGiven,
-        totalOyeReceived: account.totalOyeReceived,
-        createdAt: account.createdAt
-      } : null,
-
+      username: currentUsername || 'anonymous',
       preferences: {
         trackPreferences: preferences.trackPreferences,
         artistPreferences: preferences.artistPreferences,
         tagPreferences: preferences.tagPreferences,
-        moodPreferences: preferences.moodPreferences
+        moodPreferences: preferences.moodPreferences,
       },
-
       player: {
-        currentTrackId: player.currentTrack?.trackId || player.currentTrack?.id,
+        currentTrackId: player.currentTrack?.trackId,
         currentTime: player.currentTime,
         volume: player.volume,
         boostProfile: player.boostProfile,
         shuffleMode: player.shuffleMode,
-        repeatMode: player.repeatMode
+        repeatMode: player.repeatMode,
       },
-
       boostedTracks: getBoostedTrackIds(),
-
-      playlists: [], // TODO: Add playlist store
-
-      history
+      playlists: [],
+      history: player.history.slice(-100).map((h) => ({
+        trackId: h.track.trackId || h.track.id,
+        playedAt: h.playedAt,
+        duration: h.duration,
+      })),
     };
-
-    return universe;
   },
 
   // ========================================
-  // IMPORT UNIVERSE
-  // Restore user data from backup
+  // BACKUP: Import universe
   // ========================================
-  importUniverse: async (data: UniverseData): Promise<boolean> => {
+  importUniverse: async (data: UniverseData) => {
     set({ isImporting: true });
 
     try {
-      // Validate version
-      if (!data.version || !data.exportedAt) {
-        throw new Error('Invalid universe data');
-      }
+      localStorage.setItem(
+        'voyo-preferences',
+        JSON.stringify({
+          state: {
+            trackPreferences: data.preferences.trackPreferences,
+            artistPreferences: data.preferences.artistPreferences,
+            tagPreferences: data.preferences.tagPreferences,
+            moodPreferences: data.preferences.moodPreferences,
+            currentSession: null,
+          },
+          version: 1,
+        })
+      );
 
-      // Restore preferences
-      const prefStore = usePreferenceStore.getState();
-      // Use zustand's internal setState if available, or manually set localStorage
-      localStorage.setItem('voyo-preferences', JSON.stringify({
-        state: {
-          trackPreferences: data.preferences.trackPreferences,
-          artistPreferences: data.preferences.artistPreferences,
-          tagPreferences: data.preferences.tagPreferences,
-          moodPreferences: data.preferences.moodPreferences,
-          currentSession: null
-        },
-        version: 1
-      }));
-
-      // Restore player state
-      localStorage.setItem('voyo-player-state', JSON.stringify({
-        currentTrackId: data.player.currentTrackId,
-        currentTime: data.player.currentTime
-      }));
+      localStorage.setItem(
+        'voyo-player-state',
+        JSON.stringify({
+          currentTrackId: data.player.currentTrackId,
+          currentTime: data.player.currentTime,
+        })
+      );
       localStorage.setItem('voyo-volume', String(data.player.volume));
 
-      // Restore account (if present)
-      if (data.account) {
-        localStorage.setItem('voyo-account', JSON.stringify({
-          account: {
-            ...data.account,
-            whatsapp: '', // Don't restore sensitive data
-            pin: '',
-            stories: [],
-            lastSeenAt: new Date().toISOString()
-          }
-        }));
-      }
-
       set({ isImporting: false });
-
-      // Reload to apply changes
       window.location.reload();
-
       return true;
     } catch (error) {
-      console.error('[VOYO Universe] Import failed:', error);
+      console.error('[VOYO] Import failed:', error);
       set({ isImporting: false });
       return false;
     }
   },
 
   // ========================================
-  // EXPORT TO JSON STRING
-  // ========================================
-  exportToJSON: (): string => {
-    const universe = get().exportUniverse();
-    return JSON.stringify(universe, null, 2);
-  },
-
-  // ========================================
-  // DOWNLOAD BACKUP FILE
+  // BACKUP: Download as file
   // ========================================
   downloadBackup: () => {
     set({ isExporting: true });
 
     const universe = get().exportUniverse();
-    const json = JSON.stringify(universe, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(universe, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-
     const a = document.createElement('a');
     a.href = url;
-    a.download = `voyo-universe-${universe.username}-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `voyo-${universe.username}-${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    // Update last backup time
     const now = new Date().toISOString();
-    localStorage.setItem('voyo-last-backup', now);
+    localStorage.setItem(STORAGE_KEYS.lastBackup, now);
     set({ isExporting: false, lastBackupAt: now });
   },
 
   // ========================================
-  // PASSPHRASE BACKUP SYSTEM
+  // BACKUP: Generate passphrase
   // ========================================
-  generatePassphrase: () => {
-    return generatePassphrase();
-  },
+  generatePassphrase,
 
-  encryptUniverse: async (passphrase: string): Promise<string> => {
-    const universe = get().exportUniverse();
-    const json = JSON.stringify(universe);
-    return encryptData(json, passphrase);
-  },
-
-  decryptUniverse: async (encrypted: string, passphrase: string): Promise<UniverseData | null> => {
-    const decrypted = await decryptData(encrypted, passphrase);
-    if (!decrypted) return null;
-
+  // ========================================
+  // BACKUP: Save encrypted to cloud
+  // ========================================
+  saveToCloud: async (passphrase: string) => {
     try {
-      return JSON.parse(decrypted) as UniverseData;
-    } catch {
-      return null;
-    }
-  },
+      const universe = get().exportUniverse();
+      const encrypted = await encryptData(JSON.stringify(universe), passphrase);
+      const hash = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(passphrase)
+      );
+      const hashHex = Array.from(new Uint8Array(hash))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+        .slice(0, 16);
 
-  // Save encrypted universe to edge storage (Cloudflare KV in production)
-  saveToCloud: async (passphrase: string): Promise<boolean> => {
-    try {
-      const encrypted = await get().encryptUniverse(passphrase);
-
-      // Create a hash of the passphrase for the storage key
-      const encoder = new TextEncoder();
-      const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(passphrase));
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-      // In production: POST to Cloudflare KV via API
-      // For now: Store in localStorage as proof of concept
-      localStorage.setItem(`voyo-cloud-backup-${hashHex.slice(0, 16)}`, encrypted);
-
-      console.log('[VOYO Universe] Saved to cloud with key:', hashHex.slice(0, 16));
+      localStorage.setItem(`voyo-backup-${hashHex}`, encrypted);
 
       const now = new Date().toISOString();
-      localStorage.setItem('voyo-last-backup', now);
+      localStorage.setItem(STORAGE_KEYS.lastBackup, now);
       set({ lastBackupAt: now });
 
       return true;
     } catch (error) {
-      console.error('[VOYO Universe] Cloud save failed:', error);
+      console.error('[VOYO] Backup failed:', error);
       return false;
     }
   },
 
-  restoreFromCloud: async (passphrase: string): Promise<boolean> => {
+  // ========================================
+  // BACKUP: Restore from passphrase
+  // ========================================
+  restoreFromCloud: async (passphrase: string) => {
     try {
-      // Create hash for lookup
-      const encoder = new TextEncoder();
-      const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(passphrase));
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      const hash = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(passphrase)
+      );
+      const hashHex = Array.from(new Uint8Array(hash))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+        .slice(0, 16);
 
-      // In production: GET from Cloudflare KV via API
-      const encrypted = localStorage.getItem(`voyo-cloud-backup-${hashHex.slice(0, 16)}`);
+      const encrypted = localStorage.getItem(`voyo-backup-${hashHex}`);
+      if (!encrypted) return false;
 
-      if (!encrypted) {
-        console.error('[VOYO Universe] No backup found for this passphrase');
-        return false;
-      }
+      const decrypted = await decryptData(encrypted, passphrase);
+      if (!decrypted) return false;
 
-      const universe = await get().decryptUniverse(encrypted, passphrase);
-      if (!universe) {
-        console.error('[VOYO Universe] Decryption failed');
-        return false;
-      }
-
+      const universe = JSON.parse(decrypted) as UniverseData;
       return get().importUniverse(universe);
     } catch (error) {
-      console.error('[VOYO Universe] Cloud restore failed:', error);
+      console.error('[VOYO] Restore failed:', error);
       return false;
     }
   },
-
-  // ========================================
-  // P2P PORTAL SYSTEM (WebRTC)
-  // ========================================
-  openPortal: async (): Promise<string> => {
-    const account = useAccountStore.getState().currentAccount;
-    const username = account?.username || 'anonymous';
-
-    // Generate portal session
-    const sessionId = `portal-${username}-${Date.now()}`;
-
-    set({
-      portalSession: {
-        id: sessionId,
-        hostUsername: username,
-        isHost: true,
-        connectedPeers: [],
-        isLive: true,
-        startedAt: new Date().toISOString()
-      },
-      isPortalOpen: true
-    });
-
-    // In production: This would set up WebRTC signaling
-    // For now: Return the portal URL
-    const portalUrl = `${window.location.origin}/${username}?session=${sessionId}`;
-
-    console.log('[VOYO Portal] Opened:', portalUrl);
-
-    return portalUrl;
-  },
-
-  closePortal: () => {
-    // In production: Close WebRTC connections
-    set({
-      portalSession: null,
-      isPortalOpen: false
-    });
-    console.log('[VOYO Portal] Closed');
-  },
-
-  joinPortal: async (portalUrl: string): Promise<boolean> => {
-    try {
-      // Parse portal URL
-      const url = new URL(portalUrl);
-      const username = url.pathname.slice(1);
-      const sessionId = url.searchParams.get('session');
-
-      if (!sessionId) {
-        console.error('[VOYO Portal] Invalid portal URL');
-        return false;
-      }
-
-      // In production: Connect via WebRTC
-      set({
-        portalSession: {
-          id: sessionId,
-          hostUsername: username,
-          isHost: false,
-          connectedPeers: [],
-          isLive: true,
-          startedAt: new Date().toISOString()
-        },
-        isPortalOpen: true
-      });
-
-      console.log('[VOYO Portal] Joined:', username);
-
-      return true;
-    } catch (error) {
-      console.error('[VOYO Portal] Join failed:', error);
-      return false;
-    }
-  },
-
-  leavePortal: () => {
-    // In production: Disconnect from WebRTC
-    set({
-      portalSession: null,
-      isPortalOpen: false
-    });
-    console.log('[VOYO Portal] Left');
-  },
-
-  // Sync current state to connected peers
-  syncToPortal: () => {
-    const { portalSession, isPortalOpen } = get();
-    if (!isPortalOpen || !portalSession?.isHost) return;
-
-    // In production: Send state update via WebRTC data channel
-    const currentTrack = usePlayerStore.getState().currentTrack;
-    const currentTime = usePlayerStore.getState().currentTime;
-    const isPlaying = usePlayerStore.getState().isPlaying;
-
-    console.log('[VOYO Portal] Sync:', {
-      track: currentTrack?.title,
-      time: currentTime,
-      playing: isPlaying
-    });
-  }
 }));
 
 export default useUniverseStore;
