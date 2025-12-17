@@ -35,10 +35,14 @@ import {
   LogOut,
   AtSign,
   Lock,
-  User
+  User,
+  Edit3,
+  Camera,
+  Save
 } from 'lucide-react';
 import { useUniverseStore } from '../../store/universeStore';
 import { usePreferenceStore } from '../../store/preferenceStore';
+import { universeAPI } from '../../lib/supabase';
 
 interface UniversePanelProps {
   isOpen: boolean;
@@ -72,9 +76,16 @@ export const UniversePanel = ({ isOpen, onClose }: UniversePanelProps) => {
   const { trackPreferences } = usePreferenceStore();
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'auth' | 'stats' | 'backup' | 'portal'>(
+  const [activeTab, setActiveTab] = useState<'auth' | 'stats' | 'profile' | 'backup' | 'portal'>(
     isLoggedIn ? 'stats' : 'auth'
   );
+
+  // Profile edit state
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editAvatarUrl, setEditAvatarUrl] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   // Auth form state
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -152,7 +163,43 @@ export const UniversePanel = ({ isOpen, onClose }: UniversePanelProps) => {
   const handleLogout = () => {
     logout();
     setActiveTab('auth');
+    setProfileLoaded(false);
     setMessage({ type: 'success', text: 'Logged out' });
+  };
+
+  // Load profile data when profile tab opens
+  useEffect(() => {
+    if (activeTab === 'profile' && isLoggedIn && currentUsername && !profileLoaded) {
+      const loadProfile = async () => {
+        const result = await universeAPI.getPublicProfile(currentUsername);
+        if (result.profile) {
+          setEditDisplayName(result.profile.displayName || '');
+          setEditBio(result.profile.bio || '');
+          setEditAvatarUrl(result.profile.avatarUrl || '');
+          setProfileLoaded(true);
+        }
+      };
+      loadProfile();
+    }
+  }, [activeTab, isLoggedIn, currentUsername, profileLoaded]);
+
+  // Handle save profile
+  const handleSaveProfile = async () => {
+    if (!currentUsername) return;
+
+    setIsSavingProfile(true);
+    const success = await universeAPI.updateProfile(currentUsername, {
+      displayName: editDisplayName,
+      bio: editBio,
+      avatarUrl: editAvatarUrl || null,
+    });
+    setIsSavingProfile(false);
+
+    if (success) {
+      setMessage({ type: 'success', text: 'Profile updated!' });
+    } else {
+      setMessage({ type: 'error', text: 'Failed to save profile' });
+    }
   };
 
   // Generate new passphrase
@@ -269,6 +316,7 @@ export const UniversePanel = ({ isOpen, onClose }: UniversePanelProps) => {
               {(isLoggedIn
                 ? [
                     { id: 'stats', icon: Music, label: 'Stats' },
+                    { id: 'profile', icon: Edit3, label: 'Profile' },
                     { id: 'backup', icon: Shield, label: 'Backup' },
                     { id: 'portal', icon: Users, label: 'Portal' },
                   ]
@@ -521,6 +569,104 @@ export const UniversePanel = ({ isOpen, onClose }: UniversePanelProps) => {
                         {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-white/70" />}
                       </button>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* PROFILE TAB */}
+              {activeTab === 'profile' && isLoggedIn && (
+                <div className="space-y-4">
+                  {/* Avatar */}
+                  <div className="flex flex-col items-center">
+                    <div className="relative mb-4">
+                      {editAvatarUrl ? (
+                        <img
+                          src={editAvatarUrl}
+                          alt="Avatar"
+                          className="w-24 h-24 rounded-full object-cover ring-4 ring-purple-500/30"
+                          onError={() => setEditAvatarUrl('')}
+                        />
+                      ) : (
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center ring-4 ring-purple-500/30">
+                          <span className="text-3xl font-bold text-white">
+                            {editDisplayName?.charAt(0)?.toUpperCase() || currentUsername?.charAt(0)?.toUpperCase() || '?'}
+                          </span>
+                        </div>
+                      )}
+                      <button className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center border-2 border-[#1a1a2e]">
+                        <Camera className="w-4 h-4 text-white" />
+                      </button>
+                    </div>
+                    <p className="text-white/40 text-sm">@{currentUsername}</p>
+                  </div>
+
+                  {/* Display Name */}
+                  <div>
+                    <label className="text-white/50 text-xs uppercase tracking-wider mb-2 block">
+                      Display Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editDisplayName}
+                      onChange={(e) => setEditDisplayName(e.target.value)}
+                      placeholder="Your display name"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/50"
+                    />
+                  </div>
+
+                  {/* Bio */}
+                  <div>
+                    <label className="text-white/50 text-xs uppercase tracking-wider mb-2 block">
+                      Bio
+                    </label>
+                    <textarea
+                      value={editBio}
+                      onChange={(e) => setEditBio(e.target.value)}
+                      placeholder="Tell the world about your music taste..."
+                      rows={3}
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/50 resize-none"
+                    />
+                    <p className="text-white/30 text-xs mt-1">{editBio.length}/150</p>
+                  </div>
+
+                  {/* Avatar URL */}
+                  <div>
+                    <label className="text-white/50 text-xs uppercase tracking-wider mb-2 block">
+                      Avatar URL (optional)
+                    </label>
+                    <input
+                      type="url"
+                      value={editAvatarUrl}
+                      onChange={(e) => setEditAvatarUrl(e.target.value)}
+                      placeholder="https://example.com/your-photo.jpg"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/50"
+                    />
+                  </div>
+
+                  {/* Save Button */}
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={isSavingProfile}
+                    className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isSavingProfile ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Save className="w-5 h-5" />
+                    )}
+                    {isSavingProfile ? 'Saving...' : 'Save Profile'}
+                  </button>
+
+                  {/* Preview Link */}
+                  <div className="text-center">
+                    <a
+                      href={`/${currentUsername}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-purple-400 text-sm hover:underline"
+                    >
+                      Preview your public profile →
+                    </a>
                   </div>
                 </div>
               )}
