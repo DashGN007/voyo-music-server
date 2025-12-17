@@ -9,6 +9,7 @@ import {
   Settings, Plus, X, Play, Pause, Volume2,
   Send, Heart, ChevronRight, BadgeCheck, Music2
 } from 'lucide-react';
+import { UniversePanel } from '../universe/UniversePanel';
 
 // Premium avatar images
 const AVATARS = {
@@ -374,6 +375,7 @@ export const Hub = ({ onOpenProfile }: HubProps) => {
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [noteInput, setNoteInput] = useState('');
   const [messageTab, setMessageTab] = useState<'all' | 'unread' | 'stories'>('all');
+  const [isUniverseOpen, setIsUniverseOpen] = useState(false);
 
   // Auto-fill note with what I'm listening to if empty
   const displayNote = myNote || (myNowPlaying ? `♪ ${myNowPlaying.title}` : '');
@@ -395,12 +397,15 @@ export const Hub = ({ onOpenProfile }: HubProps) => {
         {selectedFriend && <StoryViewer friend={selectedFriend} onClose={() => setSelectedFriend(null)} />}
       </AnimatePresence>
 
+      {/* Universe Panel */}
+      <UniversePanel isOpen={isUniverseOpen} onClose={() => setIsUniverseOpen(false)} />
+
       {/* Header */}
       <div className="sticky top-0 z-20 bg-[#0a0a0f]/95 backdrop-blur-xl border-b border-white/[0.05]">
         <div className="flex items-center justify-between px-6 py-5">
           <h1 className="text-xl font-bold text-white tracking-tight">DAHUB</h1>
           <motion.button
-            onClick={onOpenProfile}
+            onClick={() => setIsUniverseOpen(true)}
             className="p-2 -mr-2 rounded-full hover:bg-white/[0.08] active:bg-white/[0.12] transition-colors"
             whileTap={{ scale: 0.95 }}
           >
