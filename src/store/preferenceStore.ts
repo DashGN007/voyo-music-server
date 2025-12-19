@@ -89,9 +89,6 @@ interface PreferenceStore {
 
   // Analytics
   getTrackPreference: (trackId: string) => TrackPreference | null;
-  getTopArtists: (limit?: number) => ArtistPreference[];
-  getTopTags: (limit?: number) => TagPreference[];
-  getTopMoods: (limit?: number) => MoodPreference[];
 
   // Clear data
   clearPreferences: () => void;
@@ -201,6 +198,11 @@ export const usePreferenceStore = create<PreferenceStore>()(
             },
           };
         });
+
+        // CONNECT: Feed skip to trackPoolStore for pool scoring
+        import('./trackPoolStore').then(({ useTrackPoolStore }) => {
+          useTrackPoolStore.getState().recordSkip(trackId);
+        }).catch(() => {});
       },
 
       // Record a completion (>80% played)
@@ -237,6 +239,11 @@ export const usePreferenceStore = create<PreferenceStore>()(
             },
           };
         });
+
+        // CONNECT: Feed completion to trackPoolStore for pool scoring
+        import('./trackPoolStore').then(({ useTrackPoolStore }) => {
+          useTrackPoolStore.getState().recordCompletion(trackId, 100); // 100% completion rate
+        }).catch(() => {});
       },
 
       // Record a reaction (OYÉ button pressed during playback)
@@ -266,6 +273,11 @@ export const usePreferenceStore = create<PreferenceStore>()(
             currentSession: updatedSession,
           };
         });
+
+        // CONNECT: Feed reaction to trackPoolStore for pool scoring
+        import('./trackPoolStore').then(({ useTrackPoolStore }) => {
+          useTrackPoolStore.getState().recordReaction(trackId);
+        }).catch(() => {});
       },
 
       // Explicit like/dislike (user pressed thumbs up/down)
@@ -319,30 +331,6 @@ export const usePreferenceStore = create<PreferenceStore>()(
       // Get track preference
       getTrackPreference: (trackId: string) => {
         return get().trackPreferences[trackId] || null;
-      },
-
-      // Get top artists by listen count
-      getTopArtists: (limit = 10) => {
-        const artists = Object.values(get().artistPreferences);
-        return artists
-          .sort((a, b) => b.totalListens - a.totalListens)
-          .slice(0, limit);
-      },
-
-      // Get top tags by listen count
-      getTopTags: (limit = 10) => {
-        const tags = Object.values(get().tagPreferences);
-        return tags
-          .sort((a, b) => b.totalListens - a.totalListens)
-          .slice(0, limit);
-      },
-
-      // Get top moods by listen count
-      getTopMoods: (limit = 10) => {
-        const moods = Object.values(get().moodPreferences);
-        return moods
-          .sort((a, b) => b.totalListens - a.totalListens)
-          .slice(0, limit);
       },
 
       // Clear all preferences (reset)

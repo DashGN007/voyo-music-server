@@ -23,6 +23,7 @@ import { usePlayerStore } from '../store/playerStore';
 import { usePreferenceStore } from '../store/preferenceStore';
 import { useDownloadStore } from '../store/downloadStore';
 import { getYouTubeIdForIframe, prefetchTrack } from '../services/api';
+import { audioEngine } from '../services/audioEngine';
 
 type PlaybackMode = 'cached' | 'iframe';
 export type BoostPreset = 'boosted' | 'calm' | 'voyex' | 'xtreme';
@@ -509,10 +510,13 @@ export const AudioPlayer = () => {
       lastTrackId.current = currentTrack.id;
 
       try {
-        // 1. CHECK LOCAL CACHE FIRST (User's IndexedDB - Boosted tracks)
+        // 1. CHECK AUDIOENGINE PRELOAD CACHE FIRST (hot prefetched tracks)
+        const preloadedUrl = audioEngine.getCachedTrack(currentTrack.trackId);
+
+        // 2. CHECK LOCAL CACHE (User's IndexedDB - Boosted tracks)
         console.log('🎵 AudioPlayer: Checking cache for trackId:', currentTrack.trackId, '| title:', currentTrack.title);
-        const cachedUrl = await checkCache(currentTrack.trackId);
-        console.log('🎵 AudioPlayer: Cache result:', cachedUrl ? '✅ FOUND (playing boosted!)' : '❌ Not cached (using iframe)');
+        const cachedUrl = preloadedUrl || await checkCache(currentTrack.trackId);
+        console.log('🎵 AudioPlayer: Cache result:', cachedUrl ? `✅ FOUND (${preloadedUrl ? 'prefetched' : 'boosted'}!)` : '❌ Not cached (using iframe)');
 
         if (cachedUrl) {
           // ⚡ BOOSTED - Play from local cache (instant, offline-ready)
@@ -1081,9 +1085,9 @@ export const AudioPlayer = () => {
       setCurrentTime(el.currentTime);
       setProgress((el.currentTime / el.duration) * 100);
 
-      // 50% PREFETCH: Prefetch next track when 50% through current track
+      // 50% PREFETCH: Smart preload next track when 50% through current track
       const progressPercent = (el.currentTime / el.duration) * 100;
-      if (progressPercent >= 50 && !hasPrefetchedRef.current) {
+      if (progressPercent >= 50 && !hasPrefetchedRef.current && currentTrack?.trackId) {
         hasPrefetchedRef.current = true;
 
         // Get next track from queue
@@ -1091,14 +1095,24 @@ export const AudioPlayer = () => {
         const nextInQueue = state.queue[0];
 
         if (nextInQueue?.track?.trackId) {
-          // Prefetch next track
-          prefetchTrack(nextInQueue.track.trackId).catch(() => {
-            // Ignore prefetch errors
+          // Smart preload using audioEngine (uses adaptive bitrate + blob caching)
+          const apiBase = 'https://voyo-music-api.fly.dev';
+          audioEngine.preloadTrack(
+            nextInQueue.track.trackId,
+            apiBase,
+            (progress) => {
+              // Track prefetch progress in store
+              if (progress === 100) {
+                state.setPrefetchStatus(nextInQueue.track.trackId, 'ready');
+              }
+            }
+          ).catch(() => {
+            // Ignore prefetch errors, fallback to on-demand loading
           });
         }
       }
     }
-  }, [setCurrentTime, setProgress]);
+  }, [setCurrentTime, setProgress, currentTrack?.trackId]);
 
   const handleDurationChange = useCallback(() => {
     const el = audioRef.current;
@@ -1119,17 +1133,9 @@ export const AudioPlayer = () => {
     const el = audioRef.current;
     if (!el || !el.buffered.length) return;
 
-    const bufferedEnd = el.buffered.end(el.buffered.length - 1);
-    const duration = el.duration || 1;
-    const bufferPercent = (bufferedEnd / duration) * 100;
-
-    if (bufferPercent > 80) {
-      setBufferHealth(100, 'healthy');
-    } else if (bufferPercent > 30) {
-      setBufferHealth(bufferPercent, 'warning');
-    } else {
-      setBufferHealth(bufferPercent, 'emergency');
-    }
+    // Use audioEngine for smart buffer health monitoring
+    const bufferHealth = audioEngine.getBufferHealth(el);
+    setBufferHealth(bufferHealth.percentage, bufferHealth.status);
   }, [setBufferHealth]);
 
   const handlePlaying = useCallback(() => {

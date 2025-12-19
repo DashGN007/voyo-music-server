@@ -26,6 +26,8 @@ import { InstallButton } from './components/ui/InstallButton';
 import { OfflineIndicator } from './components/ui/OfflineIndicator';
 import { VoyoSplash } from './components/voyo/VoyoSplash';
 import { UniversePanel } from './components/universe/UniversePanel';
+import { useReactionStore } from './store/reactionStore';
+import { useUniverseStore } from './store/universeStore';
 
 // DEBUG: Load intent engine verification tools (available in browser console)
 import './utils/debugIntent';
@@ -96,41 +98,18 @@ const DynamicIsland = () => {
       triggerNewNotification(); // Wave for new notifications
     };
 
-    // Demo: Auto-trigger notifications to show the full flow
-    const demo1 = setTimeout(() => {
-      (window as any).pushNotification({
-        id: '1',
-        type: 'music',  // Purple dot
-        title: 'Burna Boy',
-        subtitle: 'Higher just dropped'
+    // TEST HELPER: Available in console for manual testing
+    // Usage: testNotification('music', 'Burna Boy', 'OYÉ on Higher')
+    (window as any).testNotification = (type: 'music' | 'message' | 'system', title: string, subtitle: string) => {
+      (window as any).pushNotification?.({
+        id: `test-${Date.now()}`,
+        type,
+        title,
+        subtitle
       });
-    }, 1000);
-
-    // Friend message after 8s (custom blue color)
-    const demo2 = setTimeout(() => {
-      (window as any).pushNotification({
-        id: '2',
-        type: 'message',  // Blue dot
-        title: 'Aziz',
-        subtitle: 'yo come check this out'
-      });
-    }, 8000);
-
-    // System notification after 15s
-    const demo3 = setTimeout(() => {
-      (window as any).pushNotification({
-        id: '3',
-        type: 'system',  // Red dot
-        title: 'VOYO',
-        subtitle: 'notification system ready'
-      });
-    }, 15000);
-
-    return () => {
-      clearTimeout(demo1);
-      clearTimeout(demo2);
-      clearTimeout(demo3);
     };
+
+    console.log('[DynamicIsland] Ready. Test with: testNotification("music", "Artist", "message")');
   }, []);
 
   // NEW NOTIFICATION: wave → dark → fade
@@ -921,6 +900,89 @@ function App() {
     startPoolMaintenance();
     console.log('[VOYO] Track pool maintenance started');
     // No cleanup needed - maintenance runs in background
+  }, []);
+
+  // REALTIME NOTIFICATIONS: Subscribe to Supabase events for DynamicIsland
+  useEffect(() => {
+    const { subscribeToReactions, recentReactions, unsubscribeFromReactions } = useReactionStore.getState();
+    const { currentUsername, viewingUniverse } = useUniverseStore.getState();
+
+    // Subscribe to reactions realtime
+    subscribeToReactions();
+
+    // Listen for new reactions via store updates
+    const unsubReactions = useReactionStore.subscribe((state, prevState) => {
+      // Check if new reactions arrived
+      if (state.recentReactions.length > prevState.recentReactions.length) {
+        const newReaction = state.recentReactions[0];
+
+        // Only notify if reaction is from someone else
+        if (newReaction.username !== currentUsername) {
+          // Determine notification based on reaction context
+          const currentTrack = usePlayerStore.getState().currentTrack;
+
+          // If someone reacted to the track you're currently playing
+          if (currentTrack && newReaction.track_id === (currentTrack.trackId || currentTrack.id)) {
+            const notifType: 'music' | 'message' | 'system' =
+              newReaction.reaction_type === 'fire' ? 'music' :
+              newReaction.reaction_type === 'oye' ? 'message' : 'music';
+
+            (window as any).pushNotification?.({
+              id: `reaction-${newReaction.id}`,
+              type: notifType,
+              title: newReaction.username,
+              subtitle: `${newReaction.emoji} ${newReaction.reaction_type} on ${newReaction.track_title}`
+            });
+          }
+        }
+      }
+
+      // Category pulse notifications (when categories get hot)
+      Object.entries(state.categoryPulse).forEach(([category, pulse]) => {
+        const prevPulse = prevState.categoryPulse[category as keyof typeof prevState.categoryPulse];
+
+        // Notify when category becomes hot
+        if (pulse.isHot && !prevPulse.isHot && pulse.count > 5) {
+          (window as any).pushNotification?.({
+            id: `pulse-${category}-${Date.now()}`,
+            type: 'music',
+            title: 'MixBoard',
+            subtitle: `${category} is heating up`
+          });
+        }
+      });
+    });
+
+    // Listen for portal/universe events
+    const unsubUniverse = useUniverseStore.subscribe((state, prevState) => {
+      // Someone visited your universe
+      if (state.viewingUniverse && !prevState.viewingUniverse && state.isViewingOther) {
+        (window as any).pushNotification?.({
+          id: `visit-${Date.now()}`,
+          type: 'system',
+          title: 'Portal Visit',
+          subtitle: `${state.viewingUniverse.username} is checking out your vibe`
+        });
+      }
+
+      // Portal now-playing updates (when viewing someone's portal)
+      if (state.viewingUniverse?.nowPlaying &&
+          state.viewingUniverse.nowPlaying !== prevState.viewingUniverse?.nowPlaying) {
+        const np = state.viewingUniverse.nowPlaying;
+        (window as any).pushNotification?.({
+          id: `portal-np-${Date.now()}`,
+          type: 'music',
+          title: state.viewingUniverse.username,
+          subtitle: `now playing ${np.title}`
+        });
+      }
+    });
+
+    return () => {
+      unsubscribeFromReactions();
+      unsubReactions();
+      unsubUniverse();
+    };
   }, []);
 
   // PERSIST APP MODE: Save to localStorage when it changes

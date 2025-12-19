@@ -14,6 +14,7 @@ import { getThumb } from '../../utils/thumbnail';
 import { TRACKS } from '../../data/tracks';
 import { searchCache } from '../../utils/searchCache';
 import { addSearchResultsToPool } from '../../services/personalization';
+import { AlbumSection } from './AlbumSection';
 
 interface SearchOverlayProps {
   isOpen: boolean;
@@ -250,6 +251,7 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<'tracks' | 'albums'>('tracks');
 
   // Portal zone state
   const [activeZone, setActiveZone] = useState<'queue' | 'discovery' | null>(null);
@@ -620,12 +622,58 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
                   />
                   {isSearching && <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />}
                 </div>
+
+                {/* Tab Switcher */}
+                {query.length >= 3 && (
+                  <div className="flex gap-2 mt-3">
+                    <motion.button
+                      className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors"
+                      style={{
+                        background: activeTab === 'tracks'
+                          ? 'linear-gradient(135deg, rgba(139,92,246,0.3) 0%, rgba(168,85,247,0.2) 100%)'
+                          : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${activeTab === 'tracks' ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                        color: activeTab === 'tracks' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.5)',
+                      }}
+                      onClick={() => setActiveTab('tracks')}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Music2 className="w-4 h-4 inline-block mr-1.5" />
+                      Tracks
+                    </motion.button>
+                    <motion.button
+                      className="flex-1 py-2 rounded-xl text-sm font-medium transition-colors"
+                      style={{
+                        background: activeTab === 'albums'
+                          ? 'linear-gradient(135deg, rgba(139,92,246,0.3) 0%, rgba(168,85,247,0.2) 100%)'
+                          : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${activeTab === 'albums' ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                        color: activeTab === 'albums' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.5)',
+                      }}
+                      onClick={() => setActiveTab('albums')}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Disc3 className="w-4 h-4 inline-block mr-1.5" />
+                      Albums
+                    </motion.button>
+                  </div>
+                )}
               </div>
 
               {/* Results List */}
               <div className="flex-1 overflow-y-auto space-y-1">
-                {/* FIX 2: Search History UI */}
-                {!query && searchHistory.length > 0 && !isSearching && (
+                {/* Album Section */}
+                {activeTab === 'albums' && (
+                  <AlbumSection query={query} isVisible={true} />
+                )}
+
+                {/* Track Results */}
+                {activeTab === 'tracks' && (
+                  <>
+                    {/* FIX 2: Search History UI */}
+                    {!query && searchHistory.length > 0 && !isSearching && (
                   <div className="mb-4">
                     <p className="text-white/40 text-xs mb-2 px-1">Recent Searches</p>
                     <div className="flex flex-wrap gap-2">
@@ -700,23 +748,25 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
                   />
                 ))}
 
-                {/* Loading */}
-                {isSearching && results.length === 0 && (
-                  <div className="space-y-2">
-                    {[...Array(5)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-3 p-3 rounded-xl animate-pulse"
-                        style={{ background: 'rgba(255,255,255,0.03)' }}
-                      >
-                        <div className="w-12 h-12 rounded-lg bg-white/5" />
-                        <div className="flex-1">
-                          <div className="h-3 w-3/4 bg-white/5 rounded mb-2" />
-                          <div className="h-2 w-1/2 bg-white/5 rounded" />
-                        </div>
+                    {/* Loading */}
+                    {isSearching && results.length === 0 && (
+                      <div className="space-y-2">
+                        {[...Array(5)].map((_, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-3 p-3 rounded-xl animate-pulse"
+                            style={{ background: 'rgba(255,255,255,0.03)' }}
+                          >
+                            <div className="w-12 h-12 rounded-lg bg-white/5" />
+                            <div className="flex-1">
+                              <div className="h-3 w-3/4 bg-white/5 rounded mb-2" />
+                              <div className="h-2 w-1/2 bg-white/5 rounded" />
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    )}
+                  </>
                 )}
               </div>
 

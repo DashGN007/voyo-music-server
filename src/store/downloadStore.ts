@@ -23,6 +23,7 @@ import {
   getTrackQuality,
   type DownloadSetting,
 } from '../services/downloadManager';
+import { audioEngine } from '../services/audioEngine';
 
 // API URL for proxy downloads
 const API_URL = 'https://voyo-music-api.fly.dev';
@@ -215,11 +216,19 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     set({ downloads: newDownloads });
 
     try {
+      // ADAPTIVE BITRATE: Use audioEngine to select optimal quality based on network
+      const optimalBitrate = audioEngine.selectOptimalBitrate();
+      const bitrateValue = audioEngine.getBitrateValue(optimalBitrate);
+      console.log(`🎵 BOOST: Using adaptive bitrate: ${optimalBitrate} (${bitrateValue}kbps)`);
+
       // Build proxy URL - server will fetch and pipe to us
       const proxyUrl = `${API_URL}/proxy?v=${normalizedId}&quality=high`;
 
       // Download with progress tracking (throttled to 500ms)
       let lastUpdateTime = 0;
+      let downloadStartTime = Date.now();
+      let totalBytes = 0;
+
       const success = await downloadTrack(
         normalizedId,
         proxyUrl,
@@ -245,20 +254,28 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         const finalDownloads = new Map(get().downloads);
         finalDownloads.set(normalizedId, { trackId: normalizedId, progress: 100, status: 'complete' });
 
-        // Increment manual boost count
-        const newCount = manualBoostCount + 1;
-        localStorage.setItem('voyo-manual-boost-count', String(newCount));
-
-        // Show auto-boost prompt after 3 manual boosts (if not already enabled)
-        const shouldPrompt = newCount >= 3 && !autoBoostEnabled && !localStorage.getItem('voyo-auto-boost-dismissed');
-
         // Calculate boost duration for hot-swap feature
         const boostEndTime = Date.now();
         const startTime = get().boostStartTimes[normalizedId] || boostStartTime;
         const boostDuration = (boostEndTime - startTime) / 1000; // seconds
         const isFastBoost = boostDuration < 7; // DJ rewind threshold
 
+        // NETWORK INTELLIGENCE: Record download measurement for adaptive bitrate
+        // Estimate file size based on average 3MB for 3min song at high quality
+        const estimatedBytes = 3 * 1024 * 1024; // 3MB
+        const durationMs = boostEndTime - (get().boostStartTimes[normalizedId] || boostStartTime);
+        audioEngine.recordDownloadMeasurement(estimatedBytes, durationMs);
+
+        const networkStats = audioEngine.getNetworkStats();
         console.log(`🎵 BOOST: Completed in ${boostDuration.toFixed(1)}s - ${isFastBoost ? '⚡ FAST (DJ rewind!)' : '📦 Normal'}`);
+        console.log(`🎵 BOOST: Network speed estimate: ${networkStats.speed.toFixed(0)} kbps`);
+
+        // Increment manual boost count
+        const newCount = manualBoostCount + 1;
+        localStorage.setItem('voyo-manual-boost-count', String(newCount));
+
+        // Show auto-boost prompt after 3 manual boosts (if not already enabled)
+        const shouldPrompt = newCount >= 3 && !autoBoostEnabled && !localStorage.getItem('voyo-auto-boost-dismissed');
 
         set({
           downloads: finalDownloads,

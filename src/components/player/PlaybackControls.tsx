@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Shuffle, Repeat, Repeat1, Volume2, VolumeX } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
+import { BufferHealthIndicator } from './BufferHealthIndicator';
 
 interface PlaybackControlsProps {
   className?: string;
@@ -48,6 +49,9 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
         borderRadius: '12px',
       }}
     >
+      {/* Buffer Health Indicator (only shows for cached playback) */}
+      <BufferHealthIndicator compact={compact} />
+
       {/* Shuffle Button - FIX 2: Touch target 44px */}
       <button
         onClick={handleShuffleClick}
