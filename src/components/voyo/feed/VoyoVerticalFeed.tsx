@@ -26,6 +26,7 @@ import {
 import { useReactionStore, Reaction, ReactionCategory, ReactionType, TrackHotspot } from '../../../store/reactionStore';
 import { usePlayerStore } from '../../../store/playerStore';
 import { useUniverseStore } from '../../../store/universeStore';
+import { useTrackPoolStore } from '../../../store/trackPoolStore';
 import { TRACKS } from '../../../data/tracks';
 
 // ============================================
@@ -343,6 +344,7 @@ interface FeedCardProps {
   onAddComment: (text: string) => void;
   onAddToLibrary?: () => void; // OYÉ = add to library + boost
   onAddToPlaylist?: () => void; // + button
+  onGoToPlayer?: () => void; // Navigate to full music player
 }
 
 const FeedCard = ({
@@ -361,6 +363,7 @@ const FeedCard = ({
   onAddComment,
   onAddToLibrary,
   onAddToPlaylist,
+  onGoToPlayer,
 }: FeedCardProps) => {
   const [showComments, setShowComments] = useState(false);
   const [userReactions, setUserReactions] = useState<Set<ReactionType>>(new Set());
@@ -548,13 +551,19 @@ const FeedCard = ({
 // ============================================
 // MAIN FEED COMPONENT
 // ============================================
-export const VoyoVerticalFeed = ({ isActive }: { isActive: boolean }) => {
+interface VoyoVerticalFeedProps {
+  isActive: boolean;
+  onGoToPlayer?: () => void; // Navigate to Music player tab
+}
+
+export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { recentReactions, fetchRecentReactions, subscribeToReactions, isSubscribed, createReaction, computeHotspots, getCategoryScore, getTopCategories } = useReactionStore();
   const { setCurrentTrack, addToQueue, currentTrack, isPlaying, togglePlay, progress } = usePlayerStore();
   const { currentUsername } = useUniverseStore();
+  const { hotPool } = useTrackPoolStore();
 
   // Fetch reactions on mount
   useEffect(() => {
@@ -596,10 +605,22 @@ export const VoyoVerticalFeed = ({ isActive }: { isActive: boolean }) => {
       }
     });
 
-    // Build feed from ALL tracks in library
-    const feedItems = TRACKS.map(track => {
+    // Build feed from POOL (dynamic) + TRACKS (seed fallback)
+    // Pool contains tracks user has searched/played, TRACKS is fallback for new users
+    const poolTracks = hotPool.length > 0 ? hotPool : [];
+    const seedTracks = TRACKS;
+
+    // Merge: pool tracks first (sorted by poolScore), then seed tracks not in pool
+    const poolIds = new Set(poolTracks.map(t => t.id || t.trackId));
+    const allTracks = [
+      ...poolTracks.sort((a, b) => (b.poolScore || 0) - (a.poolScore || 0)),
+      ...seedTracks.filter(t => !poolIds.has(t.id) && !poolIds.has(t.trackId))
+    ];
+
+    const feedItems = allTracks.map(track => {
       const trackId = track.id || track.trackId || '';
       const reactionData = reactionsByTrack.get(trackId);
+      const poolScore = 'poolScore' in track ? (track as any).poolScore : 0;
 
       return {
         trackId,
@@ -607,30 +628,38 @@ export const VoyoVerticalFeed = ({ isActive }: { isActive: boolean }) => {
         trackArtist: track.artist,
         trackThumbnail: track.coverUrl || `https://voyo-music-api.fly.dev/cdn/art/${trackId}?quality=high`,
         reactions: reactionData?.reactions || [],
-        nativeOyeScore: track.oyeScore || 0, // Track's base OYE score
+        nativeOyeScore: track.oyeScore || 0,
         hotScore: reactionData?.hotScore || 0,
-        categoryBoost: reactionData?.categoryBoost || 50, // Default neutral boost
+        categoryBoost: reactionData?.categoryBoost || 50,
         dominantCategory: reactionData?.dominantCategory || 'afro-heat',
+        poolScore, // Include pool score for sorting
       };
     });
 
-    // Sort by FOR YOU score: reactions boost + category preference
-    // Tracks with reactions surface higher, but all tracks shown
+    // Sort by FOR YOU score: pool score + reactions + category preference
     return feedItems.sort((a, b) => {
-      // Primary: Has reactions vs doesn't (big boost)
-      const aHasReactions = a.hotScore > 0 ? 10 : 0;
-      const bHasReactions = b.hotScore > 0 ? 10 : 0;
+      // Primary: Pool score (user behavior learned from search/play)
+      const aPoolBoost = (a.poolScore || 0) / 10; // 0-10 from pool
+      const bPoolBoost = (b.poolScore || 0) / 10;
 
-      // Secondary: Category preference + hotness
-      const aScore = aHasReactions + (a.categoryBoost / 100) * a.hotScore + a.hotScore;
-      const bScore = bHasReactions + (b.categoryBoost / 100) * b.hotScore + b.hotScore;
+      // Secondary: Has reactions vs doesn't
+      const aHasReactions = a.hotScore > 0 ? 5 : 0;
+      const bHasReactions = b.hotScore > 0 ? 5 : 0;
+
+      // Tertiary: Category preference + hotness
+      const aReactionScore = (a.categoryBoost / 100) * a.hotScore + a.hotScore;
+      const bReactionScore = (b.categoryBoost / 100) * b.hotScore + b.hotScore;
+
+      // Combined score
+      const aScore = aPoolBoost + aHasReactions + aReactionScore;
+      const bScore = bPoolBoost + bHasReactions + bReactionScore;
 
       if (bScore !== aScore) return bScore - aScore;
 
-      // Tertiary: Random shuffle for equal scores (variety)
+      // Quaternary: Random shuffle for equal scores (variety)
       return Math.random() - 0.5;
     });
-  }, [recentReactions, getCategoryScore]);
+  }, [recentReactions, getCategoryScore, hotPool]);
 
   // Handle scroll snap
   const handleScroll = () => {
@@ -643,25 +672,35 @@ export const VoyoVerticalFeed = ({ isActive }: { isActive: boolean }) => {
     }
   };
 
-  // Handle play
+  // Handle play - check pool first, then seed tracks
   const handlePlay = useCallback((trackId: string, trackTitle: string, trackArtist: string) => {
-    const track = TRACKS.find(t => t.id === trackId || t.trackId === trackId);
-    if (track) {
-      setCurrentTrack(track);
-    } else {
-      setCurrentTrack({
-        id: trackId,
-        trackId: trackId,
-        title: trackTitle,
-        artist: trackArtist,
-        coverUrl: `https://voyo-music-api.fly.dev/cdn/art/${trackId}?quality=high`,
-        duration: 0,
-        tags: [],
-        oyeScore: 0,
-        createdAt: new Date().toISOString(),
-      });
+    // Check pool first (dynamic tracks from search/play)
+    const poolTrack = hotPool.find(t => t.id === trackId || t.trackId === trackId);
+    if (poolTrack) {
+      setCurrentTrack(poolTrack);
+      return;
     }
-  }, [setCurrentTrack]);
+
+    // Check seed tracks
+    const seedTrack = TRACKS.find(t => t.id === trackId || t.trackId === trackId);
+    if (seedTrack) {
+      setCurrentTrack(seedTrack);
+      return;
+    }
+
+    // Fallback: create minimal track object
+    setCurrentTrack({
+      id: trackId,
+      trackId: trackId,
+      title: trackTitle,
+      artist: trackArtist,
+      coverUrl: `https://voyo-music-api.fly.dev/cdn/art/${trackId}?quality=high`,
+      duration: 0,
+      tags: [],
+      oyeScore: 0,
+      createdAt: new Date().toISOString(),
+    });
+  }, [setCurrentTrack, hotPool]);
 
   // Handle reaction - with track position for hotspot detection
   const handleReact = useCallback((trackId: string, trackTitle: string, trackArtist: string, type: ReactionType) => {
