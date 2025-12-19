@@ -9,10 +9,10 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
+        {/* Main app - must be first to avoid catching as username */}
+        <Route path="/" element={<App />} />
         {/* Profile pages - voyomusic.com/username */}
         <Route path="/:username" element={<ProfilePage />} />
-        {/* Main app */}
-        <Route path="/" element={<App />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

@@ -2248,11 +2248,13 @@ const ReactionBar = memo(({
     // DJ CONTROLS - Shuffle, Run it back, Slow down
     if (input.includes('shuffle')) {
       setChatResponse('🔀 Shuffling the vibes...');
-      // TODO: Wire to actual shuffle toggle in playerStore
+      const { toggleShuffle } = usePlayerStore.getState();
+      toggleShuffle();
       setTimeout(() => setIsChatMode(false), 1500);
     } else if (input.includes('run it back') || input.includes('again') || input.includes('replay') || input.includes('repeat')) {
       setChatResponse('🔁 Running it back!');
-      // TODO: Wire to actual replay/seek to start
+      const { seekTo } = usePlayerStore.getState();
+      seekTo(0);
       setTimeout(() => setIsChatMode(false), 1500);
     } else if (input.includes('add') || input.includes('play') || input.includes('queue')) {
       const songMatch = input.replace(/^(add|play|queue)\s*/i, '').trim();
@@ -2709,6 +2711,11 @@ export const VoyoPortraitPlayer = ({
     stopSkeep,
     // OYÉ Bar behavior
     oyeBarBehavior,
+    // Shuffle & Repeat modes
+    shuffleMode,
+    repeatMode,
+    toggleShuffle,
+    cycleRepeat,
   } = usePlayerStore();
 
   // MOBILE FIX: Use direct play handler
@@ -2737,31 +2744,65 @@ export const VoyoPortraitPlayer = ({
     fetchRecentReactions(50);
   }, [fetchRecentReactions]);
 
-  // Handle double-tap on MixBoard column = create reaction
-  const handleModeReaction = useCallback(async (category: ReactionCategory) => {
+  // ====== SIGNAL SYSTEM - Double-tap billboard = add comment to song + category ======
+  const [signalInputOpen, setSignalInputOpen] = useState(false);
+  const [signalCategory, setSignalCategory] = useState<ReactionCategory | null>(null);
+  const [signalText, setSignalText] = useState('');
+
+  // Handle double-tap on MixBoard column = open Signal input
+  const handleModeReaction = useCallback((category: ReactionCategory) => {
     if (!currentTrack) return;
 
-    // Create reaction (works offline too)
+    // Open Signal input for this category
+    setSignalCategory(category);
+    setSignalInputOpen(true);
+    setSignalText('');
+
+    console.log(`[Signal] Opening input for ${category} on ${currentTrack.title}`);
+  }, [currentTrack]);
+
+  // Submit Signal (billboard contribution)
+  const handleSignalSubmit = useCallback(async () => {
+    if (!currentTrack || !signalCategory || !signalText.trim()) {
+      setSignalInputOpen(false);
+      return;
+    }
+
+    const text = signalText.trim();
+    const isShort = text.length <= 30;
+    const isSignal = isShort; // Billboard contribution = just SHORT (punchy!)
+
+    // Get current progress for hotspot tracking
+    const { progress } = usePlayerStore.getState();
+    const trackPosition = Math.round(progress);
+
     await createReaction({
       username: currentUsername || 'anonymous',
       trackId: currentTrack.id,
       trackTitle: currentTrack.title,
       trackArtist: currentTrack.artist,
       trackThumbnail: currentTrack.coverUrl,
-      category,
-      reactionType: 'oye',
+      category: signalCategory,
+      emoji: isSignal ? '📍' : '💬', // Pink signal icon for billboard contributions
+      reactionType: isSignal ? 'oye' : 'oye',
+      comment: text,
+      trackPosition, // Where in the song the signal was sent
     });
 
-    console.log(`[Reaction] OYÉ! ${category} on ${currentTrack.title}`);
-  }, [currentTrack, currentUsername, createReaction]);
+    console.log(`[Signal] ${isSignal ? '📍 SIGNAL' : '💬 Comment'}: "${text}" on ${signalCategory} at ${trackPosition}%`);
+
+    setSignalInputOpen(false);
+    setSignalText('');
+    setSignalCategory(null);
+  }, [currentTrack, signalCategory, signalText, currentUsername, createReaction]);
 
   // Get community punches for each category (short + has emoji)
   const getCommunityPunches = useCallback((category: ReactionCategory): CommunityPunch[] => {
-    const hasEmoji = (text: string) => /\p{Emoji}/u.test(text);
+    // Just SHORT = billboard punch (punchy vibes!)
     const isShort = (text: string) => text.length <= 30;
 
     return recentReactions
-      .filter(r => r.category === category && r.comment && hasEmoji(r.comment) && isShort(r.comment))
+      .filter(r => r.category === category && r.comment && isShort(r.comment))
       .slice(0, 5) // Max 5 punches per category
       .map(r => ({
         id: r.id,
@@ -3099,9 +3140,7 @@ export const VoyoPortraitPlayer = ({
   const didHoldRef = useRef(false);
   const djWakeCountRef = useRef(0); // Track how many times DJ mode was activated
 
-  // Quick controls state
-  const [repeatMode, setRepeatMode] = useState<'off' | 'one' | 'all'>('off'); // off → one → all
-  const [isShuffleOn, setIsShuffleOn] = useState(false);
+  // Quick controls - now using store (shuffleMode, repeatMode, toggleShuffle, cycleRepeat)
 
   // Tutorial messages for DJ wake - rotates through different messages
   const DJ_WAKE_MESSAGES = [
@@ -3666,17 +3705,17 @@ export const VoyoPortraitPlayer = ({
                 {/* Shuffle - Top of ")", slightly OUT */}
                 <motion.button
                   className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors -translate-x-[2px] ${
-                    isShuffleOn
+                    shuffleMode
                       ? 'bg-fuchsia-500/30 border border-fuchsia-500/50 text-fuchsia-400'
                       : 'bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-300/70 hover:bg-fuchsia-500/30'
                   }`}
                   whileTap={{ scale: 0.9 }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setIsShuffleOn(prev => !prev);
+                    toggleShuffle();
                     haptics.light();
                   }}
-                  title={isShuffleOn ? 'Shuffle On' : 'Shuffle Off'}
+                  title={shuffleMode ? 'Shuffle On' : 'Shuffle Off'}
                 >
                   <Shuffle size={16} />
                 </motion.button>
@@ -3693,11 +3732,7 @@ export const VoyoPortraitPlayer = ({
                   whileTap={{ scale: 0.9 }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setRepeatMode(prev => {
-                      if (prev === 'off') return 'one';
-                      if (prev === 'one') return 'all';
-                      return 'off';
-                    });
+                    cycleRepeat();
                     haptics.light();
                   }}
                   title={repeatMode === 'one' ? 'Repeat One' : repeatMode === 'all' ? 'Repeat All' : 'Repeat Off'}
@@ -4386,6 +4421,114 @@ export const VoyoPortraitPlayer = ({
         isOpen={isBoostSettingsOpen}
         onClose={() => setIsBoostSettingsOpen(false)}
       />
+
+      {/* SIGNAL INPUT MODAL - Double-tap billboard opens this */}
+      <AnimatePresence>
+        {signalInputOpen && signalCategory && currentTrack && (
+          <motion.div
+            className="fixed inset-0 z-[100] flex items-end justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Backdrop */}
+            <motion.div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setSignalInputOpen(false)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
+
+            {/* Signal Input Card */}
+            <motion.div
+              className="relative w-full max-w-md mx-4 mb-8 rounded-2xl overflow-hidden"
+              initial={{ y: 100, opacity: 0, scale: 0.95 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 100, opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              style={{
+                background: 'linear-gradient(180deg, rgba(20,20,30,0.98) 0%, rgba(10,10,15,0.99) 100%)',
+                boxShadow: `0 0 40px rgba(236,72,153,0.3), 0 0 80px rgba(168,85,247,0.2)`,
+                border: '1px solid rgba(236,72,153,0.3)',
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">📍</span>
+                  <span className="text-white/90 text-sm font-bold">Add Signal</span>
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full"
+                    style={{
+                      background: signalCategory === 'afro-heat' ? 'rgba(239,68,68,0.2)' :
+                                 signalCategory === 'chill-vibes' ? 'rgba(59,130,246,0.2)' :
+                                 signalCategory === 'party-mode' ? 'rgba(236,72,153,0.2)' :
+                                 signalCategory === 'late-night' ? 'rgba(139,92,246,0.2)' :
+                                 'rgba(249,115,22,0.2)',
+                      color: signalCategory === 'afro-heat' ? '#ef4444' :
+                             signalCategory === 'chill-vibes' ? '#3b82f6' :
+                             signalCategory === 'party-mode' ? '#ec4899' :
+                             signalCategory === 'late-night' ? '#8b5cf6' :
+                             '#f97316',
+                    }}
+                  >
+                    {signalCategory.replace('-', ' ')}
+                  </span>
+                </div>
+                <button
+                  className="text-white/50 hover:text-white/80 text-lg"
+                  onClick={() => setSignalInputOpen(false)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Track Info */}
+              <div className="flex items-center gap-3 px-4 py-3 bg-white/5">
+                <img
+                  src={getTrackThumbnailUrl(currentTrack, 'medium')}
+                  alt={currentTrack.title}
+                  className="w-12 h-12 rounded-lg object-cover"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-medium truncate">{currentTrack.title}</p>
+                  <p className="text-white/50 text-xs truncate">{currentTrack.artist}</p>
+                </div>
+              </div>
+
+              {/* Input */}
+              <div className="p-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={signalText}
+                    onChange={(e) => setSignalText(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSignalSubmit()}
+                    placeholder="Add your vibe... 🔥 (short + emoji = billboard)"
+                    className="flex-1 bg-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-pink-500/50"
+                    autoFocus
+                    maxLength={60}
+                  />
+                  <motion.button
+                    className="w-12 h-12 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 flex items-center justify-center"
+                    onClick={handleSignalSubmit}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <span className="text-white text-lg">📍</span>
+                  </motion.button>
+                </div>
+                <p className="text-white/30 text-[10px] mt-2 text-center">
+                  {signalText.length <= 30 && signalText.trim().length > 0
+                    ? '✨ This will appear on the billboard!'
+                    : 'Tip: Keep it short & punchy (≤30 chars) for billboard'}
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

@@ -1,325 +1,726 @@
 /**
- * VOYO Vertical Feed - TikTok-style Cultural Feed
- * The heart of VOYO OYÉ - African culture in motion
+ * VOYO Vertical Feed - Music Discovery Feed
+ *
+ * YouTube Shorts / Stripchat style full-portrait feed
+ *
+ * 3 Content Types (Same Layout):
+ * 1. Thumbnail + scrolling comments/punches
+ * 2. Music video snippet (15-30s) + scrolling comments
+ * 3. Hottest part snippet (section with most reactions)
+ *
+ * Layout:
+ * - Full portrait screen
+ * - Background: Thumbnail OR video snippet
+ * - Translucent auto-scrolling comments/punches overlay
+ * - Right side: Like + count, OYE, FIRE, Comments, Share
+ * - Tap to show/hide full comments section
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, MessageCircle, Share2, Music2, Zap, Bookmark, Volume2, VolumeX } from 'lucide-react';
-import { FeedItem } from '../../../types';
+import {
+  Heart, MessageCircle, Share2, Music2, Zap, Play, Pause,
+  ChevronDown, User, MapPin, Flame, Plus, X, Volume2, VolumeX,
+  Bookmark, UserPlus
+} from 'lucide-react';
+import { useReactionStore, Reaction, ReactionCategory, ReactionType, TrackHotspot } from '../../../store/reactionStore';
+import { usePlayerStore } from '../../../store/playerStore';
+import { TRACKS } from '../../../data/tracks';
 
-// Mock clips for demo - Real content will come from API
-const MOCK_CLIPS: FeedItem[] = [
-  {
-    id: '1',
-    user: 'accra_vibes',
-    userAvatar: 'https://i.pravatar.cc/100?img=1',
-    caption: 'New challenge alert! Show me your best moves 🇬🇭 #GhanaToTheWorld #OYE',
-    likes: '12.4k',
-    oyes: '45k OYÉ',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-girl-dancing-in-front-of-a-colorful-wall-39755-large.mp4',
-    songTitle: 'Terminator',
-    songArtist: 'King Promise',
-    tags: ['dance', 'ghana', 'afrobeats'],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    user: 'lagos_heat',
-    userAvatar: 'https://i.pravatar.cc/100?img=2',
-    caption: 'OYÉ! Look at this footwork! Lagos no dey carry last 🇳🇬🔥 #Naija #WeMoveee',
-    likes: '45.2k',
-    oyes: '120k OYÉ',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-man-dancing-under-colored-lights-1240-large.mp4',
-    songTitle: 'Unavailable',
-    songArtist: 'Davido ft. Musa Keys',
-    tags: ['naija', 'amapiano', 'vibes'],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '3',
-    user: 'dakar_flow',
-    userAvatar: 'https://i.pravatar.cc/100?img=3',
-    caption: 'Senegal represent! 🇸🇳 This sound is everything #Mbalax #AfricanVibes',
-    likes: '28.7k',
-    oyes: '89k OYÉ',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-freely-at-a-concert-4489-large.mp4',
-    songTitle: 'Waka Waka',
-    songArtist: 'Shakira ft. Freshlyground',
-    tags: ['senegal', 'dance', 'africa'],
-    createdAt: new Date().toISOString(),
-  },
-];
+// ============================================
+// PROGRESS BAR COMPONENT WITH HEATMAP
+// ============================================
+const ProgressBar = ({ isActive, trackId }: { isActive: boolean; trackId: string }) => {
+  const progress = usePlayerStore((state) => state.progress);
+  const currentTime = usePlayerStore((state) => state.currentTime);
+  const duration = usePlayerStore((state) => state.duration);
+  const getHotspots = useReactionStore((state) => state.getHotspots);
 
-// Floating OYÉ Reaction - pre-computed random values
-interface FloatingOyeData {
-  id: number;
-  rightPos: number;
-  yOffset: number;
-  xOffset: number;
-  duration: number;
-}
+  const hotspots = useMemo(() => getHotspots(trackId), [getHotspots, trackId]);
 
-const FloatingOye = ({ data, onComplete }: { data: FloatingOyeData; onComplete: () => void }) => (
-  <motion.div
-    className="fixed text-2xl pointer-events-none z-50"
-    style={{
-      right: `${data.rightPos}%`,
-      bottom: '20%',
-    }}
-    initial={{ opacity: 1, y: 0, scale: 0.5 }}
-    animate={{
-      opacity: [1, 1, 0],
-      y: -200 - data.yOffset,
-      scale: [0.5, 1.2, 0.8],
-      x: data.xOffset,
-    }}
-    transition={{ duration: data.duration, ease: 'easeOut' }}
-    onAnimationComplete={onComplete}
-  >
-    ⚡
-  </motion.div>
-);
+  if (!isActive) return null;
 
-// Helper to create FloatingOyeData with pre-computed random values
-const createFloatingOyeData = (): FloatingOyeData => ({
-  id: Date.now() + Math.random(),
-  rightPos: 15 + Math.random() * 10,
-  yOffset: Math.random() * 100,
-  xOffset: (Math.random() - 0.5) * 50,
-  duration: 2 + Math.random(),
-});
-
-// Single Feed Item Component
-const FeedItemCard = ({
-  item,
-  isActive,
-  isMuted,
-  onToggleMute,
-}: {
-  item: FeedItem;
-  isActive: boolean;
-  isMuted: boolean;
-  onToggleMute: () => void;
-}) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [isLiked, setIsLiked] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
-  const [oyeCount, setOyeCount] = useState(0);
-  const [floatingOyes, setFloatingOyes] = useState<FloatingOyeData[]>([]);
-
-  // Play/pause based on active state
-  useEffect(() => {
-    if (videoRef.current) {
-      if (isActive) {
-        videoRef.current.play().catch(() => {});
-      } else {
-        videoRef.current.pause();
-        videoRef.current.currentTime = 0;
-      }
+  // Get color for hotspot based on dominant reaction type
+  const getHotspotColor = (type: string, intensity: number) => {
+    const alpha = Math.max(0.3, intensity);
+    switch (type) {
+      case 'fire': return `rgba(249, 115, 22, ${alpha})`; // Orange
+      case 'like': return `rgba(236, 72, 153, ${alpha})`; // Pink
+      case 'oye':
+      default: return `rgba(251, 191, 36, ${alpha})`; // Yellow
     }
-  }, [isActive]);
-
-  // Handle OYÉ reaction
-  const handleOye = () => {
-    setOyeCount((prev) => prev + 1);
-    // Add multiple floating reactions with pre-computed random values
-    const count = 3 + Math.floor(Math.random() * 3);
-    const newOyes = Array.from({ length: count }, () => createFloatingOyeData());
-    setFloatingOyes((prev) => [...prev, ...newOyes]);
-  };
-
-  const removeFloatingOye = (id: number) => {
-    setFloatingOyes((prev) => prev.filter((oye) => oye.id !== id));
   };
 
   return (
-    <div className="relative w-full h-full snap-start snap-always">
-      {/* Background Video */}
-      <video
-        ref={videoRef}
-        src={item.videoUrl}
-        className="absolute inset-0 w-full h-full object-cover"
-        loop
-        muted={isMuted}
-        playsInline
-        webkit-playsinline="true"
-      />
-
-      {/* Gradient overlays - CINEMATIC */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-black/40" />
-
-      {/* Mute Button */}
-      <motion.button
-        className="absolute top-4 right-4 p-2 rounded-full bg-black/40 backdrop-blur-sm"
-        onClick={onToggleMute}
-        whileTap={{ scale: 0.9 }}
-      >
-        {isMuted ? (
-          <VolumeX className="w-5 h-5 text-white" />
-        ) : (
-          <Volume2 className="w-5 h-5 text-white" />
-        )}
-      </motion.button>
-
-      {/* Right Side Controls */}
-      <div className="absolute right-3 bottom-32 flex flex-col gap-5 items-center">
-        {/* User Avatar */}
-        <motion.div className="relative" whileHover={{ scale: 1.1 }}>
-          <div className="w-12 h-12 rounded-full border-2 border-white overflow-hidden">
-            <img
-              src={item.userAvatar || `https://i.pravatar.cc/100?u=${item.user}`}
-              alt={item.user}
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center">
-            <span className="text-white text-xs">+</span>
-          </div>
-        </motion.div>
-
-        {/* Like Button */}
-        <motion.button
-          className="flex flex-col items-center gap-1"
-          onClick={() => setIsLiked(!isLiked)}
-          whileTap={{ scale: 0.8 }}
-        >
-          <div className="p-2.5 rounded-full bg-black/30 backdrop-blur-sm">
-            <Heart
-              className={`w-7 h-7 ${isLiked ? 'text-red-500 fill-red-500' : 'text-white'}`}
-            />
-          </div>
-          <span className="text-xs font-bold text-white">{item.likes}</span>
-        </motion.button>
-
-        {/* OYÉ Button - The Main Reaction */}
-        <motion.button
-          className="flex flex-col items-center gap-1"
-          onClick={handleOye}
-          whileTap={{ scale: 0.8 }}
-        >
+    <div className="absolute bottom-0 left-0 right-0 z-30">
+      {/* Progress bar with heatmap */}
+      <div className="relative h-1.5 bg-white/20">
+        {/* Hotspot markers */}
+        {hotspots.map((hotspot, i) => (
+          <div
+            key={i}
+            className="absolute top-0 bottom-0 rounded-full"
+            style={{
+              left: `${hotspot.position - 3}%`,
+              width: '6%',
+              background: getHotspotColor(hotspot.dominantType, hotspot.intensity),
+              filter: hotspot.intensity > 0.7 ? 'blur(1px)' : 'none',
+            }}
+          />
+        ))}
+        {/* Progress overlay */}
+        <motion.div
+          className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-purple-500 to-pink-500"
+          style={{ width: `${progress}%` }}
+          transition={{ duration: 0.1 }}
+        />
+        {/* Hotspot glow indicators */}
+        {hotspots.filter(h => h.intensity > 0.5).map((hotspot, i) => (
           <motion.div
-            className="p-2.5 rounded-full bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500"
-            animate={oyeCount > 0 ? { scale: [1, 1.2, 1] } : {}}
-            transition={{ duration: 0.3 }}
-          >
-            <Zap className="w-7 h-7 text-white fill-white" />
-          </motion.div>
-          <span className="text-xs font-bold text-orange-400">
-            {oyeCount > 0 ? `${oyeCount}+` : 'OYÉ'}
-          </span>
-        </motion.button>
-
-        {/* Comments */}
-        <motion.button className="flex flex-col items-center gap-1" whileTap={{ scale: 0.8 }}>
-          <div className="p-2.5 rounded-full bg-black/30 backdrop-blur-sm">
-            <MessageCircle className="w-7 h-7 text-white" />
-          </div>
-          <span className="text-xs font-bold text-white">1.2k</span>
-        </motion.button>
-
-        {/* Save */}
-        <motion.button
-          className="flex flex-col items-center gap-1"
-          onClick={() => setIsSaved(!isSaved)}
-          whileTap={{ scale: 0.8 }}
-        >
-          <div className="p-2.5 rounded-full bg-black/30 backdrop-blur-sm">
-            <Bookmark
-              className={`w-7 h-7 ${isSaved ? 'text-yellow-400 fill-yellow-400' : 'text-white'}`}
-            />
-          </div>
-        </motion.button>
-
-        {/* Share */}
-        <motion.button className="flex flex-col items-center gap-1" whileTap={{ scale: 0.8 }}>
-          <div className="p-2.5 rounded-full bg-black/30 backdrop-blur-sm">
-            <Share2 className="w-7 h-7 text-white" />
-          </div>
-        </motion.button>
-
-        {/* Spinning Album Art - CSS animation for mobile performance */}
-        <div
-          className={`w-10 h-10 rounded-lg overflow-hidden border border-white/20 ${
-            isActive ? 'animate-spin-vinyl' : ''
-          }`}
-          style={{ willChange: isActive ? 'transform' : 'auto' }}
-        >
-          <div className="w-full h-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center">
-            <Music2 className="w-5 h-5 text-white" />
-          </div>
+            key={`glow-${i}`}
+            className="absolute -top-1 w-2 h-2 rounded-full"
+            style={{
+              left: `${hotspot.position}%`,
+              background: getHotspotColor(hotspot.dominantType, 1),
+              boxShadow: `0 0 6px ${getHotspotColor(hotspot.dominantType, 1)}`,
+            }}
+            animate={{ scale: [1, 1.2, 1], opacity: [0.8, 1, 0.8] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          />
+        ))}
+      </div>
+      {/* Time display */}
+      <div className="absolute bottom-2 left-4 text-white/60 text-[10px] font-mono">
+        {Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')}
+        {' / '}
+        {Math.floor(duration / 60)}:{Math.floor(duration % 60).toString().padStart(2, '0')}
+      </div>
+      {/* Hotspot count indicator */}
+      {hotspots.length > 0 && (
+        <div className="absolute bottom-2 right-4 flex items-center gap-1 text-white/60 text-[10px]">
+          <Flame className="w-3 h-3 text-orange-400" />
+          <span>{hotspots.length} hot {hotspots.length === 1 ? 'spot' : 'spots'}</span>
         </div>
-      </div>
+      )}
+    </div>
+  );
+};
 
-      {/* Bottom Info */}
-      <div className="absolute bottom-20 left-4 right-20 z-10">
-        {/* OYÉ Trending Badge */}
-        <motion.div
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-500/40 backdrop-blur-sm mb-3"
-          animate={{ scale: [1, 1.02, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          <Zap className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-          <span className="text-[10px] font-bold text-purple-200 uppercase tracking-wider">
-            OYÉ Trending
-          </span>
-          <span className="text-[10px] text-purple-300">{item.oyes}</span>
-        </motion.div>
+// ============================================
+// REACTION CONFIG
+// ============================================
+const REACTION_CONFIG = {
+  like: { icon: Heart, color: '#EC4899', activeColor: '#EC4899', label: 'Like' },
+  oye: { icon: Zap, color: '#FBBF24', activeColor: '#FBBF24', label: 'OYÉ' },
+  fire: { icon: Flame, color: '#F97316', activeColor: '#F97316', label: 'Fire' },
+};
 
-        {/* Username */}
-        <h3 className="font-bold text-white text-base mb-1 drop-shadow-lg">@{item.user}</h3>
+// ============================================
+// AUTO-SCROLLING COMMENTS OVERLAY
+// ============================================
+interface ScrollingComment {
+  id: string;
+  text: string;
+  username: string;
+  isPunch: boolean; // Has 📍 distinction
+  timestamp: number;
+}
 
-        {/* Caption */}
-        <p className="text-sm text-white/90 line-clamp-2 mb-3 drop-shadow-lg">{item.caption}</p>
+const ScrollingCommentsOverlay = ({
+  comments,
+  isVisible,
+}: {
+  comments: ScrollingComment[];
+  isVisible: boolean;
+}) => {
+  const [displayedComments, setDisplayedComments] = useState<ScrollingComment[]>([]);
+  const indexRef = useRef(0);
 
-        {/* Song Info */}
-        <motion.div
-          className="flex items-center gap-2"
-          animate={{ x: [0, -5, 0] }}
-          transition={{ duration: 3, repeat: Infinity }}
-        >
-          <Music2 className="w-3.5 h-3.5 text-white flex-shrink-0" />
-          <div className="overflow-hidden">
-            <motion.span
-              className="text-xs text-white/80 whitespace-nowrap inline-block"
-              animate={{ x: ['0%', '-50%'] }}
-              transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-            >
-              {item.songTitle} • {item.songArtist} &nbsp;&nbsp;&nbsp; {item.songTitle} • {item.songArtist}
-            </motion.span>
-          </div>
-        </motion.div>
-      </div>
+  // Add comments one by one with delay
+  useEffect(() => {
+    if (!isVisible || comments.length === 0) return;
 
-      {/* Floating OYÉ Reactions */}
-      <AnimatePresence>
-        {floatingOyes.map((oye) => (
-          <FloatingOye key={oye.id} data={oye} onComplete={() => removeFloatingOye(oye.id)} />
+    const interval = setInterval(() => {
+      if (indexRef.current < comments.length) {
+        setDisplayedComments(prev => [...prev.slice(-8), comments[indexRef.current]]);
+        indexRef.current++;
+      } else {
+        indexRef.current = 0; // Loop
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [comments, isVisible]);
+
+  // Reset when visibility changes
+  useEffect(() => {
+    if (!isVisible) {
+      setDisplayedComments([]);
+      indexRef.current = 0;
+    }
+  }, [isVisible]);
+
+  if (!isVisible) return null;
+
+  return (
+    <div className="absolute bottom-32 left-0 right-20 px-4 pointer-events-none">
+      <AnimatePresence mode="popLayout">
+        {displayedComments.map((comment) => (
+          <motion.div
+            key={comment.id}
+            initial={{ opacity: 0, x: -20, y: 10 }}
+            animate={{ opacity: 1, x: 0, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className={`mb-2 px-3 py-2 rounded-2xl backdrop-blur-md max-w-[85%] ${
+              comment.isPunch
+                ? 'bg-pink-500/30 border-l-2 border-pink-500'
+                : 'bg-black/40'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className={`text-[10px] font-bold ${comment.isPunch ? 'text-pink-400' : 'text-purple-400'}`}>
+                @{comment.username}
+              </span>
+              {comment.isPunch && (
+                <span className="text-[8px] px-1 rounded bg-pink-500/40 text-pink-200">📍</span>
+              )}
+            </div>
+            <p className="text-white/90 text-sm">{comment.text}</p>
+          </motion.div>
         ))}
       </AnimatePresence>
     </div>
   );
 };
 
-// Main Feed Component
+// ============================================
+// FULL COMMENTS SHEET
+// ============================================
+const CommentsSheet = ({
+  isOpen,
+  onClose,
+  reactions,
+  trackTitle,
+  onAddComment,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  reactions: Reaction[];
+  trackTitle: string;
+  onAddComment: (text: string) => void;
+}) => {
+  const [commentText, setCommentText] = useState('');
+
+  const handleSubmit = () => {
+    if (commentText.trim()) {
+      onAddComment(commentText.trim());
+      setCommentText('');
+    }
+  };
+
+  const commentsWithText = reactions.filter(r => r.comment);
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="absolute inset-0 z-50"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+
+          {/* Sheet */}
+          <motion.div
+            className="absolute bottom-0 left-0 right-0 bg-[#0f0f16] rounded-t-3xl max-h-[70vh] flex flex-col"
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 25 }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <div>
+                <h3 className="text-white font-bold">Comments</h3>
+                <p className="text-white/50 text-xs truncate max-w-[200px]">{trackTitle}</p>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 rounded-full bg-white/10"
+              >
+                <X className="w-5 h-5 text-white/70" />
+              </button>
+            </div>
+
+            {/* Comments List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {commentsWithText.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-white/40">
+                  <MessageCircle className="w-10 h-10 mb-2" />
+                  <p className="text-sm">No comments yet</p>
+                  <p className="text-xs">Be the first to comment!</p>
+                </div>
+              ) : (
+                commentsWithText.map((reaction) => {
+                  const isPunch = reaction.emoji === '📍';
+                  return (
+                    <div
+                      key={reaction.id}
+                      className={`flex gap-3 ${isPunch ? 'bg-pink-500/10 -mx-2 px-2 py-2 rounded-lg border-l-2 border-pink-500' : ''}`}
+                    >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        isPunch
+                          ? 'bg-gradient-to-br from-pink-500 to-rose-500'
+                          : 'bg-gradient-to-br from-purple-500 to-pink-500'
+                      }`}>
+                        <User className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-bold ${isPunch ? 'text-pink-400' : 'text-purple-400'}`}>
+                            @{reaction.username}
+                          </span>
+                          {isPunch && (
+                            <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-pink-500/30 text-pink-300 font-bold">
+                              📍 PUNCH
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-white/80 text-sm mt-0.5">{reaction.comment}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Comment Input */}
+            <div className="p-4 border-t border-white/10 flex gap-2">
+              <input
+                type="text"
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                placeholder="Add a comment..."
+                className="flex-1 bg-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              />
+              <motion.button
+                onClick={handleSubmit}
+                className="px-4 py-2.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-bold"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                Post
+              </motion.button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+// ============================================
+// FEED CARD - Full Portrait YouTube Shorts Style
+// ============================================
+interface FeedCardProps {
+  trackId: string;
+  trackTitle: string;
+  trackArtist: string;
+  trackThumbnail?: string;
+  reactions: Reaction[];
+  nativeOyeScore?: number; // Track's base OYE score from library
+  isActive: boolean;
+  isPlaying: boolean;
+  isThisTrack: boolean; // Is this card's track the current track?
+  onPlay: () => void;
+  onTogglePlay: () => void;
+  onReact: (type: ReactionType) => void;
+  onAddComment: (text: string) => void;
+  onAddToLibrary?: () => void; // OYÉ = add to library + boost
+  onAddToPlaylist?: () => void; // + button
+}
+
+const FeedCard = ({
+  trackId,
+  trackTitle,
+  trackArtist,
+  trackThumbnail,
+  reactions,
+  nativeOyeScore = 0,
+  isActive,
+  isPlaying,
+  isThisTrack,
+  onPlay,
+  onTogglePlay,
+  onReact,
+  onAddComment,
+  onAddToLibrary,
+  onAddToPlaylist,
+}: FeedCardProps) => {
+  const [showComments, setShowComments] = useState(false);
+  const [userReactions, setUserReactions] = useState<Set<ReactionType>>(new Set());
+
+  // Auto-play when card becomes active
+  useEffect(() => {
+    if (isActive && !isThisTrack) {
+      // This card is now active but not playing - auto-play it
+      onPlay();
+    }
+  }, [isActive, isThisTrack, onPlay]);
+
+  // Count reactions
+  const reactionCounts = useMemo(() => {
+    const counts = { like: 0, oye: 0, fire: 0, comments: 0, punches: 0 };
+    reactions.forEach(r => {
+      if (r.reaction_type === 'like') counts.like++;
+      else if (r.reaction_type === 'oye') counts.oye++;
+      else if (r.reaction_type === 'fire') counts.fire++;
+      if (r.comment) {
+        counts.comments++;
+        if (r.emoji === '📍') counts.punches++;
+      }
+    });
+    return counts;
+  }, [reactions]);
+
+  // Convert reactions to scrolling comments
+  const scrollingComments = useMemo((): ScrollingComment[] => {
+    return reactions
+      .filter(r => r.comment)
+      .map(r => ({
+        id: r.id,
+        text: r.comment || '',
+        username: r.username,
+        isPunch: r.emoji === '📍',
+        timestamp: new Date(r.created_at).getTime(),
+      }))
+      .sort((a, b) => b.timestamp - a.timestamp);
+  }, [reactions]);
+
+  // Handle reaction tap
+  const handleReaction = (type: ReactionType) => {
+    const newReactions = new Set(userReactions);
+    if (newReactions.has(type)) {
+      newReactions.delete(type);
+    } else {
+      newReactions.add(type);
+      onReact(type);
+    }
+    setUserReactions(newReactions);
+  };
+
+  // Format count
+  const formatCount = (count: number) => {
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+    return count.toString();
+  };
+
+  return (
+    <div className="relative w-full h-full bg-black">
+      {/* Background - Thumbnail with gradient */}
+      <div className="absolute inset-0">
+        {trackThumbnail ? (
+          <img
+            src={trackThumbnail}
+            alt={trackTitle}
+            className="w-full h-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }}
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-purple-900/50 to-pink-900/30 flex items-center justify-center">
+            <Music2 className="w-24 h-24 text-white/20" />
+          </div>
+        )}
+        {/* Gradient overlays */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/30" />
+      </div>
+
+      {/* Tap to play/pause - invisible overlay */}
+      <button
+        className="absolute inset-0 z-10"
+        onClick={isThisTrack ? onTogglePlay : onPlay}
+        aria-label={isPlaying ? 'Pause' : 'Play'}
+      />
+
+      {/* Progress Bar with Heatmap */}
+      <ProgressBar isActive={isActive && isThisTrack} trackId={trackId} />
+
+      {/* Scrolling Comments Overlay */}
+      <ScrollingCommentsOverlay
+        comments={scrollingComments}
+        isVisible={isActive && !showComments}
+      />
+
+      {/* Track Info - Bottom Left (Clean) */}
+      <div className="absolute bottom-28 left-4 right-24 z-20">
+        {/* OYÉ Badge - Only show if significant */}
+        {(() => {
+          const totalOye = nativeOyeScore + reactionCounts.oye;
+          if (totalOye < 100) return null;
+          return (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 mb-3 rounded-sm bg-orange-500/90">
+              <Zap className="w-3 h-3 text-white" style={{ fill: 'white' }} />
+              <span className="text-white text-[10px] font-bold tracking-wide">{formatCount(totalOye)} OYÉ</span>
+            </div>
+          );
+        })()}
+
+        {/* Artist Handle */}
+        <p className="text-white/80 text-sm font-medium mb-1">@{trackArtist.toLowerCase().replace(/\s+/g, '_')}</p>
+
+        {/* Track Title */}
+        <h3 className="text-white text-base font-semibold mb-2 line-clamp-2 leading-tight">
+          {trackTitle}
+        </h3>
+
+        {/* Song Info */}
+        <div className="flex items-center gap-2 text-white/60">
+          <Music2 className="w-3.5 h-3.5" />
+          <span className="text-xs truncate">{trackArtist}</span>
+        </div>
+      </div>
+
+      {/* Right Side Actions - Clean & Functional */}
+      <div className="absolute right-4 bottom-32 z-20 flex flex-col items-center gap-5">
+        {/* OYÉ Button - Main Action (I vibe with this → adds to library + boosts) */}
+        <button
+          className="flex flex-col items-center"
+          onClick={() => {
+            handleReaction('oye');
+            // OYÉ = I vibe with this = Add to library + Boost
+            onAddToLibrary?.();
+          }}
+        >
+          <div
+            className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
+              userReactions.has('oye')
+                ? 'bg-gradient-to-br from-yellow-400 to-orange-500 scale-110'
+                : 'bg-gradient-to-br from-orange-500 to-orange-600'
+            }`}
+          >
+            <Zap className="w-7 h-7 text-white" style={{ fill: 'white' }} />
+          </div>
+          <span className="text-orange-400 text-[11px] font-bold mt-1.5">OYÉ</span>
+        </button>
+
+        {/* Comments */}
+        <button
+          className="flex flex-col items-center"
+          onClick={() => setShowComments(true)}
+        >
+          <MessageCircle className="w-8 h-8 text-white" />
+          <span className="text-white text-[11px] font-medium mt-1">{reactionCounts.comments || ''}</span>
+        </button>
+
+        {/* Add to Playlist */}
+        <button
+          className="flex flex-col items-center"
+          onClick={() => onAddToPlaylist?.()}
+        >
+          <Plus className="w-8 h-8 text-white" />
+        </button>
+
+        {/* Share */}
+        <button className="flex flex-col items-center">
+          <Share2 className="w-8 h-8 text-white" />
+        </button>
+      </div>
+
+      {/* Comments Sheet */}
+      <CommentsSheet
+        isOpen={showComments}
+        onClose={() => setShowComments(false)}
+        reactions={reactions}
+        trackTitle={trackTitle}
+        onAddComment={onAddComment}
+      />
+    </div>
+  );
+};
+
+// ============================================
+// MAIN FEED COMPONENT
+// ============================================
 export const VoyoVerticalFeed = ({ isActive }: { isActive: boolean }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isMuted, setIsMuted] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Handle scroll to detect current video
+  const { recentReactions, fetchRecentReactions, subscribeToReactions, isSubscribed, createReaction, computeHotspots, getCategoryScore, getTopCategories } = useReactionStore();
+  const { setCurrentTrack, addToQueue, currentTrack, isPlaying, togglePlay, progress } = usePlayerStore();
+
+  // Fetch reactions on mount
+  useEffect(() => {
+    if (isActive) {
+      fetchRecentReactions(100);
+      if (!isSubscribed) {
+        subscribeToReactions();
+      }
+    }
+  }, [isActive, fetchRecentReactions, subscribeToReactions, isSubscribed]);
+
+  // Build feed from ALL tracks, boosted by reactions + For You algorithm
+  const trackGroups = useMemo(() => {
+    // Start with reaction data indexed by track
+    const reactionsByTrack = new Map<string, {
+      reactions: Reaction[];
+      hotScore: number;
+      categoryBoost: number;
+      dominantCategory: string;
+    }>();
+
+    recentReactions.forEach(reaction => {
+      const existing = reactionsByTrack.get(reaction.track_id);
+      if (existing) {
+        existing.reactions.push(reaction);
+        existing.hotScore = existing.reactions.length;
+        const categoryScore = getCategoryScore(reaction.category);
+        if (categoryScore > existing.categoryBoost) {
+          existing.categoryBoost = categoryScore;
+          existing.dominantCategory = reaction.category;
+        }
+      } else {
+        reactionsByTrack.set(reaction.track_id, {
+          reactions: [reaction],
+          hotScore: 1,
+          categoryBoost: getCategoryScore(reaction.category),
+          dominantCategory: reaction.category,
+        });
+      }
+    });
+
+    // Build feed from ALL tracks in library
+    const feedItems = TRACKS.map(track => {
+      const trackId = track.id || track.trackId || '';
+      const reactionData = reactionsByTrack.get(trackId);
+
+      return {
+        trackId,
+        trackTitle: track.title,
+        trackArtist: track.artist,
+        trackThumbnail: track.coverUrl || `https://voyo-music-api.fly.dev/cdn/art/${trackId}?quality=high`,
+        reactions: reactionData?.reactions || [],
+        nativeOyeScore: track.oyeScore || 0, // Track's base OYE score
+        hotScore: reactionData?.hotScore || 0,
+        categoryBoost: reactionData?.categoryBoost || 50, // Default neutral boost
+        dominantCategory: reactionData?.dominantCategory || 'afro-heat',
+      };
+    });
+
+    // Sort by FOR YOU score: reactions boost + category preference
+    // Tracks with reactions surface higher, but all tracks shown
+    return feedItems.sort((a, b) => {
+      // Primary: Has reactions vs doesn't (big boost)
+      const aHasReactions = a.hotScore > 0 ? 10 : 0;
+      const bHasReactions = b.hotScore > 0 ? 10 : 0;
+
+      // Secondary: Category preference + hotness
+      const aScore = aHasReactions + (a.categoryBoost / 100) * a.hotScore + a.hotScore;
+      const bScore = bHasReactions + (b.categoryBoost / 100) * b.hotScore + b.hotScore;
+
+      if (bScore !== aScore) return bScore - aScore;
+
+      // Tertiary: Random shuffle for equal scores (variety)
+      return Math.random() - 0.5;
+    });
+  }, [recentReactions, getCategoryScore]);
+
+  // Handle scroll snap
   const handleScroll = () => {
     if (!containerRef.current) return;
     const scrollTop = containerRef.current.scrollTop;
     const itemHeight = containerRef.current.clientHeight;
     const newIndex = Math.round(scrollTop / itemHeight);
-    if (newIndex !== currentIndex) {
+    if (newIndex !== currentIndex && newIndex >= 0 && newIndex < trackGroups.length) {
       setCurrentIndex(newIndex);
     }
   };
 
+  // Handle play
+  const handlePlay = useCallback((trackId: string, trackTitle: string, trackArtist: string) => {
+    const track = TRACKS.find(t => t.id === trackId || t.trackId === trackId);
+    if (track) {
+      setCurrentTrack(track);
+    } else {
+      setCurrentTrack({
+        id: trackId,
+        trackId: trackId,
+        title: trackTitle,
+        artist: trackArtist,
+        coverUrl: `https://voyo-music-api.fly.dev/cdn/art/${trackId}?quality=high`,
+        duration: 0,
+        tags: [],
+        oyeScore: 0,
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }, [setCurrentTrack]);
+
+  // Handle reaction - with track position for hotspot detection
+  const handleReact = useCallback((trackId: string, trackTitle: string, trackArtist: string, type: ReactionType) => {
+    // Get current playback position for hotspot tracking
+    const trackPosition = currentTrack?.id === trackId || currentTrack?.trackId === trackId
+      ? Math.round(progress) // 0-100 percentage
+      : undefined;
+
+    createReaction({
+      username: 'anonymous', // TODO: Get real username
+      trackId,
+      trackTitle,
+      trackArtist,
+      trackThumbnail: `https://voyo-music-api.fly.dev/cdn/art/${trackId}?quality=high`,
+      category: 'afro-heat', // Default category
+      reactionType: type,
+      trackPosition, // Where in the song the reaction happened
+    });
+
+    console.log(`[Feed] Reaction ${type} at position ${trackPosition}% on ${trackTitle}`);
+  }, [createReaction, currentTrack, progress]);
+
+  // Handle add comment - with track position
+  const handleAddComment = useCallback((trackId: string, trackTitle: string, trackArtist: string, text: string) => {
+    const trackPosition = currentTrack?.id === trackId || currentTrack?.trackId === trackId
+      ? Math.round(progress)
+      : undefined;
+
+    createReaction({
+      username: 'anonymous',
+      trackId,
+      trackTitle,
+      trackArtist,
+      trackThumbnail: `https://voyo-music-api.fly.dev/cdn/art/${trackId}?quality=high`,
+      category: 'afro-heat',
+      emoji: text.length <= 30 ? '📍' : '💬', // Punch if short
+      comment: text,
+      trackPosition,
+    });
+  }, [createReaction, currentTrack, progress]);
+
   if (!isActive) return null;
+
+  // Empty state
+  if (trackGroups.length === 0) {
+    return (
+      <motion.div
+        className="absolute inset-0 bg-black flex flex-col items-center justify-center px-8"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        <div className="w-24 h-24 rounded-full bg-purple-500/20 flex items-center justify-center mb-4">
+          <Zap className="w-12 h-12 text-purple-400" />
+        </div>
+        <h3 className="text-white font-bold text-xl mb-2">No Vibes Yet</h3>
+        <p className="text-white/50 text-sm text-center">
+          Start playing music and react to fill your feed with community vibes!
+        </p>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -328,39 +729,72 @@ export const VoyoVerticalFeed = ({ isActive }: { isActive: boolean }) => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
+      {/* Snap Scroll Container */}
       <div
         ref={containerRef}
         className="h-full w-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide"
         onScroll={handleScroll}
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {MOCK_CLIPS.map((clip, index) => (
-          <div key={clip.id} className="h-full w-full">
-            <FeedItemCard
-              item={clip}
-              isActive={isActive && index === currentIndex}
-              isMuted={isMuted}
-              onToggleMute={() => setIsMuted(!isMuted)}
-            />
-          </div>
+        {/* Preload next 2 thumbnails */}
+        {trackGroups.slice(currentIndex + 1, currentIndex + 3).map(g => (
+          <link key={`preload-${g.trackId}`} rel="preload" as="image" href={g.trackThumbnail} />
         ))}
+        {trackGroups.map((group, index) => {
+          const isThisTrack = currentTrack?.trackId === group.trackId || currentTrack?.id === group.trackId;
+          const cardIsActive = isActive && index === currentIndex;
+          return (
+            <div key={group.trackId} className="h-full w-full snap-start snap-always">
+              <FeedCard
+                trackId={group.trackId}
+                trackTitle={group.trackTitle}
+                trackArtist={group.trackArtist}
+                trackThumbnail={group.trackThumbnail}
+                reactions={group.reactions}
+                nativeOyeScore={group.nativeOyeScore}
+                isActive={cardIsActive}
+                isPlaying={isPlaying && isThisTrack}
+                isThisTrack={isThisTrack}
+                onPlay={() => handlePlay(group.trackId, group.trackTitle, group.trackArtist)}
+                onTogglePlay={togglePlay}
+                onReact={(type) => handleReact(group.trackId, group.trackTitle, group.trackArtist, type)}
+                onAddComment={(text) => handleAddComment(group.trackId, group.trackTitle, group.trackArtist, text)}
+                onAddToLibrary={() => {
+                  // OYÉ = Add to library (queue) + auto-play
+                  const track = TRACKS.find(t => t.id === group.trackId || t.trackId === group.trackId);
+                  if (track) addToQueue(track);
+                  console.log(`[Feed] OYÉ! Added ${group.trackTitle} to library`);
+                }}
+                onAddToPlaylist={() => {
+                  // + button = Add to queue
+                  const track = TRACKS.find(t => t.id === group.trackId || t.trackId === group.trackId);
+                  if (track) addToQueue(track);
+                  console.log(`[Feed] Added ${group.trackTitle} to playlist`);
+                }}
+              />
+            </div>
+          );
+        })}
       </div>
 
-      {/* Top gradient for status bar */}
-      <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-black/60 to-transparent pointer-events-none" />
-
-      {/* "For You" / "Following" tabs placeholder */}
-      <div className="absolute top-4 left-0 right-0 flex items-center justify-center gap-6">
-        <button className="text-white/50 text-sm font-semibold">Following</button>
-        <button className="text-white text-sm font-bold border-b-2 border-white pb-1">For You</button>
-      </div>
-
-      {/* DEMO MODE BANNER */}
-      <div className="absolute bottom-20 left-0 right-0 flex items-center justify-center pointer-events-none">
-        <div className="bg-yellow-500/90 text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg">
-          DEMO MODE - Preview Content
+      {/* Top Navigation - Following | For You */}
+      <div className="absolute top-4 left-0 right-0 z-30">
+        <div className="flex items-center justify-center gap-6">
+          <button className="text-white/50 text-base font-semibold">Following</button>
+          <button className="text-white text-base font-bold border-b-2 border-white pb-0.5">For You</button>
         </div>
+        {/* Mute button */}
+        <button className="absolute right-4 top-0">
+          <VolumeX className="w-5 h-5 text-white/70" />
+        </button>
       </div>
+
+      {/* Scroll indicator - subtle, no animation */}
+      {trackGroups.length > 1 && currentIndex < trackGroups.length - 1 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+          <ChevronDown className="w-5 h-5 text-white/30" />
+        </div>
+      )}
     </motion.div>
   );
 };

@@ -225,6 +225,10 @@ const LiveCommentsSection = ({
   const hasRealReactions = reactions.length > 0;
   const displayCount = hasRealReactions ? reactions.length : fallbackComments.length;
 
+  // Count Signals (billboard contributions) vs regular reactions
+  const signalCount = reactions.filter(r => r.emoji === '📍').length;
+  const reactionCount = reactions.length - signalCount;
+
   // Format time ago
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -250,7 +254,14 @@ const LiveCommentsSection = ({
         <div className="flex items-center gap-2">
           <MessageCircle className="w-4 h-4 text-purple-400" />
           <span className="text-white/80 text-xs font-bold">COMMUNITY VIBES</span>
-          <span className="text-white/40 text-xs">• {displayCount} {hasRealReactions ? 'reactions' : 'vibing'}</span>
+          {hasRealReactions && signalCount > 0 ? (
+            <span className="text-white/40 text-xs">
+              • <span className="text-pink-400">{signalCount} Signal{signalCount !== 1 ? 's' : ''}</span>
+              {reactionCount > 0 && <span> + {reactionCount} reaction{reactionCount !== 1 ? 's' : ''}</span>}
+            </span>
+          ) : (
+            <span className="text-white/40 text-xs">• {displayCount} {hasRealReactions ? 'reactions' : 'vibing'}</span>
+          )}
         </div>
         <motion.div
           animate={{ rotate: isExpanded ? 180 : 0 }}
@@ -278,17 +289,22 @@ const LiveCommentsSection = ({
                 // Real reactions from community
                 reactions.map((reaction) => {
                   const config = CATEGORY_CONFIG[reaction.category];
+                  const isSignal = reaction.emoji === '📍'; // Billboard contribution
                   return (
                     <motion.div
                       key={reaction.id}
-                      className="flex gap-3 items-start"
+                      className={`flex gap-3 items-start ${isSignal ? 'bg-pink-500/10 -mx-2 px-2 py-1.5 rounded-lg border-l-2 border-pink-500' : ''}`}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.3 }}
                     >
                       {/* User Avatar */}
                       <button
-                        className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0"
+                        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          isSignal
+                            ? 'bg-gradient-to-br from-pink-500 to-rose-500'
+                            : 'bg-gradient-to-br from-purple-500 to-pink-500'
+                        }`}
                         onClick={() => onUserClick?.(reaction.username)}
                       >
                         <User className="w-4 h-4 text-white" />
@@ -297,22 +313,30 @@ const LiveCommentsSection = ({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <button
-                            className="text-purple-400 text-xs font-bold hover:underline"
+                            className={`text-xs font-bold hover:underline ${isSignal ? 'text-pink-400' : 'text-purple-400'}`}
                             onClick={() => onUserClick?.(reaction.username)}
                           >
                             @{reaction.username}
                           </button>
+                          {/* Signal Badge for Billboard Contributions */}
+                          {isSignal && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-pink-500/30 text-pink-300 font-bold flex items-center gap-0.5">
+                              📍 SIGNAL
+                            </span>
+                          )}
                           <span className="text-white/30 text-[10px]">{timeAgo(reaction.created_at)}</span>
                         </div>
-                        <div className="flex items-center gap-1.5 mt-0.5">
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                           <span
                             className="text-xs px-2 py-0.5 rounded-full"
                             style={{ backgroundColor: `${config.color}20`, color: config.color }}
                           >
-                            {reaction.emoji} {config.name}
+                            {config.emoji} {config.name}
                           </span>
                           {reaction.comment && (
-                            <span className="text-white/80 text-xs truncate">{reaction.comment}</span>
+                            <span className={`text-xs ${isSignal ? 'text-pink-200' : 'text-white/80'}`}>
+                              "{reaction.comment}"
+                            </span>
                           )}
                         </div>
                       </div>
@@ -747,12 +771,20 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
               handleReaction(type, emoji);
 
               // Save to store (community reaction)
+              // Simplified types: like, oye, fire
               if (currentTrack) {
                 const categoryMap: Record<string, ReactionCategory> = {
                   'oye': 'afro-heat',
                   'fire': 'afro-heat',
                   'love': 'chill-vibes',
                   'zap': 'party-mode',
+                };
+                // Map old types to new simplified types
+                const reactionTypeMap: Record<string, 'like' | 'oye' | 'fire'> = {
+                  'oye': 'oye',
+                  'fire': 'fire',
+                  'love': 'like',
+                  'zap': 'oye',
                 };
                 createReaction({
                   username: currentUsername || 'anonymous',
@@ -762,7 +794,7 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
                   trackThumbnail: currentTrack.coverUrl,
                   category: categoryMap[type] || 'afro-heat',
                   emoji,
-                  reactionType: type === 'zap' ? 'hype' : type === 'love' ? 'love' : 'oye',
+                  reactionType: reactionTypeMap[type] || 'oye',
                 });
               }
             }} />

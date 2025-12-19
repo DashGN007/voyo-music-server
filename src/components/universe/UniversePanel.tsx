@@ -321,6 +321,7 @@ export const UniversePanel = ({ isOpen, onClose }: UniversePanelProps) => {
                     { id: 'discover', icon: Search, label: 'Find' },
                     { id: 'profile', icon: Edit3, label: 'Profile' },
                     { id: 'portal', icon: Users, label: 'Portal' },
+                    { id: 'backup', icon: Shield, label: 'Backup' },
                   ]
                 : [{ id: 'auth', icon: LogIn, label: 'Login' }]
               ).map((tab) => (

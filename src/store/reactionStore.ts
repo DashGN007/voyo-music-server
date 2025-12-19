@@ -25,7 +25,8 @@ export type ReactionCategory =
   | 'late-night'
   | 'workout';
 
-export type ReactionType = 'oyo' | 'oye' | 'fire' | 'chill' | 'hype' | 'love';
+// Simplified reaction types: Like (heart), OYE (energy), FIRE (hot)
+export type ReactionType = 'like' | 'oye' | 'fire';
 
 export interface Reaction {
   id: string;
@@ -39,6 +40,15 @@ export interface Reaction {
   reaction_type: ReactionType;
   comment?: string;
   created_at: string;
+  track_position?: number; // 0-100 percentage of where in the track the reaction was made
+}
+
+// Hotspot = a zone in the track where many reactions cluster
+export interface TrackHotspot {
+  position: number; // 0-100 percentage
+  intensity: number; // 0-1 heat intensity
+  reactionCount: number;
+  dominantType: ReactionType;
 }
 
 export interface TrackStats {
@@ -64,6 +74,17 @@ export interface CategoryPulse {
   isHot: boolean; // Had reaction in last 30 seconds
 }
 
+// User's affinity for each category (For You algorithm)
+export interface CategoryPreference {
+  category: ReactionCategory;
+  reactionCount: number; // Total reactions in this category
+  likeCount: number;
+  oyeCount: number;
+  fireCount: number;
+  lastReactedAt?: string;
+  score: number; // Computed preference score (0-100)
+}
+
 // ============================================
 // STORE
 // ============================================
@@ -73,7 +94,9 @@ interface ReactionStore {
   recentReactions: Reaction[];
   trackReactions: Map<string, Reaction[]>;
   trackStats: Map<string, TrackStats>;
+  trackHotspots: Map<string, TrackHotspot[]>; // Hottest parts per track
   categoryPulse: Record<ReactionCategory, CategoryPulse>;
+  userCategoryPreferences: Record<ReactionCategory, CategoryPreference>; // For You algorithm
   isSubscribed: boolean;
 
   // Actions
@@ -87,6 +110,7 @@ interface ReactionStore {
     emoji?: string;
     reactionType?: ReactionType;
     comment?: string;
+    trackPosition?: number; // 0-100 percentage
   }) => Promise<boolean>;
 
   // Fetching
@@ -102,6 +126,15 @@ interface ReactionStore {
   // Local updates (for optimistic UI)
   addLocalReaction: (reaction: Reaction) => void;
   pulseCategory: (category: ReactionCategory) => void;
+
+  // Hotspot detection
+  getHotspots: (trackId: string) => TrackHotspot[];
+  computeHotspots: (trackId: string) => void;
+
+  // For You algorithm
+  updateCategoryPreference: (category: ReactionCategory, reactionType: ReactionType) => void;
+  getTopCategories: () => CategoryPreference[];
+  getCategoryScore: (category: ReactionCategory) => number;
 }
 
 // Category config for emojis
@@ -122,12 +155,23 @@ const initialCategoryPulse: Record<ReactionCategory, CategoryPulse> = {
   'workout': { category: 'workout', count: 0, isHot: false },
 };
 
+// Initial user category preferences (For You algorithm)
+const initialCategoryPreferences: Record<ReactionCategory, CategoryPreference> = {
+  'afro-heat': { category: 'afro-heat', reactionCount: 0, likeCount: 0, oyeCount: 0, fireCount: 0, score: 50 },
+  'chill-vibes': { category: 'chill-vibes', reactionCount: 0, likeCount: 0, oyeCount: 0, fireCount: 0, score: 50 },
+  'party-mode': { category: 'party-mode', reactionCount: 0, likeCount: 0, oyeCount: 0, fireCount: 0, score: 50 },
+  'late-night': { category: 'late-night', reactionCount: 0, likeCount: 0, oyeCount: 0, fireCount: 0, score: 50 },
+  'workout': { category: 'workout', reactionCount: 0, likeCount: 0, oyeCount: 0, fireCount: 0, score: 50 },
+};
+
 export const useReactionStore = create<ReactionStore>((set, get) => ({
   // Initial state
   recentReactions: [],
   trackReactions: new Map(),
   trackStats: new Map(),
+  trackHotspots: new Map(),
   categoryPulse: { ...initialCategoryPulse },
+  userCategoryPreferences: { ...initialCategoryPreferences },
   isSubscribed: false,
 
   // ============================================
@@ -143,6 +187,7 @@ export const useReactionStore = create<ReactionStore>((set, get) => ({
     emoji,
     reactionType = 'oye',
     comment,
+    trackPosition,
   }) => {
     if (!isSupabaseConfigured || !supabase) {
       console.warn('[Reactions] Supabase not configured, using local only');
@@ -159,9 +204,16 @@ export const useReactionStore = create<ReactionStore>((set, get) => ({
         reaction_type: reactionType,
         comment,
         created_at: new Date().toISOString(),
+        track_position: trackPosition,
       };
       get().addLocalReaction(localReaction);
       get().pulseCategory(category);
+      // Update For You preferences
+      get().updateCategoryPreference(category, reactionType);
+      // Recompute hotspots for this track
+      if (trackPosition !== undefined) {
+        get().computeHotspots(trackId);
+      }
       return true;
     }
 
@@ -176,6 +228,7 @@ export const useReactionStore = create<ReactionStore>((set, get) => ({
         emoji: emoji || CATEGORY_EMOJIS[category],
         reaction_type: reactionType,
         comment,
+        track_position: trackPosition,
       });
 
       if (error) {
@@ -185,6 +238,12 @@ export const useReactionStore = create<ReactionStore>((set, get) => ({
 
       // Pulse the category locally (realtime will also trigger)
       get().pulseCategory(category);
+      // Update For You preferences
+      get().updateCategoryPreference(category, reactionType);
+      // Recompute hotspots
+      if (trackPosition !== undefined) {
+        get().computeHotspots(trackId);
+      }
       return true;
     } catch (err) {
       console.error('[Reactions] Error:', err);
@@ -400,6 +459,123 @@ export const useReactionStore = create<ReactionStore>((set, get) => ({
         },
       }));
     }, 30000);
+  },
+
+  // ============================================
+  // HOTSPOT DETECTION
+  // ============================================
+  getHotspots: (trackId) => {
+    return get().trackHotspots.get(trackId) || [];
+  },
+
+  computeHotspots: (trackId) => {
+    const reactions = get().trackReactions.get(trackId) || [];
+
+    // Filter reactions that have position data
+    const positionedReactions = reactions.filter(r => r.track_position !== undefined);
+
+    if (positionedReactions.length === 0) {
+      return;
+    }
+
+    // Divide track into 10 zones (each 10% of track)
+    const ZONE_COUNT = 10;
+    const zones: { reactions: Reaction[]; position: number }[] = [];
+
+    for (let i = 0; i < ZONE_COUNT; i++) {
+      zones.push({
+        position: (i + 0.5) * (100 / ZONE_COUNT), // Center of zone
+        reactions: [],
+      });
+    }
+
+    // Bucket reactions into zones
+    positionedReactions.forEach(r => {
+      const zoneIndex = Math.min(
+        Math.floor((r.track_position! / 100) * ZONE_COUNT),
+        ZONE_COUNT - 1
+      );
+      zones[zoneIndex].reactions.push(r);
+    });
+
+    // Find max count for normalization
+    const maxCount = Math.max(...zones.map(z => z.reactions.length), 1);
+
+    // Convert to hotspots (only zones with reactions)
+    const hotspots: TrackHotspot[] = zones
+      .filter(z => z.reactions.length > 0)
+      .map(z => {
+        // Count reaction types
+        const typeCounts: Record<ReactionType, number> = { like: 0, oye: 0, fire: 0 };
+        z.reactions.forEach(r => {
+          typeCounts[r.reaction_type]++;
+        });
+
+        // Find dominant type
+        const dominantType = (Object.entries(typeCounts) as [ReactionType, number][])
+          .sort((a, b) => b[1] - a[1])[0][0];
+
+        return {
+          position: z.position,
+          intensity: z.reactions.length / maxCount,
+          reactionCount: z.reactions.length,
+          dominantType,
+        };
+      });
+
+    // Update state
+    set((state) => {
+      const newMap = new Map(state.trackHotspots);
+      newMap.set(trackId, hotspots);
+      return { trackHotspots: newMap };
+    });
+
+    console.log(`[Hotspots] Computed ${hotspots.length} hotspots for track ${trackId}`);
+  },
+
+  // ============================================
+  // FOR YOU ALGORITHM
+  // ============================================
+  updateCategoryPreference: (category, reactionType) => {
+    set((state) => {
+      const current = state.userCategoryPreferences[category];
+      const updated: CategoryPreference = {
+        ...current,
+        reactionCount: current.reactionCount + 1,
+        likeCount: current.likeCount + (reactionType === 'like' ? 1 : 0),
+        oyeCount: current.oyeCount + (reactionType === 'oye' ? 1 : 0),
+        fireCount: current.fireCount + (reactionType === 'fire' ? 1 : 0),
+        lastReactedAt: new Date().toISOString(),
+        // Recalculate score: weighted by recency and reaction count
+        score: Math.min(100, 50 + (current.reactionCount + 1) * 5),
+      };
+
+      console.log(`[ForYou] Updated ${category} preference: score ${updated.score}`);
+
+      return {
+        userCategoryPreferences: {
+          ...state.userCategoryPreferences,
+          [category]: updated,
+        },
+      };
+    });
+  },
+
+  getTopCategories: () => {
+    const prefs = get().userCategoryPreferences;
+    return Object.values(prefs)
+      .sort((a, b) => {
+        // Primary: score (higher is better)
+        if (b.score !== a.score) return b.score - a.score;
+        // Secondary: recency
+        const aTime = a.lastReactedAt ? new Date(a.lastReactedAt).getTime() : 0;
+        const bTime = b.lastReactedAt ? new Date(b.lastReactedAt).getTime() : 0;
+        return bTime - aTime;
+      });
+  },
+
+  getCategoryScore: (category) => {
+    return get().userCategoryPreferences[category]?.score || 50;
   },
 }));
 
