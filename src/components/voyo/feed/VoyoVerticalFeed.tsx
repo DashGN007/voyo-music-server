@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useReactionStore, Reaction, ReactionCategory, ReactionType, TrackHotspot } from '../../../store/reactionStore';
 import { usePlayerStore } from '../../../store/playerStore';
+import { useUniverseStore } from '../../../store/universeStore';
 import { TRACKS } from '../../../data/tracks';
 
 // ============================================
@@ -553,6 +554,7 @@ export const VoyoVerticalFeed = ({ isActive }: { isActive: boolean }) => {
 
   const { recentReactions, fetchRecentReactions, subscribeToReactions, isSubscribed, createReaction, computeHotspots, getCategoryScore, getTopCategories } = useReactionStore();
   const { setCurrentTrack, addToQueue, currentTrack, isPlaying, togglePlay, progress } = usePlayerStore();
+  const { currentUsername } = useUniverseStore();
 
   // Fetch reactions on mount
   useEffect(() => {
@@ -669,7 +671,7 @@ export const VoyoVerticalFeed = ({ isActive }: { isActive: boolean }) => {
       : undefined;
 
     createReaction({
-      username: 'anonymous', // TODO: Get real username
+      username: currentUsername || 'anonymous',
       trackId,
       trackTitle,
       trackArtist,
@@ -680,7 +682,7 @@ export const VoyoVerticalFeed = ({ isActive }: { isActive: boolean }) => {
     });
 
     console.log(`[Feed] Reaction ${type} at position ${trackPosition}% on ${trackTitle}`);
-  }, [createReaction, currentTrack, progress]);
+  }, [createReaction, currentTrack, progress, currentUsername]);
 
   // Handle add comment - with track position
   const handleAddComment = useCallback((trackId: string, trackTitle: string, trackArtist: string, text: string) => {
@@ -689,7 +691,7 @@ export const VoyoVerticalFeed = ({ isActive }: { isActive: boolean }) => {
       : undefined;
 
     createReaction({
-      username: 'anonymous',
+      username: currentUsername || 'anonymous',
       trackId,
       trackTitle,
       trackArtist,
@@ -699,7 +701,7 @@ export const VoyoVerticalFeed = ({ isActive }: { isActive: boolean }) => {
       comment: text,
       trackPosition,
     });
-  }, [createReaction, currentTrack, progress]);
+  }, [createReaction, currentTrack, progress, currentUsername]);
 
   if (!isActive) return null;
 
