@@ -34,8 +34,25 @@ import { VideoSnippet } from './VideoSnippet';
 
 // Snippet config
 const ENABLE_VIDEO_SNIPPETS = true; // Toggle video snippets on/off
-const SNIPPET_DURATION = 25; // Seconds per snippet before auto-advance
 const DEFAULT_SEEK_PERCENT = 25; // Where to start if no hotspots
+
+// Snippet modes
+const SNIPPET_MODES = {
+  full: {
+    duration: 25, // 25 seconds for full preview
+    label: 'Full',
+    icon: '🎵',
+    description: 'Full 25s preview',
+  },
+  extract: {
+    duration: 12, // 12 seconds for hot extract (the peak moment)
+    label: 'Extract',
+    icon: '🔥',
+    description: 'Hot 12s extract',
+  },
+} as const;
+
+type SnippetMode = keyof typeof SNIPPET_MODES;
 
 // ============================================
 // FEED MODE TYPE
@@ -372,6 +389,8 @@ interface FeedCardProps {
   reactions: Reaction[];
   nativeOyeScore?: number; // Track's base OYE score from library
   hottestPosition?: number; // 0-100 percentage of hottest part
+  snippetDuration: number; // How long the snippet plays (12s for extract, 25s for full)
+  snippetMode: SnippetMode; // 'extract' or 'full'
   isActive: boolean;
   isPlaying: boolean;
   isThisTrack: boolean; // Is this card's track the current track?
@@ -397,6 +416,8 @@ const FeedCard = ({
   reactions,
   nativeOyeScore = 0,
   hottestPosition,
+  snippetDuration,
+  snippetMode,
   isActive,
   isPlaying,
   isThisTrack,
@@ -442,13 +463,13 @@ const FeedCard = ({
     }
   }, [isActive, isThisTrack, onPlay, onSeekToHotspot, hottestPosition]);
 
-  // Auto-advance timer - trigger after SNIPPET_DURATION seconds
+  // Auto-advance timer - trigger after snippetDuration seconds
   useEffect(() => {
     if (isActive && isPlaying && isThisTrack && snippetStarted && onSnippetEnd) {
       snippetTimerRef.current = setTimeout(() => {
-        console.log(`[Feed] Snippet ended for ${trackTitle}, auto-advancing...`);
+        console.log(`[Feed] ${snippetMode === 'extract' ? 'Hot extract' : 'Snippet'} ended for ${trackTitle}, auto-advancing...`);
         onSnippetEnd();
-      }, SNIPPET_DURATION * 1000);
+      }, snippetDuration * 1000);
 
       return () => {
         if (snippetTimerRef.current) {
@@ -456,7 +477,7 @@ const FeedCard = ({
         }
       };
     }
-  }, [isActive, isPlaying, isThisTrack, snippetStarted, onSnippetEnd, trackTitle]);
+  }, [isActive, isPlaying, isThisTrack, snippetStarted, onSnippetEnd, trackTitle, snippetDuration, snippetMode]);
 
   // Count reactions
   const reactionCounts = useMemo(() => {
@@ -577,6 +598,23 @@ const FeedCard = ({
               ease: 'easeInOut',
             }}
           />
+        )}
+
+        {/* Snippet Mode Badge */}
+        {isActive && isPlaying && isThisTrack && (
+          <motion.div
+            className={`absolute top-12 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${
+              snippetMode === 'extract'
+                ? 'bg-orange-500/90 text-white'
+                : 'bg-purple-500/90 text-white'
+            }`}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <span>{snippetMode === 'extract' ? '🔥' : '🎵'}</span>
+            <span>{snippetMode === 'extract' ? `${snippetDuration}s Extract` : `${snippetDuration}s Full`}</span>
+          </motion.div>
         )}
       </div>
 
@@ -730,9 +768,13 @@ interface VoyoVerticalFeedProps {
 export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [feedMode, setFeedMode] = useState<FeedMode>('forYou');
+  const [snippetMode, setSnippetMode] = useState<SnippetMode>('extract'); // Default to hot extracts
   const [followingList, setFollowingList] = useState<Set<string>>(new Set());
   const [isLoadingFollows, setIsLoadingFollows] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Get current snippet config
+  const snippetConfig = SNIPPET_MODES[snippetMode];
 
   const { recentReactions, fetchRecentReactions, subscribeToReactions, isSubscribed, createReaction, computeHotspots, getCategoryScore, getTopCategories, getHotspots } = useReactionStore();
   const { setCurrentTrack, addToQueue, currentTrack, isPlaying, togglePlay, progress, duration, seekTo, volume, setVolume } = usePlayerStore();
@@ -1118,6 +1160,8 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
                 reactions={group.reactions}
                 nativeOyeScore={group.nativeOyeScore}
                 hottestPosition={group.hottestPosition}
+                snippetDuration={snippetConfig.duration}
+                snippetMode={snippetMode}
                 isActive={cardIsActive}
                 isPlaying={isPlaying && isThisTrack}
                 isThisTrack={isThisTrack}
@@ -1189,17 +1233,34 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
             For You
           </button>
         </div>
-        {/* Mute/Unmute button */}
-        <button
-          className="absolute right-4 top-0 active:scale-90 transition-transform"
-          onClick={() => setVolume(volume > 0 ? 0 : 80)}
-        >
-          {volume > 0 ? (
-            <Volume2 className="w-5 h-5 text-white/70" />
-          ) : (
-            <VolumeX className="w-5 h-5 text-white/70" />
-          )}
-        </button>
+        {/* Mode Toggle + Mute buttons */}
+        <div className="absolute right-4 top-0 flex items-center gap-3">
+          {/* Snippet Mode Toggle */}
+          <motion.button
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+              snippetMode === 'extract'
+                ? 'bg-orange-500/90 text-white'
+                : 'bg-purple-500/90 text-white'
+            }`}
+            onClick={() => setSnippetMode(snippetMode === 'extract' ? 'full' : 'extract')}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {snippetMode === 'extract' ? '🔥 Extract' : '🎵 Full'}
+          </motion.button>
+
+          {/* Mute/Unmute button */}
+          <button
+            className="active:scale-90 transition-transform"
+            onClick={() => setVolume(volume > 0 ? 0 : 80)}
+          >
+            {volume > 0 ? (
+              <Volume2 className="w-5 h-5 text-white/70" />
+            ) : (
+              <VolumeX className="w-5 h-5 text-white/70" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Scroll indicator - subtle, no animation */}
