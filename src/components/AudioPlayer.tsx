@@ -19,11 +19,16 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { Track } from '../types';
 import { usePlayerStore } from '../store/playerStore';
 import { usePreferenceStore } from '../store/preferenceStore';
 import { useDownloadStore } from '../store/downloadStore';
+import { useTrackPoolStore } from '../store/trackPoolStore';
 import { getYouTubeIdForIframe, prefetchTrack } from '../services/api';
 import { audioEngine } from '../services/audioEngine';
+import { recordPoolEngagement } from '../services/personalization';
+import { recordTrackInSession } from '../services/geminiCurator';
+import { onTrackPlay as oyoOnTrackPlay, onTrackSkip as oyoOnTrackSkip, onTrackComplete as oyoOnTrackComplete } from '../services/oyoDJ';
 
 type PlaybackMode = 'cached' | 'iframe';
 export type BoostPreset = 'boosted' | 'calm' | 'voyex' | 'xtreme';
@@ -180,9 +185,12 @@ export const AudioPlayer = () => {
   } = useDownloadStore();
 
   const lastTrackId = useRef<string | null>(null);
+  const previousTrackRef = useRef<Track | null>(null); // For DJ transitions
   const hasPrefetchedRef = useRef<boolean>(false); // Track if we've prefetched next track
   const hasAutoCachedRef = useRef<boolean>(false); // Track if we've auto-cached this track
   const isInitialLoadRef = useRef<boolean>(true); // Track first load for resume position
+  const hasRecordedPlayRef = useRef<boolean>(false); // Track if we've recorded 'play' engagement
+  const trackProgressRef = useRef<number>(0); // Track current progress for skip detection
 
   // Initialize download system (IndexedDB)
   useEffect(() => {
@@ -444,10 +452,18 @@ export const AudioPlayer = () => {
           }
         },
         onStateChange: (event: any) => {
-          const state = event.data;
-          if (state === 0) { // ENDED
+          const ytState = event.data;
+          if (ytState === 0) { // ENDED
+            // POOL ENGAGEMENT: Record completion before moving to next track
+            const playerState = usePlayerStore.getState();
+            if (playerState.currentTrack) {
+              const completionRate = trackProgressRef.current;
+              recordPoolEngagement(playerState.currentTrack.trackId, 'complete', { completionRate });
+              useTrackPoolStore.getState().recordCompletion(playerState.currentTrack.trackId, completionRate);
+              console.log(`[VOYO Pool] Recorded complete (iframe): ${playerState.currentTrack.title} (${completionRate.toFixed(0)}%)`);
+            }
             nextTrack();
-          } else if (state === 1) { // PLAYING
+          } else if (ytState === 1) { // PLAYING
             setBufferHealth(100, 'healthy');
             // FIX: Smooth volume fade-in to prevent click sound
             // ALWAYS fade to 100% - AFRICAN BASS MODE
@@ -467,7 +483,21 @@ export const AudioPlayer = () => {
                 }
               }, 30); // 30ms intervals = ~300ms fade-in
             }
-          } else if (state === 3) { // BUFFERING
+
+            // POOL ENGAGEMENT: Record play event (once per track, IFrame path)
+            const playingState = usePlayerStore.getState();
+            if (!hasRecordedPlayRef.current && playingState.currentTrack) {
+              hasRecordedPlayRef.current = true;
+              recordPoolEngagement(playingState.currentTrack.trackId, 'play');
+              useTrackPoolStore.getState().recordPlay(playingState.currentTrack.trackId);
+              // GEMINI CURATOR: Record track in listening session
+              recordTrackInSession(playingState.currentTrack, 0, false, false);
+              // OYO DJ: Announce track transition
+              oyoOnTrackPlay(playingState.currentTrack, previousTrackRef.current || undefined);
+              previousTrackRef.current = playingState.currentTrack;
+              console.log(`[VOYO Pool] Recorded play (iframe): ${playingState.currentTrack.title}`);
+            }
+          } else if (ytState === 3) { // BUFFERING
             setBufferHealth(50, 'warning');
           }
         },
@@ -498,6 +528,8 @@ export const AudioPlayer = () => {
       currentVideoId.current = currentTrack.trackId;
       hasPrefetchedRef.current = false; // Reset prefetch flag for new track
       hasAutoCachedRef.current = false; // Reset auto-cache flag for new track
+      hasRecordedPlayRef.current = false; // Reset play recording for new track
+      trackProgressRef.current = 0; // Reset progress tracking
 
       // End previous session
       if (lastTrackId.current && lastTrackId.current !== currentTrack.id) {
@@ -510,13 +542,14 @@ export const AudioPlayer = () => {
       lastTrackId.current = currentTrack.id;
 
       try {
-        // 1. CHECK AUDIOENGINE PRELOAD CACHE FIRST (hot prefetched tracks)
-        const preloadedUrl = audioEngine.getCachedTrack(currentTrack.trackId);
+        // 1. CHECK ALL CACHES - Priority: MediaCache → AudioEngine → IndexedDB → iframe
+        const API_BASE = 'https://voyo-music-api.fly.dev';
+        const { url: bestUrl, cached: fromCache, source: cacheSource } = audioEngine.getBestAudioUrl(currentTrack.trackId, API_BASE);
 
-        // 2. CHECK LOCAL CACHE (User's IndexedDB - Boosted tracks)
+        // 2. CHECK LOCAL CACHE (User's IndexedDB - Boosted tracks) if not in memory cache
         console.log('🎵 AudioPlayer: Checking cache for trackId:', currentTrack.trackId, '| title:', currentTrack.title);
-        const cachedUrl = preloadedUrl || await checkCache(currentTrack.trackId);
-        console.log('🎵 AudioPlayer: Cache result:', cachedUrl ? `✅ FOUND (${preloadedUrl ? 'prefetched' : 'boosted'}!)` : '❌ Not cached (using iframe)');
+        const cachedUrl = fromCache ? bestUrl : await checkCache(currentTrack.trackId);
+        console.log('🎵 AudioPlayer: Cache result:', cachedUrl ? `✅ FOUND (${cacheSource})` : '❌ Not cached (using iframe)');
 
         if (cachedUrl) {
           // ⚡ BOOSTED - Play from local cache (instant, offline-ready)
@@ -571,6 +604,19 @@ export const AudioPlayer = () => {
                     // With Web Audio enhancement, volume is controlled by gain node
                     // Set audio element to 100% and let gain node handle boost
                     audioRef.current!.volume = 1.0;
+
+                    // POOL ENGAGEMENT: Record play event (once per track)
+                    if (!hasRecordedPlayRef.current && currentTrack) {
+                      hasRecordedPlayRef.current = true;
+                      recordPoolEngagement(currentTrack.trackId, 'play');
+                      useTrackPoolStore.getState().recordPlay(currentTrack.trackId);
+                      // GEMINI CURATOR: Record track in listening session
+                      recordTrackInSession(currentTrack, 0, false, false);
+                      // OYO DJ: Announce track transition
+                      oyoOnTrackPlay(currentTrack, previousTrackRef.current || undefined);
+                      previousTrackRef.current = currentTrack;
+                      console.log(`[VOYO Pool] Recorded play: ${currentTrack.title}`);
+                    }
                   }).catch(err => {
                     console.warn('[VOYO] Cached playback failed:', err.message);
                   });
@@ -946,8 +992,11 @@ export const AudioPlayer = () => {
               );
             }
 
-            // 50% PREFETCH: Prefetch next track when 50% through current track (IFrame mode)
+            // POOL ENGAGEMENT: Track progress for iframe mode (for skip detection + completion)
             const progressPercent = (currentTime / duration) * 100;
+            trackProgressRef.current = progressPercent;
+
+            // 50% PREFETCH: Prefetch next track when 50% through current track (IFrame mode)
             if (progressPercent >= 50 && !hasPrefetchedRef.current) {
               hasPrefetchedRef.current = true;
 
@@ -1008,6 +1057,15 @@ export const AudioPlayer = () => {
     });
 
     navigator.mediaSession.setActionHandler('nexttrack', () => {
+      // POOL ENGAGEMENT: Detect skip (< 30% progress when next is hit)
+      const storeState = usePlayerStore.getState();
+      if (storeState.currentTrack && trackProgressRef.current < 30) {
+        recordPoolEngagement(storeState.currentTrack.trackId, 'skip', { completionRate: trackProgressRef.current });
+        useTrackPoolStore.getState().recordSkip(storeState.currentTrack.trackId);
+        // OYO DJ: Record skip
+        oyoOnTrackSkip(storeState.currentTrack);
+        console.log(`[VOYO Pool] Recorded skip (media): ${storeState.currentTrack.title} at ${trackProgressRef.current.toFixed(0)}%`);
+      }
       nextTrack();
     });
 
@@ -1083,10 +1141,13 @@ export const AudioPlayer = () => {
     const el = audioRef.current;
     if (el && el.duration) {
       setCurrentTime(el.currentTime);
-      setProgress((el.currentTime / el.duration) * 100);
+      const progressPercent = (el.currentTime / el.duration) * 100;
+      setProgress(progressPercent);
+
+      // POOL ENGAGEMENT: Track progress for skip detection
+      trackProgressRef.current = progressPercent;
 
       // 50% PREFETCH: Smart preload next track when 50% through current track
-      const progressPercent = (el.currentTime / el.duration) * 100;
       if (progressPercent >= 50 && !hasPrefetchedRef.current && currentTrack?.trackId) {
         hasPrefetchedRef.current = true;
 
@@ -1125,6 +1186,14 @@ export const AudioPlayer = () => {
     const el = audioRef.current;
     if (el && currentTrack) {
       endListenSession(el.currentTime, 0);
+
+      // POOL ENGAGEMENT: Record completion (100% means full listen)
+      const completionRate = trackProgressRef.current;
+      recordPoolEngagement(currentTrack.trackId, 'complete', { completionRate });
+      useTrackPoolStore.getState().recordCompletion(currentTrack.trackId, completionRate);
+      // OYO DJ: Record completion for learning
+      oyoOnTrackComplete(currentTrack, el.currentTime);
+      console.log(`[VOYO Pool] Recorded complete: ${currentTrack.title} (${completionRate.toFixed(0)}%)`);
     }
     nextTrack();
   }, [nextTrack, currentTrack, endListenSession]);

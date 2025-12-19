@@ -492,4 +492,243 @@ export const followsAPI = {
   },
 };
 
+// ============================================
+// LYRICS API - Phonetic Lyrics Storage
+// ============================================
+
+export interface LyricsRow {
+  track_id: string;
+  title: string;
+  artist: string;
+  phonetic_raw: string;
+  phonetic_clean: string | null;
+  language: string;
+  confidence: number;
+  segments: LyricSegmentRow[];
+  translations: Record<string, string>;
+  status: 'raw' | 'polished' | 'verified';
+  polished_by: string[];
+  verified_by: string | null;
+  play_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LyricSegmentRow {
+  start: number;
+  end: number;
+  text: string;
+  phonetic: string;
+  english?: string;
+  french?: string;
+  cultural_note?: string;
+}
+
+export const lyricsAPI = {
+  /**
+   * Get lyrics for a track (cached)
+   */
+  async get(trackId: string): Promise<LyricsRow | null> {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+      .from('voyo_lyrics')
+      .select('*')
+      .eq('track_id', trackId)
+      .single();
+
+    if (error || !data) return null;
+    return data;
+  },
+
+  /**
+   * Save new lyrics (from Whisper generation)
+   */
+  async save(lyrics: Omit<LyricsRow, 'created_at' | 'updated_at' | 'play_count'>): Promise<boolean> {
+    if (!supabase) return false;
+
+    const { error } = await supabase.from('voyo_lyrics').upsert({
+      ...lyrics,
+      play_count: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.error('[Lyrics] Save error:', error);
+      return false;
+    }
+
+    console.log(`[Lyrics] Saved lyrics for ${lyrics.track_id}`);
+    return true;
+  },
+
+  /**
+   * Increment play count (for analytics)
+   */
+  async recordPlay(trackId: string): Promise<void> {
+    if (!supabase) return;
+
+    await supabase.rpc('increment_lyrics_play_count', { track_id_param: trackId });
+  },
+
+  /**
+   * Submit a polish/correction
+   */
+  async polish(
+    trackId: string,
+    segmentIndex: number,
+    corrections: {
+      text?: string;
+      phonetic?: string;
+      english?: string;
+      french?: string;
+      cultural_note?: string;
+    },
+    userId: string
+  ): Promise<boolean> {
+    if (!supabase) return false;
+
+    // Get current lyrics
+    const current = await this.get(trackId);
+    if (!current || !current.segments[segmentIndex]) return false;
+
+    // Apply corrections
+    const updatedSegments = [...current.segments];
+    updatedSegments[segmentIndex] = {
+      ...updatedSegments[segmentIndex],
+      ...corrections,
+    };
+
+    // Update polished_by list
+    const polishedBy = current.polished_by || [];
+    if (!polishedBy.includes(userId)) {
+      polishedBy.push(userId);
+    }
+
+    const { error } = await supabase
+      .from('voyo_lyrics')
+      .update({
+        segments: updatedSegments,
+        phonetic_clean: updatedSegments.map(s => s.text).join('\n'),
+        polished_by: polishedBy,
+        status: 'polished',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('track_id', trackId);
+
+    return !error;
+  },
+
+  /**
+   * Verify lyrics (moderator action)
+   */
+  async verify(trackId: string, verifierId: string): Promise<boolean> {
+    if (!supabase) return false;
+
+    const { error } = await supabase
+      .from('voyo_lyrics')
+      .update({
+        status: 'verified',
+        verified_by: verifierId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('track_id', trackId);
+
+    return !error;
+  },
+
+  /**
+   * Search lyrics by text
+   */
+  async search(query: string, limit = 20): Promise<Array<{
+    track_id: string;
+    title: string;
+    artist: string;
+    snippet: string;
+  }>> {
+    if (!supabase || query.length < 2) return [];
+
+    const { data, error } = await supabase
+      .from('voyo_lyrics')
+      .select('track_id, title, artist, phonetic_raw')
+      .or(`phonetic_raw.ilike.%${query}%,phonetic_clean.ilike.%${query}%`)
+      .limit(limit);
+
+    if (error || !data) return [];
+
+    return data.map((row: any) => ({
+      track_id: row.track_id,
+      title: row.title,
+      artist: row.artist,
+      snippet: extractSnippet(row.phonetic_raw, query),
+    }));
+  },
+
+  /**
+   * Get recent/popular lyrics
+   */
+  async getPopular(limit = 20): Promise<Array<{
+    track_id: string;
+    title: string;
+    artist: string;
+    status: string;
+    play_count: number;
+  }>> {
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+      .from('voyo_lyrics')
+      .select('track_id, title, artist, status, play_count')
+      .order('play_count', { ascending: false })
+      .limit(limit);
+
+    if (error || !data) return [];
+    return data;
+  },
+
+  /**
+   * Get lyrics needing polish (community contribution queue)
+   */
+  async getNeedingPolish(limit = 20): Promise<Array<{
+    track_id: string;
+    title: string;
+    artist: string;
+    language: string;
+    confidence: number;
+  }>> {
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+      .from('voyo_lyrics')
+      .select('track_id, title, artist, language, confidence')
+      .eq('status', 'raw')
+      .order('play_count', { ascending: false })
+      .limit(limit);
+
+    if (error || !data) return [];
+    return data;
+  },
+};
+
+/**
+ * Extract a snippet around the search query
+ */
+function extractSnippet(text: string, query: string, contextLength = 50): string {
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const index = lowerText.indexOf(lowerQuery);
+
+  if (index === -1) return text.substring(0, 100) + '...';
+
+  const start = Math.max(0, index - contextLength);
+  const end = Math.min(text.length, index + query.length + contextLength);
+
+  let snippet = text.substring(start, end);
+  if (start > 0) snippet = '...' + snippet;
+  if (end < text.length) snippet = snippet + '...';
+
+  return snippet;
+}
+
 export default supabase;

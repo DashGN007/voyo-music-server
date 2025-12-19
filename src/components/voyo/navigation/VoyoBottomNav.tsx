@@ -1,12 +1,15 @@
 /**
  * VOYO Bottom Navigation - Tab Switcher
  * DAHUB | VOYO (Toggle: Player ↔ Feed) | HOME
+ *
+ * When music is playing on Feed, VOYO button cycles:
+ * Clean → Play Icon + "Keep Playing" → Clean
  */
 
-import { motion } from 'framer-motion';
-import { Home, Sparkles, Flame, Music } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Home, Sparkles, Play } from 'lucide-react';
 import { usePlayerStore } from '../../../store/playerStore';
-import { VoyoTab } from '../../../types';
 
 interface VoyoBottomNavProps {
   onDahub?: () => void;
@@ -15,10 +18,42 @@ interface VoyoBottomNavProps {
 
 export const VoyoBottomNav = ({ onDahub, onHome }: VoyoBottomNavProps) => {
   const { voyoActiveTab, setVoyoTab, isPlaying } = usePlayerStore();
+  const [promptState, setPromptState] = useState<'clean' | 'love' | 'keep'>('clean');
+  const [promptCount, setPromptCount] = useState(0);
 
   // VOYO button toggles between Player (music) and Feed
   const isOnFeed = voyoActiveTab === 'feed';
   const voyoLabel = isOnFeed ? 'Player' : 'Feed';
+
+  // Show prompt sequence only a few times (max 3), mostly stay clean
+  useEffect(() => {
+    if (!isPlaying || !isOnFeed) {
+      setPromptState('clean');
+      return;
+    }
+
+    // Only show prompt sequence 3 times max per session
+    if (promptCount >= 3) return;
+
+    // Wait 8 seconds of playing, then show sequence
+    const showPromptTimer = setTimeout(() => {
+      // Step 1: Show "Love this Vibe" (2s)
+      setPromptState('love');
+
+      setTimeout(() => {
+        // Step 2: Show "Keep Playing" (2.5s)
+        setPromptState('keep');
+
+        setTimeout(() => {
+          // Step 3: Back to clean
+          setPromptState('clean');
+          setPromptCount(prev => prev + 1);
+        }, 2500);
+      }, 2000);
+    }, 8000);
+
+    return () => clearTimeout(showPromptTimer);
+  }, [isPlaying, isOnFeed, promptCount]);
 
   const handleVoyoToggle = () => {
     if (voyoActiveTab === 'feed') {
@@ -29,16 +64,15 @@ export const VoyoBottomNav = ({ onDahub, onHome }: VoyoBottomNavProps) => {
   };
 
   return (
-    <div className="glass-nav pb-safe pt-3 px-6">
+    <div className="glass-nav pt-3 pb-4 px-6" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
       <div className="flex items-center justify-around max-w-md mx-auto">
         {/* LEFT: DAHUB */}
         <motion.button
           onClick={onDahub}
           className="relative"
-          whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          <div className="flex flex-col items-center gap-1.5 px-4 py-2 rounded-xl text-white/40 hover:text-white/60">
+          <div className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl text-white/40 hover:text-white/60">
             <Sparkles className="w-4 h-4" />
             <span className="text-[10px] font-bold uppercase tracking-widest">DaHub</span>
           </div>
@@ -48,10 +82,9 @@ export const VoyoBottomNav = ({ onDahub, onHome }: VoyoBottomNavProps) => {
         <motion.button
           onClick={handleVoyoToggle}
           className="relative"
-          whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          <motion.div
+          <div
             className={`relative w-16 h-16 rounded-2xl flex flex-col items-center justify-center transition-all ${
               isOnFeed
                 ? 'bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500'
@@ -60,67 +93,71 @@ export const VoyoBottomNav = ({ onDahub, onHome }: VoyoBottomNavProps) => {
             style={{
               boxShadow: '0 0 30px rgba(168, 85, 247, 0.5), 0 8px 32px rgba(0,0,0,0.4)'
             }}
-            animate={{ scale: [1, 1.02, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
           >
-            {/* Icon indicator */}
-            <motion.div
-              className="absolute -top-1 -right-1"
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 0.5, repeat: Infinity }}
-            >
-              {isOnFeed ? (
-                <Music className="w-4 h-4 text-white" />
-              ) : (
-                <Flame className="w-4 h-4 text-orange-400 fill-orange-400" />
+            {/* Base: VOYO Player - always visible */}
+            <div className="flex flex-col items-center">
+              <span className="font-black text-sm text-white tracking-tight">VOYO</span>
+              <span className="text-[8px] text-white/70 uppercase tracking-widest">
+                {voyoLabel}
+              </span>
+            </div>
+
+            {/* Prompt overlays - appear on top */}
+            <AnimatePresence>
+              {promptState === 'love' && (
+                <motion.div
+                  key="love"
+                  className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap"
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <span className="text-[9px] text-white/90 font-medium">Love this Vibe?</span>
+                </motion.div>
               )}
-            </motion.div>
-            <span className="font-black text-sm text-white tracking-tight">VOYO</span>
-            <motion.span
-              key={voyoLabel}
-              className="text-[8px] text-white/70 uppercase tracking-widest"
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              {voyoLabel}
-            </motion.span>
-          </motion.div>
+
+              {promptState === 'keep' && (
+                <motion.div
+                  key="keep"
+                  className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 rounded-2xl"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <motion.div
+                    animate={{ opacity: [0.8, 1, 0.8] }}
+                    transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+                  >
+                    <Play className="w-5 h-5 text-white fill-white" />
+                  </motion.div>
+                  <span className="text-[7px] text-white/90 uppercase tracking-wider mt-0.5">
+                    Keep Playing
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </motion.button>
 
         {/* RIGHT: HOME (includes library) */}
         <motion.button
           onClick={onHome}
           className="relative"
-          whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          <div className="flex flex-col items-center gap-1.5 px-4 py-2 rounded-xl text-white/40 hover:text-white/60">
+          <div className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl text-white/40 hover:text-white/60">
             <Home className="w-4 h-4" />
             <span className="text-[10px] font-bold uppercase tracking-widest">Home</span>
           </div>
         </motion.button>
       </div>
 
-      {/* Now Playing Mini Indicator */}
-      {isPlaying && voyoActiveTab !== 'music' && (
-        <motion.div
-          className="mt-2 flex items-center justify-center gap-2 text-white/40"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="flex gap-0.5">
-            {[...Array(3)].map((_, i) => (
-              <motion.div
-                key={i}
-                className="w-0.5 bg-purple-400 rounded-full"
-                animate={{ height: [4, 10, 4] }}
-                transition={{ duration: 0.4, repeat: Infinity, delay: i * 0.1 }}
-              />
-            ))}
-          </div>
-          <span className="text-[10px]">Now Playing</span>
-        </motion.div>
-      )}
+      {/* Tagline at bottom */}
+      <div className="text-center mt-2">
+        <span className="text-[7px] text-white/15">VOYO Music by DASUPERHUB</span>
+      </div>
     </div>
   );
 };

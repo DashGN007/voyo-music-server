@@ -143,28 +143,38 @@ export const VideoSnippet = ({
         />
       )}
 
-      {/* YouTube iframe - only render when active */}
+      {/* YouTube iframe - FULL SCREEN video fill */}
       {showIframe && (
         <motion.div
-          className="absolute inset-0"
+          className="absolute inset-0 overflow-hidden"
           initial={{ opacity: 0 }}
           animate={{ opacity: isLoaded ? 1 : 0 }}
           transition={{ duration: 0.5 }}
-          style={{
-            // Scale up to hide YouTube controls at edges
-            transform: 'scale(1.2)',
-            transformOrigin: 'center center',
-          }}
         >
+          {/*
+            Full screen video container
+            16:9 video filling 9:16 portrait = need ~3.16x width scale
+            Using fixed viewport units for true full screen
+          */}
           <iframe
             ref={iframeRef}
             src={embedUrl}
-            className="absolute inset-0 w-full h-full pointer-events-none"
+            className="pointer-events-none"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen={false}
             onLoad={handleIframeLoad}
             style={{
               border: 'none',
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              // 16:9 video needs to be scaled to fill 9:16 portrait
+              // Width = height * (16/9) to maintain aspect while filling height
+              width: '177.78vh', // 100vh * (16/9)
+              height: '100vh',
+              minWidth: '100vw', // Ensure it's at least full width too
+              minHeight: '56.25vw', // 100vw * (9/16) - fallback for landscape
             }}
           />
         </motion.div>

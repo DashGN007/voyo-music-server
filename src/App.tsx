@@ -1151,14 +1151,6 @@ function App() {
         )}
       </AnimatePresence>
 
-      {/* VOYO Watermark */}
-      {appMode !== 'video' && (
-        <div className="fixed bottom-2 right-2 z-40 opacity-30">
-          <span className="text-[8px] text-white/30">
-            VOYO Music by DASUPERHUB
-          </span>
-        </div>
-      )}
 
       {/* Audio Player - Piped API direct streams (handles actual playback) */}
       <AudioPlayer />

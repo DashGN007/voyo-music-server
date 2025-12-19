@@ -271,6 +271,122 @@ ALTER PUBLICATION supabase_realtime ADD TABLE reactions;
 ALTER PUBLICATION supabase_realtime ADD TABLE track_stats;
 
 -- ============================================
+-- VOYO LYRICS TABLE (Phonetic Lyrics Engine)
+-- ============================================
+-- AI-generated lyrics with community polish
+CREATE TABLE IF NOT EXISTS voyo_lyrics (
+  -- Track identifier (YouTube/Piped ID)
+  track_id TEXT PRIMARY KEY,
+
+  -- Track metadata
+  title TEXT NOT NULL,
+  artist TEXT NOT NULL,
+
+  -- Whisper transcription
+  phonetic_raw TEXT NOT NULL,           -- Raw Whisper output
+  phonetic_clean TEXT,                  -- Community-polished version
+
+  -- Language & quality
+  language TEXT DEFAULT 'unknown',      -- Detected or tagged language
+  confidence REAL DEFAULT 0.5,          -- Whisper confidence score
+
+  -- Timestamped segments (JSONB array)
+  segments JSONB DEFAULT '[]'::jsonb,   -- [{start, end, text, phonetic, english?, french?, cultural_note?}]
+
+  -- Translations
+  translations JSONB DEFAULT '{}'::jsonb, -- {en: "...", fr: "...", ...}
+
+  -- Community workflow
+  status TEXT DEFAULT 'raw' CHECK (status IN ('raw', 'polished', 'verified')),
+  polished_by TEXT[] DEFAULT '{}',      -- Usernames who contributed
+  verified_by TEXT,                     -- Moderator who verified
+
+  -- Analytics
+  play_count INTEGER DEFAULT 0,
+
+  -- Timestamps
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================
+-- LYRICS INDEXES
+-- ============================================
+-- Fast lookup by status (community queue)
+CREATE INDEX IF NOT EXISTS idx_lyrics_status ON voyo_lyrics(status);
+
+-- Popular lyrics (most played)
+CREATE INDEX IF NOT EXISTS idx_lyrics_popular ON voyo_lyrics(play_count DESC);
+
+-- Full-text search on lyrics
+CREATE INDEX IF NOT EXISTS idx_lyrics_search ON voyo_lyrics
+  USING gin(to_tsvector('simple', phonetic_raw || ' ' || COALESCE(phonetic_clean, '')));
+
+-- ============================================
+-- LYRICS RLS
+-- ============================================
+ALTER TABLE voyo_lyrics ENABLE ROW LEVEL SECURITY;
+
+-- Anyone can read lyrics
+CREATE POLICY "Lyrics are viewable by everyone"
+  ON voyo_lyrics FOR SELECT USING (true);
+
+-- Anyone can create lyrics (first transcription)
+CREATE POLICY "Anyone can create lyrics"
+  ON voyo_lyrics FOR INSERT WITH CHECK (true);
+
+-- Anyone can update lyrics (community polish)
+CREATE POLICY "Anyone can polish lyrics"
+  ON voyo_lyrics FOR UPDATE USING (true) WITH CHECK (true);
+
+-- ============================================
+-- LYRICS FUNCTIONS
+-- ============================================
+
+-- Increment play count (called from app)
+CREATE OR REPLACE FUNCTION increment_lyrics_play_count(track_id_param TEXT)
+RETURNS void AS $$
+BEGIN
+  UPDATE voyo_lyrics
+  SET play_count = play_count + 1,
+      updated_at = now()
+  WHERE track_id = track_id_param;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Auto-update updated_at for lyrics
+CREATE TRIGGER voyo_lyrics_updated_at
+  BEFORE UPDATE ON voyo_lyrics
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at();
+
+-- ============================================
+-- FOLLOWS TABLE (Social Graph)
+-- ============================================
+CREATE TABLE IF NOT EXISTS follows (
+  follower TEXT NOT NULL REFERENCES universes(username) ON DELETE CASCADE,
+  following TEXT NOT NULL REFERENCES universes(username) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (follower, following)
+);
+
+-- Indexes for fast follower/following lookups
+CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower);
+CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(following);
+
+-- RLS for follows
+ALTER TABLE follows ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Follows are viewable by everyone"
+  ON follows FOR SELECT USING (true);
+
+CREATE POLICY "Anyone can create follows"
+  ON follows FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Anyone can delete follows"
+  ON follows FOR DELETE USING (true);
+
+-- ============================================
 -- SAMPLE DATA (for testing)
 -- ============================================
 -- INSERT INTO universes (username, pin_hash, public_profile)

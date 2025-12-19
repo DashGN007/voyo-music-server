@@ -29,6 +29,9 @@ import { BoostSettings } from '../ui/BoostSettings';
 import { haptics, getReactionHaptic } from '../../utils/haptics';
 import { useReactionStore, ReactionCategory, initReactionSubscription } from '../../store/reactionStore';
 import { useUniverseStore } from '../../store/universeStore';
+import { generateLyrics, getCurrentSegment, type EnrichedLyrics, type LyricsGenerationProgress } from '../../services/lyricsEngine';
+import { getVideoStreamUrl } from '../../services/piped';
+import { translateWord, type TranslationMatch } from '../../services/lexiconService';
 
 // ============================================
 // ISOLATED TIME COMPONENTS - Prevents full re-renders
@@ -1781,8 +1784,9 @@ StreamCard.displayName = 'StreamCard';
 
 // ============================================
 // BIG CENTER CARD (NOW PLAYING - Canva-style purple fade with premium typography)
+// TAP ALBUM ART FOR LYRICS VIEW
 // ============================================
-const BigCenterCard = memo(({ track, onExpandVideo }: { track: Track; onExpandVideo?: () => void }) => (
+const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics }: { track: Track; onExpandVideo?: () => void; onShowLyrics?: () => void }) => (
   <motion.div
     className="relative w-52 h-52 md:w-60 md:h-60 rounded-[2rem] overflow-hidden z-20 group"
     style={{
@@ -1794,14 +1798,27 @@ const BigCenterCard = memo(({ track, onExpandVideo }: { track: Track; onExpandVi
     whileHover={{ scale: 1.02 }}
     key={track.id}
   >
-    {/* Original artwork - crisp and clean */}
-    <SmartImage
-      src={getTrackThumbnailUrl(track, 'high')}
-      alt={track.title}
-      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-      trackId={track.trackId}
-      lazy={false}
-    />
+    {/* Original artwork - crisp and clean - TAP FOR LYRICS */}
+    <div
+      onClick={onShowLyrics}
+      className="absolute inset-0 cursor-pointer z-10"
+      role="button"
+      aria-label="Show lyrics"
+    >
+      <SmartImage
+        src={getTrackThumbnailUrl(track, 'high')}
+        alt={track.title}
+        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+        trackId={track.trackId}
+        lazy={false}
+      />
+      {/* Lyrics hint icon */}
+      {onShowLyrics && (
+        <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-white text-xs">📝</span>
+        </div>
+      )}
+    </div>
 
     {/* CANVA-STYLE PURPLE FADE - Bottom to top gradient */}
     <div
@@ -2675,6 +2692,642 @@ const FullscreenVideoPlayer = ({
 );
 
 // ============================================
+// WORD TRANSLATION POPUP - Shows when tapping a word
+// ============================================
+interface WordPopupProps {
+  word: string;
+  translation: TranslationMatch | null;
+  position: { x: number; y: number };
+  onClose: () => void;
+}
+
+const WordTranslationPopup = memo(({ word, translation, position, onClose }: WordPopupProps) => {
+  return (
+    <motion.div
+      className="fixed z-[200]"
+      initial={{ opacity: 0, scale: 0.8, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.8, y: 10 }}
+      style={{
+        left: Math.min(position.x, window.innerWidth - 200),
+        top: Math.min(position.y + 20, window.innerHeight - 150),
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div
+        className="bg-black/95 border border-purple-500/50 rounded-xl p-4 shadow-2xl min-w-[180px] backdrop-blur-xl"
+        style={{ boxShadow: '0 10px 40px rgba(139,92,246,0.3)' }}
+      >
+        {/* Original word */}
+        <p className="text-white font-bold text-lg mb-2">{word}</p>
+
+        {translation ? (
+          <>
+            {/* Matched form */}
+            {translation.matched !== word.toLowerCase() && (
+              <p className="text-purple-300 text-xs mb-2">
+                (matched: {translation.matched})
+              </p>
+            )}
+
+            {/* English */}
+            <div className="mb-2">
+              <span className="text-xs text-white/40">🇬🇧 English</span>
+              <p className="text-white text-sm">{translation.english}</p>
+            </div>
+
+            {/* French */}
+            <div className="mb-2">
+              <span className="text-xs text-white/40">🇫🇷 French</span>
+              <p className="text-white text-sm">{translation.french}</p>
+            </div>
+
+            {/* Category & confidence */}
+            <div className="flex justify-between items-center text-xs text-white/30 mt-3 pt-2 border-t border-white/10">
+              <span className="bg-purple-500/20 px-2 py-0.5 rounded">{translation.category}</span>
+              <span>{(translation.confidence * 100).toFixed(0)}% match</span>
+            </div>
+
+            {/* Alternatives */}
+            {translation.alternatives && translation.alternatives.length > 0 && (
+              <div className="mt-3 pt-2 border-t border-white/10">
+                <p className="text-xs text-white/40 mb-1">Also could mean:</p>
+                {translation.alternatives.slice(0, 2).map((alt, i) => (
+                  <p key={i} className="text-xs text-white/60">• {alt.english}</p>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div>
+            <p className="text-white/60 text-sm mb-3">No translation found</p>
+            <p className="text-xs text-white/30">
+              This word isn't in our lexicon yet.
+              Help by suggesting a translation!
+            </p>
+          </div>
+        )}
+
+        {/* Close hint */}
+        <p className="text-center text-white/20 text-xs mt-3">tap anywhere to close</p>
+      </div>
+    </motion.div>
+  );
+});
+WordTranslationPopup.displayName = 'WordTranslationPopup';
+
+// ============================================
+// COMMUNITY EDIT MODAL - For suggesting lyrics corrections
+// ============================================
+interface EditModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  originalText: string;
+  segmentIndex: number;
+  trackId: string;
+  username: string;
+  onSave: (correctedText: string) => void;
+}
+
+const CommunityEditModal = memo(({ isOpen, onClose, originalText, segmentIndex, trackId, username, onSave }: EditModalProps) => {
+  const [correctedText, setCorrectedText] = useState(originalText);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setCorrectedText(originalText);
+    setSaved(false);
+  }, [originalText, isOpen]);
+
+  const handleSave = async () => {
+    if (correctedText === originalText || !correctedText.trim()) return;
+
+    setIsSaving(true);
+    try {
+      // Save to localStorage immediately for local experience
+      const key = `voyo_lyrics_edit_${trackId}_${segmentIndex}`;
+      localStorage.setItem(key, JSON.stringify({
+        original: originalText,
+        corrected: correctedText,
+        by: username,
+        at: Date.now(),
+      }));
+
+      onSave(correctedText);
+      setSaved(true);
+      haptics.success();
+
+      // Auto-close after success
+      setTimeout(() => onClose(), 1500);
+    } catch (err) {
+      console.error('[CommunityEdit] Failed to save:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-[150] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        className="bg-gradient-to-b from-[#1a1a2e] to-[#0a0a15] rounded-2xl p-6 w-full max-w-md border border-purple-500/30"
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-white font-bold text-lg mb-2 flex items-center gap-2">
+          <span>✏️</span> Polish Lyrics
+        </h3>
+        <p className="text-white/50 text-xs mb-4">
+          Help improve this transcription for the community
+        </p>
+
+        {/* Original text */}
+        <div className="mb-4">
+          <label className="text-white/40 text-xs mb-1 block">Original (Whisper AI)</label>
+          <p className="text-white/60 text-sm bg-white/5 rounded-lg p-3 italic">
+            {originalText}
+          </p>
+        </div>
+
+        {/* Corrected text input */}
+        <div className="mb-4">
+          <label className="text-white/40 text-xs mb-1 block">Your Correction</label>
+          <textarea
+            value={correctedText}
+            onChange={(e) => setCorrectedText(e.target.value)}
+            className="w-full bg-white/10 border border-white/20 rounded-lg p-3 text-white text-sm resize-none focus:outline-none focus:border-purple-500/50"
+            rows={3}
+            placeholder="Type the correct lyrics..."
+          />
+        </div>
+
+        {/* User attribution */}
+        <p className="text-white/30 text-xs mb-4">
+          Contributing as: <span className="text-purple-400">{username || 'Anonymous'}</span>
+        </p>
+
+        {/* Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 rounded-xl bg-white/10 text-white text-sm font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving || correctedText === originalText || saved}
+            className={`flex-1 py-3 rounded-xl text-white text-sm font-medium transition-all ${
+              saved
+                ? 'bg-green-500'
+                : isSaving
+                ? 'bg-purple-500/50'
+                : correctedText !== originalText
+                ? 'bg-gradient-to-r from-purple-500 to-pink-500'
+                : 'bg-white/10 opacity-50'
+            }`}
+          >
+            {saved ? '✓ Saved!' : isSaving ? 'Saving...' : 'Save Correction'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+});
+CommunityEditModal.displayName = 'CommunityEditModal';
+
+// ============================================
+// LYRICS ACTION BUTTONS - Export, Share, Edit
+// ============================================
+interface LyricsActionsProps {
+  lyrics: EnrichedLyrics;
+  track: Track;
+  onEditRequest: () => void;
+}
+
+const LyricsActionButtons = memo(({ lyrics, track, onEditRequest }: LyricsActionsProps) => {
+  const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
+
+  // Copy lyrics to clipboard
+  const handleCopy = useCallback(async () => {
+    const fullLyrics = lyrics.translated
+      .map(seg => `${seg.original}${seg.english ? ` (${seg.english})` : ''}`)
+      .join('\n');
+
+    const text = `🎵 ${track.title} - ${track.artist}\n\n${fullLyrics}\n\n— Lyrics by VOYO`;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      haptics.success();
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      console.error('Failed to copy');
+    }
+  }, [lyrics, track]);
+
+  // Share lyrics
+  const handleShare = useCallback(async () => {
+    const fullLyrics = lyrics.translated
+      .map(seg => seg.original)
+      .join('\n');
+
+    const shareData = {
+      title: `${track.title} - ${track.artist}`,
+      text: `🎵 ${track.title} by ${track.artist}\n\n${fullLyrics.slice(0, 200)}...\n\n— Listen on VOYO`,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        setShared(true);
+        haptics.success();
+        setTimeout(() => setShared(false), 2000);
+      } else {
+        // Fallback to copy
+        handleCopy();
+      }
+    } catch {
+      // User cancelled share
+    }
+  }, [lyrics, track, handleCopy]);
+
+  return (
+    <div className="flex justify-center gap-3 mt-4">
+      {/* Copy button */}
+      <motion.button
+        className={`px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 ${
+          copied
+            ? 'bg-green-500 text-white'
+            : 'bg-white/10 text-white/70 hover:bg-white/20'
+        }`}
+        whileTap={{ scale: 0.95 }}
+        onClick={handleCopy}
+      >
+        {copied ? '✓ Copied!' : '📋 Copy'}
+      </motion.button>
+
+      {/* Share button */}
+      <motion.button
+        className={`px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 ${
+          shared
+            ? 'bg-green-500 text-white'
+            : 'bg-white/10 text-white/70 hover:bg-white/20'
+        }`}
+        whileTap={{ scale: 0.95 }}
+        onClick={handleShare}
+      >
+        <Share2 size={14} />
+        {shared ? 'Shared!' : 'Share'}
+      </motion.button>
+
+      {/* Edit button */}
+      <motion.button
+        className="px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 bg-purple-500/20 text-purple-300 hover:bg-purple-500/30"
+        whileTap={{ scale: 0.95 }}
+        onClick={onEditRequest}
+      >
+        ✏️ Polish
+      </motion.button>
+    </div>
+  );
+});
+LyricsActionButtons.displayName = 'LyricsActionButtons';
+
+// ============================================
+// TAPPABLE WORD - Individual word that can be tapped
+// ============================================
+interface TappableWordProps {
+  word: string;
+  isCurrent: boolean;
+  onTap: (word: string, position: { x: number; y: number }) => void;
+}
+
+const TappableWord = memo(({ word, isCurrent, onTap }: TappableWordProps) => {
+  const handleTap = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    onTap(word, { x: rect.left, y: rect.bottom });
+  }, [word, onTap]);
+
+  return (
+    <motion.span
+      className={`cursor-pointer inline-block mx-0.5 px-1 rounded transition-all ${
+        isCurrent ? 'hover:bg-purple-500/40' : 'hover:bg-white/20'
+      }`}
+      whileTap={{ scale: 0.95 }}
+      onClick={handleTap}
+    >
+      {word}
+    </motion.span>
+  );
+});
+TappableWord.displayName = 'TappableWord';
+
+// ============================================
+// LYRICS OVERLAY - Full screen lyrics view with word tap
+// ============================================
+interface LyricsOverlayProps {
+  track: Track;
+  isOpen: boolean;
+  onClose: () => void;
+  currentTime: number;
+}
+
+const LyricsOverlay = memo(({ track, isOpen, onClose, currentTime }: LyricsOverlayProps) => {
+  const [lyrics, setLyrics] = useState<EnrichedLyrics | null>(null);
+  const [progress, setProgress] = useState<LyricsGenerationProgress | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Word tap state
+  const [selectedWord, setSelectedWord] = useState<string | null>(null);
+  const [wordTranslation, setWordTranslation] = useState<TranslationMatch | null>(null);
+  const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editSegmentIndex, setEditSegmentIndex] = useState(0);
+  const [editOriginalText, setEditOriginalText] = useState('');
+
+  // Get username from universe store
+  const username = useUniverseStore(state => state.currentUsername) || 'Anonymous';
+
+  // Handle word tap
+  const handleWordTap = useCallback((word: string, position: { x: number; y: number }) => {
+    // Clean word (remove punctuation)
+    const cleanWord = word.replace(/[.,!?;:'"]/g, '');
+    if (cleanWord.length < 2) return; // Skip tiny words
+
+    const translation = translateWord(cleanWord);
+    setSelectedWord(word);
+    setWordTranslation(translation);
+    setPopupPosition(position);
+
+    // Haptic feedback
+    haptics.light();
+  }, []);
+
+  // Close popup
+  const closePopup = useCallback(() => {
+    setSelectedWord(null);
+    setWordTranslation(null);
+  }, []);
+
+  // Open edit modal for current segment
+  const handleEditRequest = useCallback(() => {
+    if (!lyrics) return;
+    const currentIdx = lyrics.translated.findIndex(
+      seg => getCurrentSegment(lyrics, currentTime)?.startTime === seg.startTime
+    );
+    if (currentIdx >= 0) {
+      setEditSegmentIndex(currentIdx);
+      setEditOriginalText(lyrics.translated[currentIdx].original);
+      setShowEditModal(true);
+    }
+  }, [lyrics, currentTime]);
+
+  // Save edited lyrics
+  const handleEditSave = useCallback((correctedText: string) => {
+    if (!lyrics) return;
+    // Update local state immediately
+    const updated = { ...lyrics };
+    updated.translated = [...updated.translated];
+    updated.translated[editSegmentIndex] = {
+      ...updated.translated[editSegmentIndex],
+      original: correctedText,
+    };
+    setLyrics(updated);
+  }, [lyrics, editSegmentIndex]);
+
+  // Load lyrics when overlay opens
+  useEffect(() => {
+    if (!isOpen || !track) return;
+
+    const loadLyrics = async () => {
+      try {
+        setError(null);
+        setProgress({ stage: 'fetching', progress: 0, message: 'Loading...' });
+
+        // Get audio URL for Whisper
+        const audioUrl = await getVideoStreamUrl(track.trackId);
+        if (!audioUrl) {
+          throw new Error('Could not get audio stream');
+        }
+
+        const result = await generateLyrics(track, audioUrl, setProgress);
+        setLyrics(result);
+        setProgress(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load lyrics');
+        setProgress(null);
+      }
+    };
+
+    loadLyrics();
+  }, [isOpen, track]);
+
+  // Get current segment based on playback time
+  const currentSegment = lyrics ? getCurrentSegment(lyrics, currentTime) : null;
+
+  // Render words as tappable spans
+  const renderTappableText = useCallback((text: string, isCurrent: boolean) => {
+    const words = text.split(/(\s+)/); // Split but keep spaces
+    return words.map((word, i) => {
+      if (/^\s+$/.test(word)) return <span key={i}>{word}</span>;
+      return (
+        <TappableWord
+          key={i}
+          word={word}
+          isCurrent={isCurrent}
+          onTap={handleWordTap}
+        />
+      );
+    });
+  }, [handleWordTap]);
+
+  if (!isOpen) return null;
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={closePopup}
+    >
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"
+      >
+        <span className="text-white text-xl">×</span>
+      </button>
+
+      {/* Track info header */}
+      <div className="absolute top-4 left-4 right-16">
+        <h2 className="text-white font-bold text-lg truncate">{track.title}</h2>
+        <p className="text-white/60 text-sm">{track.artist}</p>
+      </div>
+
+      {/* Main lyrics area */}
+      <div className="absolute inset-0 pt-20 pb-8 px-6 flex flex-col items-center justify-center overflow-y-auto">
+        {/* Loading state */}
+        {progress && (
+          <div className="text-center">
+            <motion.div
+              className="w-16 h-16 rounded-full border-4 border-purple-500/30 border-t-purple-500 mx-auto mb-4"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            />
+            <p className="text-white/80 text-sm">{progress.message}</p>
+            <p className="text-white/40 text-xs mt-1">{progress.progress}%</p>
+          </div>
+        )}
+
+        {/* Error state */}
+        {error && (
+          <div className="text-center">
+            <p className="text-red-400 text-sm mb-2">⚠️ {error}</p>
+            <p className="text-white/40 text-xs">Lyrics generation requires OpenAI API key</p>
+          </div>
+        )}
+
+        {/* Lyrics display */}
+        {lyrics && !progress && (
+          <div className="w-full max-w-md space-y-6">
+            {/* Stats bar */}
+            <div className="flex justify-center gap-4 text-xs text-white/40">
+              <span>🌍 {lyrics.language}</span>
+              <span>📊 {lyrics.translationCoverage.toFixed(0)}% translated</span>
+              <span className={lyrics.phonetic.polishedBy?.length ? 'text-green-400' : ''}>
+                {lyrics.phonetic.polishedBy?.length ? '✓ Polished' : '○ Raw'}
+              </span>
+            </div>
+
+            {/* Tap hint */}
+            <p className="text-center text-purple-400/60 text-xs">
+              💡 Tap any word for translation
+            </p>
+
+            {/* Current segment highlight */}
+            {currentSegment && (
+              <motion.div
+                key={currentSegment.startTime}
+                className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-2xl p-6 border border-purple-500/30"
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+              >
+                <p className="text-white text-2xl font-bold text-center mb-3">
+                  {renderTappableText(currentSegment.original, true)}
+                </p>
+                {currentSegment.phonetic !== currentSegment.original && (
+                  <p className="text-purple-300 text-sm text-center italic mb-2">
+                    {currentSegment.phonetic}
+                  </p>
+                )}
+                {currentSegment.english && (
+                  <p className="text-white/70 text-center">
+                    🇬🇧 {currentSegment.english}
+                  </p>
+                )}
+                {currentSegment.french && (
+                  <p className="text-white/60 text-sm text-center mt-1">
+                    🇫🇷 {currentSegment.french}
+                  </p>
+                )}
+              </motion.div>
+            )}
+
+            {/* All segments */}
+            <div className="space-y-4 max-h-[50vh] overflow-y-auto">
+              {lyrics.translated.map((segment, i) => {
+                const isCurrent = currentSegment?.startTime === segment.startTime;
+                return (
+                  <motion.div
+                    key={i}
+                    className={`p-4 rounded-xl transition-all ${
+                      isCurrent
+                        ? 'bg-purple-500/30 border border-purple-500/50'
+                        : 'bg-white/5'
+                    }`}
+                    animate={{ opacity: isCurrent ? 1 : 0.6 }}
+                  >
+                    <p className={`text-white ${isCurrent ? 'text-lg font-semibold' : 'text-sm'}`}>
+                      {renderTappableText(segment.original, isCurrent)}
+                    </p>
+                    {segment.english && (
+                      <p className="text-white/50 text-xs mt-1">{segment.english}</p>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Translation coverage info */}
+            {lyrics.translationCoverage < 50 && (
+              <p className="text-center text-white/30 text-xs">
+                🌍 Words from Soussou lexicon (8,982+ words)
+              </p>
+            )}
+
+            {/* Action Buttons - Copy, Share, Edit */}
+            <LyricsActionButtons
+              lyrics={lyrics}
+              track={track}
+              onEditRequest={handleEditRequest}
+            />
+          </div>
+        )}
+
+        {/* No lyrics yet */}
+        {!lyrics && !progress && !error && (
+          <div className="text-center">
+            <p className="text-white/60">Tap to generate lyrics</p>
+          </div>
+        )}
+      </div>
+
+      {/* Word Translation Popup */}
+      <AnimatePresence>
+        {selectedWord && (
+          <WordTranslationPopup
+            word={selectedWord}
+            translation={wordTranslation}
+            position={popupPosition}
+            onClose={closePopup}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Community Edit Modal */}
+      <AnimatePresence>
+        {showEditModal && (
+          <CommunityEditModal
+            isOpen={showEditModal}
+            onClose={() => setShowEditModal(false)}
+            originalText={editOriginalText}
+            segmentIndex={editSegmentIndex}
+            trackId={track.trackId}
+            username={username}
+            onSave={handleEditSave}
+          />
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+});
+LyricsOverlay.displayName = 'LyricsOverlay';
+
+// ============================================
 // MAIN COMPONENT - Clean V2 Style (matching screenshot)
 // ============================================
 export const VoyoPortraitPlayer = ({
@@ -2748,6 +3401,9 @@ export const VoyoPortraitPlayer = ({
   const [signalInputOpen, setSignalInputOpen] = useState(false);
   const [signalCategory, setSignalCategory] = useState<ReactionCategory | null>(null);
   const [signalText, setSignalText] = useState('');
+
+  // ====== LYRICS OVERLAY - Tap album art to show lyrics ======
+  const [showLyricsOverlay, setShowLyricsOverlay] = useState(false);
 
   // Handle double-tap on MixBoard column = open Signal input
   const handleModeReaction = useCallback((category: ReactionCategory) => {
@@ -3685,6 +4341,7 @@ export const VoyoPortraitPlayer = ({
             <BigCenterCard
               track={currentTrack}
               onExpandVideo={handleExpandVideo}
+              onShowLyrics={() => setShowLyricsOverlay(true)}
             />
           ) : (
             <div className="w-48 h-48 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center">
@@ -4527,6 +5184,18 @@ export const VoyoPortraitPlayer = ({
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* LYRICS OVERLAY - Tap album art to show */}
+      <AnimatePresence>
+        {showLyricsOverlay && currentTrack && (
+          <LyricsOverlay
+            track={currentTrack}
+            isOpen={showLyricsOverlay}
+            onClose={() => setShowLyricsOverlay(false)}
+            currentTime={usePlayerStore.getState().currentTime}
+          />
         )}
       </AnimatePresence>
 

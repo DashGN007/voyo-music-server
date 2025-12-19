@@ -8,7 +8,10 @@
  * - Prefetch next track at 50% progress
  * - Adaptive bitrate based on network speed
  * - Smart buffer health monitoring
+ * - Integration with MediaCache for feed pre-caching
  */
+
+import { mediaCache } from './mediaCache';
 
 export type BitrateLevel = 'low' | 'medium' | 'high';
 export type BufferStatus = 'healthy' | 'warning' | 'emergency';
@@ -400,6 +403,45 @@ class AudioEngine {
       activePrefetches: this.activePrefetch.size,
       prefetchStatuses: Array.from(this.activePrefetch.values()),
     };
+  }
+
+  /**
+   * Get best audio URL for a track - checks all caches first
+   * Priority: 1. MediaCache blob, 2. AudioEngine blob, 3. CDN URL
+   */
+  getBestAudioUrl(trackId: string, apiBase: string): { url: string; cached: boolean; source: string } {
+    // 1. Check MediaCache (from feed pre-caching)
+    const mediaCached = mediaCache.get(trackId);
+    if (mediaCached?.audioUrl) {
+      console.log(`[AudioEngine] Using MediaCache blob for ${trackId}`);
+      return { url: mediaCached.audioUrl, cached: true, source: 'mediaCache' };
+    }
+
+    // 2. Check AudioEngine's own preload cache
+    const engineCached = this.preloadCache.get(trackId);
+    if (engineCached) {
+      console.log(`[AudioEngine] Using AudioEngine blob for ${trackId}`);
+      return { url: engineCached, cached: true, source: 'audioEngine' };
+    }
+
+    // 3. Fall back to CDN
+    const quality = this.selectOptimalBitrate();
+    const cdnUrl = `${apiBase}/cdn/stream/${trackId}?type=audio&quality=${quality}`;
+    return { url: cdnUrl, cached: false, source: 'cdn' };
+  }
+
+  /**
+   * Get best thumbnail URL for a track
+   */
+  getBestThumbnailUrl(trackId: string): string {
+    // Check MediaCache first
+    const mediaCached = mediaCache.get(trackId);
+    if (mediaCached?.thumbnailUrl) {
+      return mediaCached.thumbnailUrl;
+    }
+
+    // Fall back to YouTube
+    return `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg`;
   }
 }
 

@@ -8,13 +8,14 @@
  * - Mobile-first, touch-friendly design
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Bell, Play } from 'lucide-react';
+import { Search, Bell, Play, RefreshCw } from 'lucide-react';
 import { getThumb } from '../../utils/thumbnail';
 import { TRACKS, MOOD_TUNNELS, getHotTracks } from '../../data/tracks';
 import { getUserTopTracks, getPoolAwareHotTracks } from '../../services/personalization';
 import { usePlayerStore } from '../../store/playerStore';
+import { useTrackPoolStore } from '../../store/trackPoolStore';
 import { Track, MoodTunnel } from '../../types';
 
 // ============================================
@@ -176,12 +177,28 @@ interface HomeFeedProps {
 }
 
 export const HomeFeed = ({ onTrackPlay, onSearch }: HomeFeedProps) => {
-  const { history } = usePlayerStore();
+  const { history, hotTracks, discoverTracks, refreshRecommendations } = usePlayerStore();
+  const { hotPool } = useTrackPoolStore();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Data for shelves (memoized for performance)
+  // Refresh recommendations on mount and when pool changes
+  useEffect(() => {
+    refreshRecommendations();
+  }, [hotPool.length, refreshRecommendations]);
+
+  // Handle manual refresh
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    refreshRecommendations();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
+
+  // Data for shelves - now reactive to store changes!
   const recentlyPlayed = useMemo(() => getRecentlyPlayed(history, 10), [history]);
-  const heavyRotation = useMemo(() => getUserTopTracks(10), []);
-  const madeForYou = useMemo(() => getPoolAwareHotTracks(10), []);
+  const heavyRotation = useMemo(() => getUserTopTracks(10), [history]); // Re-compute when history changes
+
+  // LIVE RECOMMENDATIONS from playerStore (updated by pool + intent)
+  const madeForYou = hotTracks.length > 0 ? hotTracks : getPoolAwareHotTracks(10);
   const moods = MOOD_TUNNELS;
   const newReleases = useMemo(() => getNewReleases(10), []);
 
@@ -263,16 +280,44 @@ export const HomeFeed = ({ onTrackPlay, onSearch }: HomeFeedProps) => {
         </Shelf>
       )}
 
-      {/* Made For You */}
-      <Shelf title="Made For You">
-        {madeForYou.map((track) => (
-          <TrackCard
-            key={track.id}
-            track={track}
-            onPlay={() => onTrackPlay(track)}
-          />
-        ))}
-      </Shelf>
+      {/* Made For You - LIVE recommendations from pool + intent */}
+      <div className="mb-6">
+        <div className="flex justify-between items-center px-4 mb-3">
+          <h2 className="text-white font-bold text-lg">Made For You</h2>
+          <motion.button
+            className="p-2 rounded-full bg-white/10 hover:bg-white/20"
+            onClick={handleRefresh}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            animate={isRefreshing ? { rotate: 360 } : {}}
+            transition={{ duration: 0.5 }}
+          >
+            <RefreshCw className={`w-4 h-4 text-purple-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </motion.button>
+        </div>
+        <div className="flex gap-3 px-4 overflow-x-auto scrollbar-hide">
+          {madeForYou.map((track) => (
+            <TrackCard
+              key={track.id}
+              track={track}
+              onPlay={() => onTrackPlay(track)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Discovery - Based on what you're playing + intent */}
+      {discoverTracks.length > 0 && (
+        <Shelf title="Discover More">
+          {discoverTracks.map((track) => (
+            <TrackCard
+              key={track.id}
+              track={track}
+              onPlay={() => onTrackPlay(track)}
+            />
+          ))}
+        </Shelf>
+      )}
 
       {/* Browse by Mood */}
       <Shelf title="Browse by Mood">

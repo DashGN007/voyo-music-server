@@ -21,20 +21,80 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Heart, MessageCircle, Share2, Music2, Zap, Play, Pause,
   ChevronDown, User, MapPin, Flame, Plus, X, Volume2, VolumeX,
-  Bookmark, UserPlus, UserMinus, FastForward
+  Bookmark, UserPlus, UserMinus, FastForward, Check
 } from 'lucide-react';
 import { useReactionStore, Reaction, ReactionCategory, ReactionType, TrackHotspot } from '../../../store/reactionStore';
 import { usePlayerStore } from '../../../store/playerStore';
 import { useUniverseStore } from '../../../store/universeStore';
 import { useTrackPoolStore } from '../../../store/trackPoolStore';
 import { followsAPI } from '../../../lib/supabase';
-import { TRACKS } from '../../../data/tracks';
+import { TRACKS, pipedTrackToVoyoTrack } from '../../../data/tracks';
+import { searchAlbums, getAlbumTracks } from '../../../services/piped';
+import { mediaCache } from '../../../services/mediaCache';
 import { AudioVisualizer, WaveformVisualizer } from './AudioVisualizer';
 import { VideoSnippet } from './VideoSnippet';
+import { ContentMixer, ContentType } from './ContentMixer';
+import { FloatingReactions, useFloatingReactions, useDoubleTap } from './FloatingReactions';
+import { useEngagementTracker } from './FeedTransitions';
 
 // Snippet config
 const ENABLE_VIDEO_SNIPPETS = true; // Toggle video snippets on/off
 const DEFAULT_SEEK_PERCENT = 25; // Where to start if no hotspots
+
+// Discovery config - searches to cycle through for infinite feed
+// Rotating queries ensure variety and never-ending content
+const DISCOVERY_QUERIES = [
+  // Top Artists
+  'Burna Boy official',
+  'Wizkid official',
+  'Davido official',
+  'Asake official',
+  'Ayra Starr official',
+  'Rema official',
+  'Tyla official',
+  'Fireboy DML official',
+  'Omah Lay official',
+  'Ckay official',
+  'Tiwa Savage official',
+  'Yemi Alade official',
+  'Olamide official',
+  'Victony official',
+  'BNXN official',
+  'Ruger official',
+  'Pheelz official',
+  'Kizz Daniel official',
+
+  // Genres & Vibes
+  'Afrobeats 2024 hits',
+  'Afrobeats 2025 new',
+  'Amapiano 2024 mix',
+  'Amapiano hits playlist',
+  'Nigerian music trending',
+  'South African amapiano',
+  'Afro pop hits',
+  'African music trending',
+  'Afrobeats party mix',
+  'Amapiano dance',
+  'Afro soul chill',
+  'African RnB vibes',
+
+  // Labels & Compilations
+  'Mavin Records',
+  'Spaceship Records',
+  'DMW Records',
+  'Starboy Entertainment',
+  'Afrobeats essentials',
+  'Best of Afrobeats',
+  'African music compilation',
+
+  // Regional
+  'Ghana music 2024',
+  'Tanzanian bongo',
+  'Kenyan gengetone',
+  'Congolese ndombolo',
+  'Afrobeats UK',
+];
+const DISCOVERY_THRESHOLD = 5; // Load more when 5 tracks from end
 
 // Snippet modes
 const SNIPPET_MODES = {
@@ -95,8 +155,8 @@ const ProgressBar = ({ isActive, trackId, onSeekToHotspot }: {
 
   return (
     <div className="absolute bottom-0 left-0 right-0 z-30">
-      {/* Progress bar with heatmap */}
-      <div className="relative h-1.5 bg-white/20">
+      {/* Progress bar with heatmap - no visible track, just the progress */}
+      <div className="relative h-1.5 bg-transparent">
         {/* Hotspot markers */}
         {hotspots.map((hotspot, i) => (
           <div
@@ -147,8 +207,8 @@ const ProgressBar = ({ isActive, trackId, onSeekToHotspot }: {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <FastForward className="w-3 h-3" />
-              <span>🔥 HOT</span>
+              <Flame className="w-3 h-3" style={{ fill: 'white' }} />
+              <span>HOT</span>
             </motion.button>
           )}
           <div className="flex items-center gap-1 text-white/60 text-[10px]">
@@ -406,6 +466,7 @@ interface FeedCardProps {
   onSeekToHotspot?: (position: number) => void; // Seek to hot part
   onFollowArtist?: () => void; // Follow/unfollow artist
   onSnippetEnd?: () => void; // Called when snippet duration ends (for auto-advance)
+  onDoubleTapReaction?: () => void; // Double-tap = reaction storm
 }
 
 const FeedCard = ({
@@ -433,11 +494,39 @@ const FeedCard = ({
   onSeekToHotspot,
   onFollowArtist,
   onSnippetEnd,
+  onDoubleTapReaction,
 }: FeedCardProps) => {
   const [showComments, setShowComments] = useState(false);
   const [userReactions, setUserReactions] = useState<Set<ReactionType>>(new Set());
   const [snippetStarted, setSnippetStarted] = useState(false);
+  const [showHeartBurst, setShowHeartBurst] = useState(false);
   const snippetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Floating reactions hook
+  const { addReaction: addFloatingReaction, triggerStorm } = useFloatingReactions();
+
+  // Double-tap handler for reaction storm
+  const handleDoubleTap = useDoubleTap(
+    () => {
+      // Double tap = OYÉ storm (love this track!)
+      triggerStorm('oye', 15);
+      setShowHeartBurst(true);
+      setTimeout(() => setShowHeartBurst(false), 500);
+      onReact('oye');
+      onDoubleTapReaction?.();
+      // Haptic feedback if available
+      if (navigator.vibrate) navigator.vibrate(50);
+    },
+    () => {
+      // Single tap = toggle play
+      if (isThisTrack) {
+        onTogglePlay();
+      } else {
+        onPlay();
+      }
+    },
+    300
+  );
 
   // Auto-play snippet when card becomes active
   useEffect(() => {
@@ -529,42 +618,22 @@ const FeedCard = ({
 
   return (
     <div className="relative w-full h-full bg-black">
-      {/* Background - Video Snippet OR Thumbnail with Visualizer */}
+      {/* Background - Dynamic Content (Video, Animated Art, TikTok, etc.) */}
       <div className="absolute inset-0">
-        {ENABLE_VIDEO_SNIPPETS ? (
-          /* Video Snippet - fetches and plays actual video */
-          <VideoSnippet
-            trackId={trackId}
-            isActive={isActive}
-            isPlaying={isPlaying}
-            isThisTrack={isThisTrack}
-            fallbackThumbnail={trackThumbnail}
-          />
-        ) : trackThumbnail ? (
-          /* Static thumbnail fallback */
-          <motion.img
-            src={trackThumbnail}
-            alt={trackTitle}
-            className="w-full h-full object-cover"
-            onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0'; }}
-            animate={{
-              scale: isPlaying && isThisTrack ? [1, 1.02, 1] : 1,
-            }}
-            transition={{
-              duration: 4,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }}
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-purple-900/50 to-pink-900/30 flex items-center justify-center">
-            <Music2 className="w-24 h-24 text-white/20" />
-          </div>
-        )}
+        {/* ContentMixer chooses the best visual for this track */}
+        <ContentMixer
+          trackId={trackId}
+          trackTitle={trackTitle}
+          trackArtist={trackArtist}
+          thumbnail={trackThumbnail}
+          isActive={isActive}
+          isPlaying={isPlaying}
+          isThisTrack={isThisTrack}
+          forceContentType={ENABLE_VIDEO_SNIPPETS ? undefined : 'animated_art'}
+        />
 
-        {/* Gradient overlays */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-black/20" />
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/30" />
+        {/* Full height fade - blends hero into canvas */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none" />
 
         {/* Audio Visualizer - shows when playing (over video or thumbnail) */}
         <AudioVisualizer
@@ -600,30 +669,41 @@ const FeedCard = ({
           />
         )}
 
-        {/* Snippet Mode Badge */}
-        {isActive && isPlaying && isThisTrack && (
-          <motion.div
-            className={`absolute top-12 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${
-              snippetMode === 'extract'
-                ? 'bg-orange-500/90 text-white'
-                : 'bg-purple-500/90 text-white'
-            }`}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <span>{snippetMode === 'extract' ? '🔥' : '🎵'}</span>
-            <span>{snippetMode === 'extract' ? `${snippetDuration}s Extract` : `${snippetDuration}s Full`}</span>
-          </motion.div>
-        )}
       </div>
 
-      {/* Tap to play/pause - invisible overlay */}
+      {/* Tap to play/pause OR Double-tap for reaction storm - invisible overlay */}
       <button
         className="absolute inset-0 z-10"
-        onClick={isThisTrack ? onTogglePlay : onPlay}
+        onClick={handleDoubleTap}
         aria-label={isPlaying ? 'Pause' : 'Play'}
       />
+
+      {/* Heart burst animation on double-tap */}
+      <AnimatePresence>
+        {showHeartBurst && (
+          <motion.div
+            className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="flex items-center justify-center"
+              initial={{ scale: 0 }}
+              animate={{ scale: [0, 1.5, 1] }}
+              transition={{ duration: 0.4 }}
+            >
+              <Zap
+                className="w-32 h-32 text-yellow-400"
+                style={{
+                  fill: '#FBBF24',
+                  filter: 'drop-shadow(0 0 30px rgba(251, 191, 36, 0.8))',
+                }}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Progress Bar with Heatmap + Hot Part Seek */}
       <ProgressBar
@@ -640,84 +720,103 @@ const FeedCard = ({
 
       {/* Track Info - Bottom Left (Clean) */}
       <div className="absolute bottom-28 left-4 right-24 z-20">
-        {/* OYÉ Badge - Only show if significant */}
+        {/* OYÉ Badge - Orange gradient fade */}
         {(() => {
           const totalOye = nativeOyeScore + reactionCounts.oye;
           if (totalOye < 100) return null;
           return (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 mb-3 rounded-sm bg-orange-500/90">
+            <div
+              className="inline-flex items-center gap-1.5 px-3 py-1 mb-3 rounded-full"
+              style={{
+                background: 'linear-gradient(90deg, rgba(249,115,22,0.9) 0%, rgba(251,146,60,0.7) 50%, rgba(249,115,22,0.3) 100%)',
+              }}
+            >
               <Zap className="w-3 h-3 text-white" style={{ fill: 'white' }} />
               <span className="text-white text-[10px] font-bold tracking-wide">{formatCount(totalOye)} OYÉ</span>
             </div>
           );
         })()}
 
-        {/* Artist Handle + Follow Button */}
-        <div className="flex items-center gap-2 mb-1">
-          <p className="text-white/80 text-sm font-medium">@{trackArtist.toLowerCase().replace(/\s+/g, '_')}</p>
-          {onFollowArtist && (
-            <motion.button
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
-                isFollowingArtist
-                  ? 'bg-white/20 text-white/70'
-                  : 'bg-pink-500/90 text-white'
-              }`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onFollowArtist();
-              }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              {isFollowingArtist ? (
-                <>
-                  <UserMinus className="w-3 h-3" />
-                  <span>Following</span>
-                </>
-              ) : (
-                <>
-                  <UserPlus className="w-3 h-3" />
-                  <span>Follow</span>
-                </>
-              )}
-            </motion.button>
-          )}
-        </div>
-
-        {/* Track Title */}
-        <h3 className="text-white text-base font-semibold mb-2 line-clamp-2 leading-tight">
+        {/* Track Title + Artist */}
+        <h3 className="text-white text-base font-semibold line-clamp-2 leading-tight">
           {trackTitle}
         </h3>
+        <p className="text-white/50 text-xs mt-0.5">{trackArtist}</p>
 
-        {/* Song Info */}
-        <div className="flex items-center gap-2 text-white/60">
-          <Music2 className="w-3.5 h-3.5" />
-          <span className="text-xs truncate">{trackArtist}</span>
-        </div>
+        {/* Profile + Follow - smaller, centered to name */}
+        {onFollowArtist && (
+          <motion.button
+            className="relative mt-4"
+            onClick={(e) => {
+              e.stopPropagation();
+              onFollowArtist();
+            }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <div
+              className={`w-7 h-7 rounded-full overflow-hidden border ${
+                isFollowingArtist ? 'border-pink-500' : 'border-white/40'
+              }`}
+            >
+              <img
+                src={trackThumbnail || `https://ui-avatars.com/api/?name=${trackArtist}&background=8b5cf6&color=fff`}
+                alt={trackArtist}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div
+              className={`absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full flex items-center justify-center bg-pink-500`}
+            >
+              {isFollowingArtist ? (
+                <Check className="w-2 h-2 text-white" />
+              ) : (
+                <Plus className="w-2 h-2 text-white" />
+              )}
+            </div>
+          </motion.button>
+        )}
       </div>
 
       {/* Right Side Actions - Clean & Functional */}
       <div className="absolute right-4 bottom-32 z-20 flex flex-col items-center gap-5">
         {/* OYÉ Button - Main Action (I vibe with this → adds to library + boosts) */}
-        <button
+        <motion.button
           className="flex flex-col items-center"
           onClick={() => {
             handleReaction('oye');
+            // Trigger floating reaction
+            addFloatingReaction('oye');
             // OYÉ = I vibe with this = Add to library + Boost
             onAddToLibrary?.();
+            // Haptic feedback
+            if (navigator.vibrate) navigator.vibrate(30);
           }}
+          whileTap={{ scale: 0.85 }}
         >
-          <div
-            className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
+          <motion.div
+            className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
               userReactions.has('oye')
-                ? 'bg-gradient-to-br from-yellow-400 to-orange-500 scale-110'
+                ? 'bg-gradient-to-br from-yellow-400 to-orange-500'
                 : 'bg-gradient-to-br from-orange-500 to-orange-600'
             }`}
+            animate={userReactions.has('oye') ? {
+              scale: [1, 1.2, 1],
+              boxShadow: ['0 0 0px rgba(251,191,36,0)', '0 0 20px rgba(251,191,36,0.8)', '0 0 10px rgba(251,191,36,0.4)'],
+            } : {}}
+            transition={{ duration: 0.3 }}
+            style={{
+              boxShadow: userReactions.has('oye')
+                ? '0 0 15px rgba(251, 191, 36, 0.6)'
+                : '0 4px 15px rgba(0,0,0,0.3)',
+            }}
           >
             <Zap className="w-7 h-7 text-white" style={{ fill: 'white' }} />
-          </div>
-          <span className="text-orange-400 text-[11px] font-bold mt-1.5">OYÉ</span>
-        </button>
+          </motion.div>
+          <span className={`text-[11px] font-bold mt-1.5 transition-colors ${
+            userReactions.has('oye') ? 'text-yellow-400' : 'text-orange-400'
+          }`}>OYÉ</span>
+        </motion.button>
 
         {/* Comments */}
         <button
@@ -771,7 +870,13 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
   const [snippetMode, setSnippetMode] = useState<SnippetMode>('extract'); // Default to hot extracts
   const [followingList, setFollowingList] = useState<Set<string>>(new Set());
   const [isLoadingFollows, setIsLoadingFollows] = useState(false);
+  const [showContinueButton, setShowContinueButton] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Discovery state - infinite scroll
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discoveryIndex, setDiscoveryIndex] = useState(0);
+  const discoveredIdsRef = useRef<Set<string>>(new Set());
 
   // Get current snippet config
   const snippetConfig = SNIPPET_MODES[snippetMode];
@@ -779,7 +884,7 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
   const { recentReactions, fetchRecentReactions, subscribeToReactions, isSubscribed, createReaction, computeHotspots, getCategoryScore, getTopCategories, getHotspots } = useReactionStore();
   const { setCurrentTrack, addToQueue, currentTrack, isPlaying, togglePlay, progress, duration, seekTo, volume, setVolume } = usePlayerStore();
   const { currentUsername } = useUniverseStore();
-  const { hotPool, recordReaction } = useTrackPoolStore();
+  const { hotPool, recordReaction, addManyToPool } = useTrackPoolStore();
 
   // Fetch reactions on mount
   useEffect(() => {
@@ -806,6 +911,42 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
     };
     loadFollowing();
   }, [currentUsername]);
+
+  // Engagement tracking - show ContinuePlayingButton after 6s of playback
+  const playTimeRef = useRef(0);
+  const engagementTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    // Reset when track changes
+    playTimeRef.current = 0;
+    setShowContinueButton(false);
+
+    if (isActive && isPlaying && currentTrack) {
+      // Start tracking play time
+      engagementTimerRef.current = setInterval(() => {
+        playTimeRef.current += 1;
+        // Show button after 6 seconds of engagement
+        if (playTimeRef.current >= 6 && !showContinueButton) {
+          setShowContinueButton(true);
+          console.log('[Feed] User engaged! Showing Continue Playing button');
+        }
+      }, 1000);
+    }
+
+    return () => {
+      if (engagementTimerRef.current) {
+        clearInterval(engagementTimerRef.current);
+      }
+    };
+  }, [isActive, isPlaying, currentTrack?.id, currentIndex]);
+
+  // Also show Continue button on any reaction (instant engagement)
+  const markEngaged = useCallback(() => {
+    if (!showContinueButton) {
+      setShowContinueButton(true);
+      console.log('[Feed] Reaction detected! Showing Continue Playing button');
+    }
+  }, [showContinueButton]);
 
   // Handle follow/unfollow artist
   const handleFollowArtist = useCallback(async (artistUsername: string) => {
@@ -843,6 +984,78 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
     seekTo(targetTime);
     console.log(`[Feed] Seeking to hotspot at ${position}% (${targetTime}s)`);
   }, [duration, seekTo]);
+
+  // 🔥 INFINITE SCROLL - Discover more tracks when near end
+  const discoverMoreTracks = useCallback(async () => {
+    if (isDiscovering) return;
+
+    setIsDiscovering(true);
+
+    // Smart query selection: cycle through but with some randomization for variety
+    const baseIndex = discoveryIndex % DISCOVERY_QUERIES.length;
+    const randomOffset = Math.floor(Math.random() * 3); // Add 0-2 random offset
+    const queryIndex = (baseIndex + randomOffset) % DISCOVERY_QUERIES.length;
+    const query = DISCOVERY_QUERIES[queryIndex];
+
+    console.log(`[Feed] 🔍 Discovering more tracks: "${query}" (query ${queryIndex + 1}/${DISCOVERY_QUERIES.length})`);
+
+    try {
+      // Search for playlists/albums matching query (get 5 for more options)
+      const albums = await searchAlbums(query, 5);
+
+      if (albums.length === 0) {
+        console.log('[Feed] No albums found, trying next query...');
+        setDiscoveryIndex(prev => prev + 1);
+        setIsDiscovering(false);
+        // Immediately retry with next query
+        setTimeout(() => discoverMoreTracks(), 100);
+        return;
+      }
+
+      // Try multiple albums to get enough tracks
+      let totalAdded = 0;
+      for (const album of albums) {
+        if (totalAdded >= 15) break; // Got enough
+
+        const pipedTracks = await getAlbumTracks(album.id);
+        if (pipedTracks.length === 0) continue;
+
+        // Filter out already discovered tracks
+        const newTracks = pipedTracks.filter(pt => !discoveredIdsRef.current.has(pt.videoId));
+        if (newTracks.length === 0) continue;
+
+        // Convert to VOYO tracks and add to pool (up to 15 per album)
+        const voyoTracks = newTracks.slice(0, 15).map(pt => {
+          discoveredIdsRef.current.add(pt.videoId);
+          return pipedTrackToVoyoTrack(pt, album.name);
+        });
+
+        addManyToPool(voyoTracks, 'related');
+        totalAdded += voyoTracks.length;
+        console.log(`[Feed] ✅ Added ${voyoTracks.length} tracks from "${album.name}"`);
+      }
+
+      if (totalAdded === 0) {
+        console.log('[Feed] No new tracks found, trying next query...');
+        setDiscoveryIndex(prev => prev + 1);
+        setIsDiscovering(false);
+        setTimeout(() => discoverMoreTracks(), 100);
+        return;
+      }
+
+      console.log(`[Feed] 🎉 Total: ${totalAdded} new tracks added to pool`);
+
+      // Move to next query for variety
+      setDiscoveryIndex(prev => prev + 1);
+    } catch (error) {
+      console.error('[Feed] Discovery failed:', error);
+      setDiscoveryIndex(prev => prev + 1);
+      // Retry on error
+      setTimeout(() => discoverMoreTracks(), 500);
+    }
+
+    setIsDiscovering(false);
+  }, [isDiscovering, discoveryIndex, addManyToPool]);
 
   // Build feed from ALL tracks, boosted by reactions + For You algorithm
   const trackGroups = useMemo(() => {
@@ -887,7 +1100,8 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
     ];
 
     const feedItems = allTracks.map(track => {
-      const trackId = track.id || track.trackId || '';
+      // IMPORTANT: Use trackId (YouTube ID) first, not internal id
+      const trackId = track.trackId || track.id || '';
       const reactionData = reactionsByTrack.get(trackId);
       const poolScore = 'poolScore' in track ? (track as any).poolScore : 0;
 
@@ -946,51 +1160,36 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
     });
   }, [recentReactions, getCategoryScore, hotPool, feedMode, followingList, getHotspots]);
 
-  // 🔥 AUDIO PRECACHING - Preload next 3 tracks for instant playback
+  // 🔄 INFINITE SCROLL - Trigger discovery when near end of feed
+  useEffect(() => {
+    if (!isActive) return;
+
+    const tracksRemaining = trackGroups.length - currentIndex;
+    if (tracksRemaining <= DISCOVERY_THRESHOLD && !isDiscovering && trackGroups.length > 0) {
+      console.log(`[Feed] Only ${tracksRemaining} tracks left, discovering more...`);
+      discoverMoreTracks();
+    }
+  }, [currentIndex, trackGroups.length, isActive, isDiscovering, discoverMoreTracks]);
+
+  // 🔥 SMART MEDIA CACHING - Pre-cache next 3 tracks, keep last 5 in memory
   useEffect(() => {
     if (!isActive || trackGroups.length === 0) return;
 
-    const API_BASE = 'https://voyo-music-api.fly.dev';
-    const PREFETCH_COUNT = 3; // Preload 3 tracks ahead
+    // Get all track IDs for cache management
+    const trackIds = trackGroups.map(g => g.trackId);
 
-    // Get next tracks to preload
-    const tracksToPreload = trackGroups.slice(currentIndex + 1, currentIndex + 1 + PREFETCH_COUNT);
-
-    const audioElements: HTMLAudioElement[] = [];
-
-    tracksToPreload.forEach((group, i) => {
-      const trackId = group.trackId;
-
-      // Use setTimeout to stagger prefetch requests (less network congestion)
-      const timeoutId = setTimeout(() => {
-        // Create a silent audio element to trigger browser caching
-        const audio = new Audio();
-        audio.preload = 'auto';
-        audio.src = `${API_BASE}/cdn/stream/${trackId}?type=audio&quality=medium`;
-        audio.volume = 0;
-
-        // Start loading
-        audio.load();
-        audioElements.push(audio);
-
-        console.log(`[Feed] 🔥 Precaching track ${currentIndex + 2 + i}: ${group.trackTitle}`);
-      }, i * 300); // Stagger by 300ms each
-
-      // Store timeout for cleanup
-      (window as any)[`prefetchTimeout_${i}`] = timeoutId;
+    // Pre-cache upcoming tracks (audio + thumbnails)
+    mediaCache.precacheAhead(trackIds, currentIndex, {
+      audio: true,
+      thumbnail: true,
+      video: false, // Video iframes load on-demand
     });
 
-    // Cleanup function
-    return () => {
-      // Clear pending timeouts
-      for (let i = 0; i < PREFETCH_COUNT; i++) {
-        clearTimeout((window as any)[`prefetchTimeout_${i}`]);
-      }
-      // Release audio elements
-      audioElements.forEach(audio => {
-        audio.src = '';
-      });
-    };
+    // Log cache stats periodically
+    if (currentIndex % 5 === 0) {
+      const stats = mediaCache.getStats();
+      console.log(`[MediaCache] Stats: ${stats.totalItems} items, ${(stats.hitRate * 100).toFixed(1)}% hit rate`);
+    }
   }, [currentIndex, isActive, trackGroups]);
 
   // Auto-advance to next card (called when snippet ends)
@@ -1177,11 +1376,14 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
 
   return (
     <motion.div
-      className="absolute inset-0 bg-black"
+      className="absolute inset-0 bg-transparent"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
+      {/* Floating Reactions Layer - TikTok Live style bubbles */}
+      <FloatingReactions isActive={isActive} />
+
       {/* Snap Scroll Container */}
       <div
         ref={containerRef}
@@ -1241,6 +1443,16 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
                 onSeekToHotspot={handleSeekToHotspot}
                 onFollowArtist={() => handleFollowArtist(group.trackArtist)}
                 onSnippetEnd={handleSnippetEnd}
+                onDoubleTapReaction={() => {
+                  // Double-tap also adds to library
+                  const poolTrack = hotPool.find(t => t.id === group.trackId || t.trackId === group.trackId);
+                  const seedTrack = TRACKS.find(t => t.id === group.trackId || t.trackId === group.trackId);
+                  const track = poolTrack || seedTrack;
+                  if (track) {
+                    addToQueue(track);
+                    recordReaction(group.trackId);
+                  }
+                }}
               />
             </div>
           );
@@ -1280,23 +1492,8 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
             For You
           </button>
         </div>
-        {/* Mode Toggle + Mute buttons */}
-        <div className="absolute right-4 top-0 flex items-center gap-3">
-          {/* Snippet Mode Toggle */}
-          <motion.button
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-              snippetMode === 'extract'
-                ? 'bg-orange-500/90 text-white'
-                : 'bg-purple-500/90 text-white'
-            }`}
-            onClick={() => setSnippetMode(snippetMode === 'extract' ? 'full' : 'extract')}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            {snippetMode === 'extract' ? '🔥 Extract' : '🎵 Full'}
-          </motion.button>
-
-          {/* Mute/Unmute button */}
+        {/* Mute button */}
+        <div className="absolute right-4 top-0">
           <button
             className="active:scale-90 transition-transform"
             onClick={() => setVolume(volume > 0 ? 0 : 80)}
@@ -1311,11 +1508,30 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
       </div>
 
       {/* Scroll indicator - subtle, no animation */}
-      {trackGroups.length > 1 && currentIndex < trackGroups.length - 1 && (
+      {trackGroups.length > 1 && currentIndex < trackGroups.length - 1 && !isDiscovering && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
           <ChevronDown className="w-5 h-5 text-white/30" />
         </div>
       )}
+
+      {/* Discovery loading indicator */}
+      {isDiscovering && (
+        <motion.div
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/80 backdrop-blur-sm"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+          />
+          <span className="text-white text-xs font-medium">Discovering...</span>
+        </motion.div>
+      )}
+
+      {/* ContinuePlayingButton removed - VOYO nav button handles "Keep Playing" prompt */}
     </motion.div>
   );
 };

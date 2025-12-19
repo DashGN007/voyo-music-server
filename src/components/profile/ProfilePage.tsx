@@ -17,6 +17,7 @@ import {
 import { useUniverseStore } from '../../store/universeStore';
 import { usePlayerStore } from '../../store/playerStore';
 import { universeAPI, PublicProfile, NowPlaying } from '../../lib/supabase';
+import { PortalChat } from '../portal/PortalChat';
 
 export const ProfilePage = () => {
   const { username } = useParams<{ username: string }>();
@@ -507,6 +508,15 @@ export const ProfilePage = () => {
         </p>
         <p className="text-white/30 text-xs">The African Music Experience</p>
       </div>
+
+      {/* Portal Chat - Shows when portal is open and user joined */}
+      {portalOpen && hasJoinedPortal && username && currentUsername && (
+        <PortalChat
+          portalOwner={username}
+          currentUser={currentUsername}
+          isPortalOpen={portalOpen}
+        />
+      )}
     </div>
   );
 };

@@ -21,6 +21,7 @@ import { VoyoVerticalFeed } from './feed/VoyoVerticalFeed';
 import { CreatorUpload } from './upload/CreatorUpload';
 import { VoyoPortraitPlayer } from './VoyoPortraitPlayer';
 import { Hub } from '../classic/Hub';
+import { OyoIsland } from './OyoIsland';
 
 // Quick DJ Prompts
 const DJ_PROMPTS = [
@@ -229,7 +230,25 @@ export const PortraitVOYO = ({ onSearch, onDahub, onHome }: PortraitVOYOProps) =
 
   return (
     <>
-      <div className="flex flex-col h-full bg-[#050507] overflow-hidden relative">
+      <div className="flex flex-col h-full bg-black overflow-hidden relative">
+        {/* Shared purple animation - flows behind EVERYTHING (feed + nav) */}
+        <div className="absolute inset-0 pointer-events-none z-0">
+          <motion.div
+            className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[200%] h-[60%]"
+            style={{
+              background: 'radial-gradient(ellipse at center bottom, rgba(168,85,247,0.15) 0%, rgba(139,92,246,0.08) 30%, transparent 70%)',
+            }}
+            animate={{
+              opacity: [0.4, 0.7, 0.4],
+              scale: [1, 1.05, 1],
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+          />
+        </div>
 
         {/* LAYER 1: MUSIC MODE - Main Player */}
         <motion.div
@@ -301,6 +320,9 @@ export const PortraitVOYO = ({ onSearch, onDahub, onHome }: PortraitVOYOProps) =
         onClose={handleCloseTextInput}
         onSubmit={handleDJCommand}
       />
+
+      {/* OYO Island - DJ Announcements & Voice Search */}
+      <OyoIsland />
     </>
   );
 };

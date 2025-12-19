@@ -13,6 +13,7 @@
 
 import { create } from 'zustand';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { useTrackPoolStore } from './trackPoolStore';
 
 // ============================================
 // TYPES
@@ -214,6 +215,9 @@ export const useReactionStore = create<ReactionStore>((set, get) => ({
       if (trackPosition !== undefined) {
         get().computeHotspots(trackId);
       }
+      // BOOST TRACK SCORE IN POOL - Reactions are strong engagement signals!
+      useTrackPoolStore.getState().recordReaction(trackId);
+      console.log(`[Reactions] Boosted pool score for ${trackId}`);
       return true;
     }
 
@@ -244,6 +248,9 @@ export const useReactionStore = create<ReactionStore>((set, get) => ({
       if (trackPosition !== undefined) {
         get().computeHotspots(trackId);
       }
+      // BOOST TRACK SCORE IN POOL - Reactions are strong engagement signals!
+      useTrackPoolStore.getState().recordReaction(trackId);
+      console.log(`[Reactions] Boosted pool score for ${trackId}`);
       return true;
     } catch (err) {
       console.error('[Reactions] Error:', err);
