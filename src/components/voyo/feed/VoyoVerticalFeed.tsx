@@ -30,8 +30,10 @@ import { useTrackPoolStore } from '../../../store/trackPoolStore';
 import { followsAPI } from '../../../lib/supabase';
 import { TRACKS } from '../../../data/tracks';
 import { AudioVisualizer, WaveformVisualizer } from './AudioVisualizer';
+import { VideoSnippet } from './VideoSnippet';
 
 // Snippet config
+const ENABLE_VIDEO_SNIPPETS = true; // Toggle video snippets on/off
 const SNIPPET_DURATION = 25; // Seconds per snippet before auto-advance
 const DEFAULT_SEEK_PERCENT = 25; // Where to start if no hotspots
 
@@ -506,9 +508,19 @@ const FeedCard = ({
 
   return (
     <div className="relative w-full h-full bg-black">
-      {/* Background - Thumbnail with gradient + Visualizer */}
+      {/* Background - Video Snippet OR Thumbnail with Visualizer */}
       <div className="absolute inset-0">
-        {trackThumbnail ? (
+        {ENABLE_VIDEO_SNIPPETS ? (
+          /* Video Snippet - fetches and plays actual video */
+          <VideoSnippet
+            trackId={trackId}
+            isActive={isActive}
+            isPlaying={isPlaying}
+            isThisTrack={isThisTrack}
+            fallbackThumbnail={trackThumbnail}
+          />
+        ) : trackThumbnail ? (
+          /* Static thumbnail fallback */
           <motion.img
             src={trackThumbnail}
             alt={trackTitle}
@@ -528,11 +540,12 @@ const FeedCard = ({
             <Music2 className="w-24 h-24 text-white/20" />
           </div>
         )}
+
         {/* Gradient overlays */}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-black/20" />
         <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/30" />
 
-        {/* Audio Visualizer - shows when playing */}
+        {/* Audio Visualizer - shows when playing (over video or thumbnail) */}
         <AudioVisualizer
           isPlaying={isPlaying && isThisTrack}
           intensity={0.8}

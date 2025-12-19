@@ -7,6 +7,128 @@
 
 const PIPED_API = 'https://pipedapi.kavin.rocks';
 
+// Fallback Piped instances (in case primary is down)
+const PIPED_INSTANCES = [
+  'https://pipedapi.kavin.rocks',
+  'https://pipedapi.adminforge.de',
+  'https://api.piped.yt',
+];
+
+// ============================================
+// VIDEO STREAM TYPES
+// ============================================
+
+export interface VideoStream {
+  url: string;
+  format: string;
+  quality: string;
+  mimeType: string;
+  fps: number;
+  width: number;
+  height: number;
+}
+
+export interface VideoStreamInfo {
+  title: string;
+  duration: number;
+  thumbnailUrl: string;
+  videoStreams: VideoStream[];
+  audioStreams: any[];
+  hls?: string; // HLS stream URL if available
+}
+
+// ============================================
+// VIDEO STREAM FUNCTIONS
+// ============================================
+
+/**
+ * Get video stream info from Piped API
+ * Returns direct video URLs for embedding
+ */
+export async function getVideoStreamInfo(videoId: string): Promise<VideoStreamInfo | null> {
+  // Try each Piped instance until one works
+  for (const instance of PIPED_INSTANCES) {
+    try {
+      const response = await fetch(`${instance}/streams/${videoId}`, {
+        signal: AbortSignal.timeout(10000)
+      });
+
+      if (!response.ok) continue;
+
+      const data = await response.json();
+
+      return {
+        title: data.title || '',
+        duration: data.duration || 0,
+        thumbnailUrl: data.thumbnailUrl || '',
+        videoStreams: (data.videoStreams || []).map((s: any) => ({
+          url: s.url,
+          format: s.format || '',
+          quality: s.quality || '',
+          mimeType: s.mimeType || '',
+          fps: s.fps || 30,
+          width: s.width || 0,
+          height: s.height || 0,
+        })),
+        audioStreams: data.audioStreams || [],
+        hls: data.hls || undefined,
+      };
+    } catch (error) {
+      console.warn(`Piped instance ${instance} failed:`, error);
+      continue;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Get best video stream URL for a video ID
+ * Prefers 720p or 480p for mobile performance
+ */
+export async function getVideoStreamUrl(videoId: string, preferredQuality: '360p' | '480p' | '720p' | '1080p' = '480p'): Promise<string | null> {
+  const info = await getVideoStreamInfo(videoId);
+  if (!info) return null;
+
+  // Try HLS first (adaptive, works well on mobile)
+  if (info.hls) {
+    return info.hls;
+  }
+
+  // Filter for MP4 streams (widest compatibility)
+  const mp4Streams = info.videoStreams.filter(s =>
+    s.mimeType.includes('video/mp4') || s.format.includes('mp4')
+  );
+
+  if (mp4Streams.length === 0) {
+    // Fall back to any video stream
+    if (info.videoStreams.length > 0) {
+      return info.videoStreams[0].url;
+    }
+    return null;
+  }
+
+  // Find preferred quality
+  const qualityOrder = ['720p', '480p', '360p', '1080p', '240p'];
+  const startIndex = qualityOrder.indexOf(preferredQuality);
+  const orderedQualities = [
+    ...qualityOrder.slice(startIndex),
+    ...qualityOrder.slice(0, startIndex)
+  ];
+
+  for (const quality of orderedQualities) {
+    const stream = mp4Streams.find(s => s.quality === quality);
+    if (stream) return stream.url;
+  }
+
+  // Return first available
+  return mp4Streams[0].url;
+}
+
+// ============================================
+// PLAYLIST TYPES
+// ============================================
+
 export interface PipedPlaylist {
   id: string;
   name: string;
