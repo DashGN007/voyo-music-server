@@ -10,9 +10,53 @@
  */
 
 import { useMemo, useState, useEffect } from 'react';
-import { VideoSnippet } from './VideoSnippet';
+import { VideoSnippet, type TeaserFormat, TEASER_CONFIGS } from './VideoSnippet';
 import { AnimatedArtCard, extractDominantColor, type ArtDisplayMode } from './AnimatedArtCard';
 import { DynamicVignette } from './DynamicVignette';
+
+// ============================================
+// ADAPTIVE FORMAT SELECTION
+// ============================================
+
+/**
+ * Detect connection quality and select appropriate teaser format
+ * - Fast connection (4g/wifi) → full video
+ * - Medium connection (3g) → hook clip (30s @ 360p)
+ * - Slow connection (2g) → instant preview (15s @ 240p)
+ */
+const getAdaptiveTeaserFormat = (): TeaserFormat => {
+  // @ts-ignore - navigator.connection is not in all browsers
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+
+  if (!connection) {
+    // Default to hook format (most balanced)
+    return 'hook';
+  }
+
+  const effectiveType = connection.effectiveType;
+
+  switch (effectiveType) {
+    case '4g':
+      return 'hook'; // Could be 'full' but hook saves bandwidth and engages
+    case '3g':
+      return 'hook'; // 30s clip @ 360p
+    case '2g':
+    case 'slow-2g':
+      return 'instant'; // 15s preview @ 240p
+    default:
+      return 'hook';
+  }
+};
+
+// Cache the format selection (don't recalculate every render)
+let cachedTeaserFormat: TeaserFormat | null = null;
+const getTeaserFormat = (): TeaserFormat => {
+  if (!cachedTeaserFormat) {
+    cachedTeaserFormat = getAdaptiveTeaserFormat();
+    console.log(`[ContentMixer] 📡 Adaptive format selected: ${cachedTeaserFormat}`);
+  }
+  return cachedTeaserFormat;
+};
 // import { TikTokEmbed } from './TikTokEmbed'; // Enable when matching system is ready
 
 // Content type enum
@@ -129,6 +173,9 @@ export const ContentMixer = ({
         );
       }
 
+      // Get adaptive teaser format based on connection
+      const teaserFormat = getTeaserFormat();
+
       return (
         <div className="absolute inset-0">
           <VideoSnippet
@@ -138,6 +185,7 @@ export const ContentMixer = ({
             isThisTrack={isThisTrack}
             shouldPreload={shouldPreload}
             fallbackThumbnail={thumbnail}
+            teaserFormat={teaserFormat}
             onVideoError={() => {
               console.log(`[ContentMixer] Video blocked for ${trackId}, switching to art`);
               setVideoBlocked(true);

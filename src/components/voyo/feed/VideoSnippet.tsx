@@ -12,6 +12,15 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Film, Play } from 'lucide-react';
 
+// Teaser format configurations
+export type TeaserFormat = 'hook' | 'instant' | 'full';
+
+export const TEASER_CONFIGS = {
+  hook: { start: 30, end: 60, quality: 'medium' as const },      // 30s hook @ 360p
+  instant: { start: 45, end: 60, quality: 'small' as const },    // 15s preview @ 240p
+  full: { start: 0, end: undefined, quality: 'large' as const }, // Full video @ 480p
+};
+
 interface VideoSnippetProps {
   trackId: string; // YouTube video ID or VOYO ID
   isActive: boolean;
@@ -19,6 +28,7 @@ interface VideoSnippetProps {
   isThisTrack: boolean;
   shouldPreload?: boolean; // Preload this video (for upcoming cards)
   fallbackThumbnail?: string;
+  teaserFormat?: TeaserFormat; // Clip format (hook, instant, full)
   onVideoReady?: () => void;
   onVideoError?: () => void;
 }
@@ -30,6 +40,7 @@ export const VideoSnippet = ({
   isThisTrack,
   shouldPreload = false,
   fallbackThumbnail,
+  teaserFormat = 'hook', // Default to hook format (30s clip @ 360p)
   onVideoReady,
   onVideoError,
 }: VideoSnippetProps) => {
@@ -53,11 +64,14 @@ export const VideoSnippet = ({
     }
   }, [trackId]);
 
+  // Get teaser config
+  const teaserConfig = TEASER_CONFIGS[teaserFormat];
+
   // Build YouTube embed URL with optimal params
   // SIMPLE & CLEAN: YouTube provides BOTH video AND audio (native sync)
   // NOTE: autoplay=0 because we control playback via postMessage (prevents preloaded cards from playing)
   const embedUrl = useMemo(() => {
-    const params = new URLSearchParams({
+    const params: Record<string, string> = {
       autoplay: '0', // NO autoplay - we control via postMessage when card becomes active
       mute: '0', // NOT muted - audio comes from YouTube
       controls: '0',
@@ -71,10 +85,19 @@ export const VideoSnippet = ({
       showinfo: '0',
       enablejsapi: '1', // Enable JS API for control
       origin: window.location.origin,
-    });
+    };
 
-    return `https://www.youtube.com/embed/${youtubeId}?${params.toString()}`;
-  }, [youtubeId]);
+    // Add start/end for teaser clipping (skip intro, play hook)
+    if (teaserConfig.start > 0) {
+      params.start = String(teaserConfig.start);
+    }
+    if (teaserConfig.end) {
+      params.end = String(teaserConfig.end);
+    }
+
+    const searchParams = new URLSearchParams(params);
+    return `https://www.youtube.com/embed/${youtubeId}?${searchParams.toString()}`;
+  }, [youtubeId, teaserConfig]);
 
   // Load iframe when card becomes active OR when preloading next cards
   useEffect(() => {
@@ -99,6 +122,19 @@ export const VideoSnippet = ({
     }
   }, [shouldPreload, isActive, showIframe, youtubeId]);
 
+  // Set video quality after load (reduces bandwidth)
+  useEffect(() => {
+    if (!iframeRef.current || !isLoaded) return;
+
+    const iframe = iframeRef.current;
+    // Set quality: small=240p, medium=360p, large=480p, hd720, hd1080
+    iframe.contentWindow?.postMessage(
+      `{"event":"command","func":"setPlaybackQuality","args":["${teaserConfig.quality}"]}`,
+      '*'
+    );
+    console.log(`[VideoSnippet] 📺 Quality set to ${teaserConfig.quality} for ${youtubeId}`);
+  }, [isLoaded, teaserConfig.quality, youtubeId]);
+
   // Control playback via postMessage - SIMPLE: active card plays, others pause
   useEffect(() => {
     if (!iframeRef.current || !isLoaded) return;
@@ -108,12 +144,12 @@ export const VideoSnippet = ({
     if (isActive) {
       // Active card: PLAY (this is the only card that should have audio)
       iframe.contentWindow?.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
-      console.log(`[VideoSnippet] ▶️ Playing: ${youtubeId}`);
+      console.log(`[VideoSnippet] ▶️ Playing: ${youtubeId} (${teaserFormat} format)`);
     } else {
       // Inactive cards: PAUSE (prevents audio interference from preloaded cards)
       iframe.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
     }
-  }, [isActive, isLoaded, youtubeId]);
+  }, [isActive, isLoaded, youtubeId, teaserFormat]);
 
   // Detect YouTube errors (geo-blocked, unavailable, etc.)
   useEffect(() => {
