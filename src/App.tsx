@@ -34,6 +34,7 @@ import './utils/debugIntent';
 
 // TRACK POOL: Start pool maintenance for dynamic track management
 import { startPoolMaintenance } from './store/trackPoolStore';
+import { bootstrapPool } from './services/poolCurator';
 
 // App modes
 type AppMode = 'classic' | 'voyo' | 'video';
@@ -923,11 +924,19 @@ function App() {
     startPoolMaintenance();
     console.log('[VOYO] Track pool maintenance started');
 
+    // BOOTSTRAP: Ensure pool has fresh tracks from our backend search
+    // This replaces Gemini/Piped with verified VOYO IDs
+    bootstrapPool().then(count => {
+      if (count > 0) {
+        console.log(`[VOYO] Pool bootstrapped with ${count} fresh tracks`);
+      }
+    });
+
     // INITIAL REFRESH: Refresh recommendations on app load (after small delay for stores to hydrate)
     const initTimer = setTimeout(() => {
       usePlayerStore.getState().refreshRecommendations();
       console.log('[VOYO] Initial recommendations refreshed');
-    }, 1000);
+    }, 2000); // Increased to allow bootstrap to complete
 
     return () => clearTimeout(initTimer);
   }, []);

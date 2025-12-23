@@ -27,7 +27,7 @@ import { useTrackPoolStore } from '../store/trackPoolStore';
 import { getYouTubeIdForIframe, prefetchTrack } from '../services/api';
 import { audioEngine } from '../services/audioEngine';
 import { recordPoolEngagement } from '../services/personalization';
-import { recordTrackInSession } from '../services/geminiCurator';
+import { recordTrackInSession } from '../services/poolCurator';
 import { onTrackPlay as oyoOnTrackPlay, onTrackSkip as oyoOnTrackSkip, onTrackComplete as oyoOnTrackComplete } from '../services/oyoDJ';
 
 type PlaybackMode = 'cached' | 'iframe';
