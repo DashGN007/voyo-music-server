@@ -1,15 +1,16 @@
 /**
  * VideoSnippet - YouTube iFrame Video for Feed Cards
  *
- * Uses YouTube's native iframe embed (simple & reliable)
- * Video is MUTED - audio comes from our AudioPlayer engine
- * Syncs video position with audio playback via postMessage API
+ * SIMPLE ARCHITECTURE:
+ * - YouTube provides BOTH video AND audio (native sync)
+ * - Only ACTIVE card plays (via postMessage control)
+ * - Preloaded cards are paused until they become active
+ * - No separate AudioPlayer - YouTube handles everything
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Film, Play } from 'lucide-react';
-import { usePlayerStore } from '../../../store/playerStore';
 
 interface VideoSnippetProps {
   trackId: string; // YouTube video ID or VOYO ID
@@ -36,8 +37,6 @@ export const VideoSnippet = ({
   const [showIframe, setShowIframe] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const { progress, duration } = usePlayerStore();
-
   // Decode VOYO ID to YouTube ID if needed
   const youtubeId = useMemo(() => {
     if (!trackId.startsWith('vyo_')) return trackId;
@@ -55,10 +54,11 @@ export const VideoSnippet = ({
 
   // Build YouTube embed URL with optimal params
   // SIMPLE & CLEAN: YouTube provides BOTH video AND audio (native sync)
+  // NOTE: autoplay=0 because we control playback via postMessage (prevents preloaded cards from playing)
   const embedUrl = useMemo(() => {
     const params = new URLSearchParams({
-      autoplay: '1',
-      mute: '0', // NOT muted - YouTube provides audio (simple & clean)
+      autoplay: '0', // NO autoplay - we control via postMessage when card becomes active
+      mute: '0', // NOT muted - audio comes from YouTube
       controls: '0',
       disablekb: '1',
       fs: '0',
@@ -98,37 +98,24 @@ export const VideoSnippet = ({
     }
   }, [shouldPreload, isActive, showIframe, youtubeId]);
 
-  // Control playback via postMessage
+  // Control playback via postMessage - SIMPLE: active card plays, others pause
   useEffect(() => {
     if (!iframeRef.current || !isLoaded) return;
 
     const iframe = iframeRef.current;
 
-    if (isPlaying && isThisTrack) {
+    if (isActive) {
+      // Active card: PLAY (this is the only card that should have audio)
       iframe.contentWindow?.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+      console.log(`[VideoSnippet] ▶️ Playing: ${youtubeId}`);
     } else {
+      // Inactive cards: PAUSE (prevents audio interference from preloaded cards)
       iframe.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
     }
-  }, [isPlaying, isThisTrack, isLoaded]);
+  }, [isActive, isLoaded, youtubeId]);
 
-  // Sync video position with audio
-  useEffect(() => {
-    if (!iframeRef.current || !isThisTrack || !isLoaded || duration <= 0) return;
-
-    const targetTime = (progress / 100) * duration;
-
-    // Only seek on significant progress changes (every ~5%)
-    if (Math.floor(progress / 5) !== Math.floor((progress - 1) / 5)) {
-      iframeRef.current.contentWindow?.postMessage(
-        JSON.stringify({
-          event: 'command',
-          func: 'seekTo',
-          args: [targetTime, true]
-        }),
-        '*'
-      );
-    }
-  }, [progress, duration, isThisTrack, isLoaded]);
+  // NOTE: No sync needed - YouTube handles its own audio/video sync natively
+  // The video plays naturally, audio comes from YouTube (not our AudioPlayer)
 
   // Handle iframe load
   const handleIframeLoad = () => {
