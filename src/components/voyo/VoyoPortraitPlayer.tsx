@@ -3708,7 +3708,7 @@ export const VoyoPortraitPlayer = ({
   }, [hotTracks, discoverTracks, setCurrentTrack]);
 
   // Backdrop state
-  const [backdropEnabled, setBackdropEnabled] = useState(true); // ON by default for the floaty feel
+  const [backdropEnabled, setBackdropEnabled] = useState(false); // OFF by default for smoothness
   const [currentBackdrop, setCurrentBackdrop] = useState('album'); // 'album', 'gradient-purple', etc.
   const [isBackdropLibraryOpen, setIsBackdropLibraryOpen] = useState(false);
   // State for fullscreen video mode
