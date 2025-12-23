@@ -84,6 +84,7 @@ export const ContentMixer = ({
   bpm,
 }: ContentMixerProps) => {
   const [dominantColor, setDominantColor] = useState<string>('#a855f7');
+  const [videoBlocked, setVideoBlocked] = useState(false);
 
   // Determine content type
   const contentType = useMemo(() => {
@@ -113,6 +114,21 @@ export const ContentMixer = ({
   // Render based on content type - all wrapped with DynamicVignette
   switch (contentType) {
     case 'video':
+      // If video is geo-blocked/unavailable, fall back to animated art
+      if (videoBlocked) {
+        return (
+          <AnimatedArtCard
+            trackId={trackId}
+            thumbnail={thumbnail || ''}
+            isActive={isActive}
+            isPlaying={isPlaying}
+            bpm={bpm}
+            dominantColor={dominantColor}
+            displayMode={artDisplayMode}
+          />
+        );
+      }
+
       return (
         <div className="absolute inset-0">
           <VideoSnippet
@@ -122,6 +138,10 @@ export const ContentMixer = ({
             isThisTrack={isThisTrack}
             shouldPreload={shouldPreload}
             fallbackThumbnail={thumbnail}
+            onVideoError={() => {
+              console.log(`[ContentMixer] Video blocked for ${trackId}, switching to art`);
+              setVideoBlocked(true);
+            }}
           />
           <DynamicVignette
             isActive={isActive}

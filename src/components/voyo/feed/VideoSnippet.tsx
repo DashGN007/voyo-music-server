@@ -35,6 +35,7 @@ export const VideoSnippet = ({
 }: VideoSnippetProps) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [showIframe, setShowIframe] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Decode VOYO ID to YouTube ID if needed
@@ -114,8 +115,56 @@ export const VideoSnippet = ({
     }
   }, [isActive, isLoaded, youtubeId]);
 
-  // NOTE: No sync needed - YouTube handles its own audio/video sync natively
-  // The video plays naturally, audio comes from YouTube (not our AudioPlayer)
+  // Detect YouTube errors (geo-blocked, unavailable, etc.)
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== 'https://www.youtube.com') return;
+
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+
+        // YouTube error codes: 2=invalid param, 5=HTML5 error, 100=not found, 101/150=blocked
+        if (data.event === 'onError' || data.info?.errorCode) {
+          const errorCode = data.info?.errorCode || data.errorCode;
+          console.error(`[VideoSnippet] ❌ YouTube error ${errorCode} for ${youtubeId}`);
+          setHasError(true);
+          onVideoError?.();
+        }
+
+        // Also detect "unplayable" state
+        if (data.event === 'onStateChange' && data.info === -1) {
+          // -1 = unstarted/unplayable after attempt
+          setTimeout(() => {
+            if (!isLoaded) {
+              console.warn(`[VideoSnippet] ⚠️ Video unplayable: ${youtubeId}`);
+              setHasError(true);
+              onVideoError?.();
+            }
+          }, 3000);
+        }
+      } catch {
+        // Not JSON, ignore
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [youtubeId, isLoaded, onVideoError]);
+
+  // Timeout fallback - if iframe doesn't load in 8s, assume blocked
+  useEffect(() => {
+    if (!showIframe || isLoaded || hasError) return;
+
+    const timeout = setTimeout(() => {
+      if (!isLoaded) {
+        console.warn(`[VideoSnippet] ⏱️ Load timeout for ${youtubeId} - assuming blocked`);
+        setHasError(true);
+        onVideoError?.();
+      }
+    }, 8000);
+
+    return () => clearTimeout(timeout);
+  }, [showIframe, isLoaded, hasError, youtubeId, onVideoError]);
 
   // Handle iframe load
   const handleIframeLoad = () => {
