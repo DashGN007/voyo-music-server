@@ -537,12 +537,12 @@ const FeedCard = ({
       // This card is now active but not playing - start snippet
       onPlay();
 
-      // Seek to hottest part (or default position) after a brief delay for load
+      // Seek to hottest part FAST - 50ms is enough for track to register
       setTimeout(() => {
         const seekPosition = hottestPosition ?? DEFAULT_SEEK_PERCENT;
         onSeekToHotspot?.(seekPosition);
         setSnippetStarted(true);
-      }, 300);
+      }, 50);
     }
 
     // Reset snippet state when card becomes inactive
@@ -1255,7 +1255,7 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
       if (newIndex !== currentIndex && newIndex >= 0 && newIndex < trackGroups.length) {
         setCurrentIndex(newIndex);
       }
-    }, 50); // 50ms debounce
+    }, 16); // Single frame - instant detection
   };
 
   // Handle play - check pool first, then seed tracks
@@ -1443,7 +1443,7 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
         {trackGroups.map((group, index) => {
           const isThisTrack = currentTrack?.trackId === group.trackId || currentTrack?.id === group.trackId;
           const cardIsActive = isActive && index === currentIndex;
-          const isNextCard = index === currentIndex + 1 || index === currentIndex + 2; // Preload next 2
+          const isNextCard = index >= currentIndex + 1 && index <= currentIndex + 3; // Preload next 3
           const artistHandle = group.trackArtist.toLowerCase().replace(/\s+/g, '_');
           return (
             <div key={group.trackId} className="h-full w-full snap-start snap-always">

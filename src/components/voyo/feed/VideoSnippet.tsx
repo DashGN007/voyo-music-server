@@ -83,19 +83,14 @@ export const VideoSnippet = ({
     }
   }, [isActive, showIframe, youtubeId]);
 
-  // PRELOAD: Start loading iframe for upcoming cards
-  // This creates a buffer zone for smoother transitions
+  // PRELOAD: Load iframe IMMEDIATELY for upcoming cards - no delay!
   useEffect(() => {
-    if (shouldPreload && !isActive && !showIframe) {
-      // Preload iframe for next 2 cards
-      const preloadTimer = setTimeout(() => {
-        setShowIframe(true);
-        console.log(`[VideoSnippet] 🔄 Preloading YouTube iframe for ${youtubeId}`);
-      }, 300); // 300ms delay to stagger preloads
-
-      return () => clearTimeout(preloadTimer);
+    if (shouldPreload && !showIframe) {
+      // No delay - preload as soon as marked for preload
+      setShowIframe(true);
+      console.log(`[VideoSnippet] 🔄 Preloading YouTube iframe for ${youtubeId}`);
     }
-  }, [shouldPreload, isActive, showIframe, youtubeId]);
+  }, [shouldPreload, showIframe, youtubeId]);
 
   // Control playback via postMessage
   useEffect(() => {
