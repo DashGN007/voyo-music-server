@@ -39,6 +39,18 @@ interface ListeningContext {
   timeOfDay: string;
   skipRate: number;
   lovedTracks: string[];
+  // Rich engagement data
+  categoryPreferences: CategoryPreference[];
+  queuedTracks: string[];
+  replayedTracks: string[];
+  tasteShift: string; // What direction is their taste moving?
+}
+
+interface CategoryPreference {
+  category: string;
+  score: number;
+  reactionCount: number;
+  isHot: boolean;
 }
 
 interface TrackSnapshot {
@@ -102,6 +114,7 @@ function isValidYouTubeId(id: string): boolean {
 
 /**
  * Build listening context for the AI
+ * Gathers rich data from all our engines!
  */
 function buildContext(): ListeningContext {
   const recent = listeningHistory.slice(-10);
@@ -134,6 +147,52 @@ function buildContext(): ListeningContext {
   // Infer mood from recent tracks
   const currentMood = inferMood(recent);
 
+  // === RICH DATA FROM OUR ENGINES ===
+
+  // Get category preferences from reaction store
+  let categoryPreferences: CategoryPreference[] = [];
+  try {
+    const reactionStore = require('../store/reactionStore').useReactionStore.getState();
+    const prefs = reactionStore.userCategoryPreferences;
+    categoryPreferences = Object.values(prefs).map((p: any) => ({
+      category: p.category,
+      score: p.score,
+      reactionCount: p.reactionCount,
+      isHot: reactionStore.categoryPulse[p.category]?.isHot || false,
+    }));
+  } catch (e) {
+    console.warn('[DJ] Could not load category preferences');
+  }
+
+  // Get queued and replayed tracks from pool
+  let queuedTracks: string[] = [];
+  let replayedTracks: string[] = [];
+  try {
+    const poolStore = useTrackPoolStore.getState();
+    const hotPool = poolStore.hotPool;
+
+    // Tracks that were queued multiple times = user really wants them
+    queuedTracks = hotPool
+      .filter(t => t.queuedCount >= 2)
+      .map(t => `${t.artist} - ${t.title}`);
+
+    // Tracks with high completion + multiple plays = replayed favorites
+    replayedTracks = hotPool
+      .filter(t => t.playCount >= 2 && t.completionRate > 80)
+      .map(t => `${t.artist} - ${t.title}`);
+  } catch (e) {
+    console.warn('[DJ] Could not load pool data');
+  }
+
+  // Detect taste shift - compare early vs recent reactions
+  let tasteShift = 'stable';
+  if (categoryPreferences.length > 0) {
+    const sorted = [...categoryPreferences].sort((a, b) => b.score - a.score);
+    if (sorted[0].score > 70) {
+      tasteShift = `leaning towards ${sorted[0].category}`;
+    }
+  }
+
   return {
     recentTracks: recent,
     favoriteArtists,
@@ -141,6 +200,10 @@ function buildContext(): ListeningContext {
     timeOfDay,
     skipRate,
     lovedTracks,
+    categoryPreferences,
+    queuedTracks,
+    replayedTracks,
+    tasteShift,
   };
 }
 
@@ -171,17 +234,40 @@ function buildDJPrompt(context: ListeningContext): string {
     })
     .join('\n');
 
+  // Build category preferences string
+  const categoryInfo = context.categoryPreferences
+    .sort((a, b) => b.score - a.score)
+    .map(c => `${c.category}: ${c.score}/100 (${c.reactionCount} reactions${c.isHot ? ', HOT NOW' : ''})`)
+    .join('\n  ');
+
+  // Build queued/replayed info
+  const queuedInfo = context.queuedTracks.length > 0
+    ? `Frequently queued: ${context.queuedTracks.slice(0, 5).join(', ')}`
+    : 'No queue favorites yet';
+
+  const replayedInfo = context.replayedTracks.length > 0
+    ? `Replayed favorites: ${context.replayedTracks.slice(0, 5).join(', ')}`
+    : 'No replay data yet';
+
   return `You are VOYO's intelligent DJ. Your job is to find REAL YouTube music videos that match the listener's vibe.
 
 CURRENT LISTENING SESSION:
 ${trackList || '(Just started)'}
 
-CONTEXT:
+LISTENER PROFILE:
 - Time: ${context.timeOfDay}
 - Mood: ${context.currentMood}
 - Skip rate: ${(context.skipRate * 100).toFixed(0)}%
+- Taste shift: ${context.tasteShift}
 - Favorite artists: ${context.favoriteArtists.join(', ') || 'Still learning...'}
 - Loved tracks: ${context.lovedTracks.join(', ') || 'None yet'}
+
+CATEGORY PREFERENCES (from their reactions):
+  ${categoryInfo || 'No category data yet'}
+
+ENGAGEMENT SIGNALS:
+- ${queuedInfo}
+- ${replayedInfo}
 
 YOUR MISSION:
 Find ${MAX_VIDEOS_PER_RUN} YouTube music videos that would PERFECTLY fit what this person wants to hear next.
