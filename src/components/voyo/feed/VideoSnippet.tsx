@@ -54,10 +54,11 @@ export const VideoSnippet = ({
   }, [trackId]);
 
   // Build YouTube embed URL with optimal params
+  // SIMPLE & CLEAN: YouTube provides BOTH video AND audio (native sync)
   const embedUrl = useMemo(() => {
     const params = new URLSearchParams({
       autoplay: '1',
-      mute: '1', // MUST be muted - audio from our engine
+      mute: '0', // NOT muted - YouTube provides audio (simple & clean)
       controls: '0',
       disablekb: '1',
       fs: '0',
@@ -67,7 +68,7 @@ export const VideoSnippet = ({
       playsinline: '1',
       rel: '0',
       showinfo: '0',
-      enablejsapi: '1', // Enable JS API for seeking
+      enablejsapi: '1', // Enable JS API for control
       origin: window.location.origin,
     });
 

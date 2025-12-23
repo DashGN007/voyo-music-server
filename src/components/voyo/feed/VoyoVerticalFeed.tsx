@@ -532,12 +532,11 @@ const FeedCard = ({
   );
 
   // Auto-play snippet when card becomes active
+  // SIMPLE & CLEAN: VideoSnippet handles video + audio natively
+  // No AudioPlayer involvement - just let YouTube iframe auto-play
   useEffect(() => {
-    if (isActive && !isThisTrack) {
-      // This card is now active but not playing - start snippet
-      onPlay();
-
-      // Seek to hottest part (or default position) after a brief delay for load
+    if (isActive) {
+      // Seek to hottest part after iframe has time to load
       setTimeout(() => {
         const seekPosition = hottestPosition ?? DEFAULT_SEEK_PERCENT;
         onSeekToHotspot?.(seekPosition);
@@ -553,11 +552,12 @@ const FeedCard = ({
         snippetTimerRef.current = null;
       }
     }
-  }, [isActive, isThisTrack, onPlay, onSeekToHotspot, hottestPosition]);
+  }, [isActive, onSeekToHotspot, hottestPosition]);
 
   // Auto-advance timer - trigger after snippetDuration seconds
+  // SIMPLE & CLEAN: Timer based on isActive + snippetStarted only (no playerStore dependency)
   useEffect(() => {
-    if (isActive && isPlaying && isThisTrack && snippetStarted && onSnippetEnd) {
+    if (isActive && snippetStarted && onSnippetEnd) {
       snippetTimerRef.current = setTimeout(() => {
         console.log(`[Feed] ${snippetMode === 'extract' ? 'Hot extract' : 'Snippet'} ended for ${trackTitle}, auto-advancing...`);
         onSnippetEnd();
@@ -569,7 +569,7 @@ const FeedCard = ({
         }
       };
     }
-  }, [isActive, isPlaying, isThisTrack, snippetStarted, onSnippetEnd, trackTitle, snippetDuration, snippetMode]);
+  }, [isActive, snippetStarted, onSnippetEnd, trackTitle, snippetDuration, snippetMode]);
 
   // Count reactions
   const reactionCounts = useMemo(() => {
@@ -1258,17 +1258,13 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
     }, 50); // 50ms debounce
   };
 
-  // Handle play - check pool first, then seed tracks
+  // Handle play - SIMPLE & CLEAN: Just update track state
+  // VideoSnippet handles video + audio (native YouTube, no AudioPlayer)
   const handlePlay = useCallback((trackId: string, trackTitle: string, trackArtist: string) => {
     // Check pool first (dynamic tracks from search/play)
     const poolTrack = hotPool.find(t => t.id === trackId || t.trackId === trackId);
     if (poolTrack) {
       setCurrentTrack(poolTrack);
-      // FIX: Explicitly start playback after setting track (setCurrentTrack no longer auto-plays)
-      if (!isPlaying) {
-        // Small delay to allow track to load
-        setTimeout(() => togglePlay(), 100);
-      }
       return;
     }
 
@@ -1276,10 +1272,6 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
     const seedTrack = TRACKS.find(t => t.id === trackId || t.trackId === trackId);
     if (seedTrack) {
       setCurrentTrack(seedTrack);
-      // FIX: Explicitly start playback after setting track
-      if (!isPlaying) {
-        setTimeout(() => togglePlay(), 100);
-      }
       return;
     }
 
@@ -1295,11 +1287,8 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
       oyeScore: 0,
       createdAt: new Date().toISOString(),
     });
-    // FIX: Explicitly start playback after setting track
-    if (!isPlaying) {
-      setTimeout(() => togglePlay(), 100);
-    }
-  }, [setCurrentTrack, hotPool, isPlaying, togglePlay]);
+    // NO togglePlay() - VideoSnippet handles audio natively
+  }, [setCurrentTrack, hotPool]);
 
   // Handle reaction - with track position for hotspot detection
   const handleReact = useCallback((trackId: string, trackTitle: string, trackArtist: string, type: ReactionType) => {
