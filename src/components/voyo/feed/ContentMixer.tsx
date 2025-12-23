@@ -18,9 +18,6 @@ import { DynamicVignette } from './DynamicVignette';
 // Content type enum
 export type ContentType = 'video' | 'tiktok' | 'animated_art' | 'gif';
 
-// Teaser strategy for video treatment
-type TeaserStrategy = 'entrance' | 'hotspot' | 'pre-hook' | 'middle';
-
 interface ContentMixerProps {
   trackId: string;
   trackTitle: string;
@@ -30,7 +27,6 @@ interface ContentMixerProps {
   isPlaying: boolean;
   isThisTrack: boolean;
   shouldPreload?: boolean; // Preload for upcoming cards
-  teaserStrategy?: TeaserStrategy; // Video treatment based on teaser strategy
   // Optional overrides
   forceContentType?: ContentType;
   tiktokId?: string;
@@ -82,7 +78,6 @@ export const ContentMixer = ({
   isPlaying,
   isThisTrack,
   shouldPreload = false,
-  teaserStrategy = 'hotspot',
   forceContentType,
   tiktokId,
   gifUrl,
@@ -127,7 +122,6 @@ export const ContentMixer = ({
             isThisTrack={isThisTrack}
             shouldPreload={shouldPreload}
             fallbackThumbnail={thumbnail}
-            teaserStrategy={teaserStrategy}
           />
           <DynamicVignette
             isActive={isActive}

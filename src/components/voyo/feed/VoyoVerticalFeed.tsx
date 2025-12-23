@@ -40,69 +40,7 @@ import { SmartImage } from '../../ui/SmartImage';
 
 // Snippet config
 const ENABLE_VIDEO_SNIPPETS = true; // Toggle video snippets on/off
-
-// ============================================
-// TEASER START STRATEGY - The Winning Formula
-// ============================================
-// Not all clips should start at the same position!
-// Variety creates discovery and anticipation.
-//
-// Strategy distribution (seeded by trackId for consistency):
-// 40% ENTRANCE (0-15%)    → "Intro the vibe" - builds anticipation
-// 35% HOTSPOT             → "The hook" - instant gratification
-// 15% PRE-HOOK (-15%)     → "Build to drop" - tension before payoff
-// 10% MIDDLE (35-55%)     → "Surprise moment" - unexpected discovery
-
-type TeaserStrategy = 'entrance' | 'hotspot' | 'pre-hook' | 'middle';
-
-const getTeaserStrategy = (trackId: string): TeaserStrategy => {
-  // Seeded hash from trackId for consistent strategy per track
-  let hash = 0;
-  for (let i = 0; i < trackId.length; i++) {
-    hash = ((hash << 5) - hash) + trackId.charCodeAt(i);
-    hash = hash & hash;
-  }
-  const roll = Math.abs(hash) % 100;
-
-  if (roll < 40) return 'entrance';      // 40%
-  if (roll < 75) return 'hotspot';       // 35%
-  if (roll < 90) return 'pre-hook';      // 15%
-  return 'middle';                        // 10%
-};
-
-const getTeaserStartPosition = (trackId: string, hottestPosition?: number): number => {
-  const strategy = getTeaserStrategy(trackId);
-  const hotspot = hottestPosition ?? 30; // Default hotspot at 30% if none
-
-  // Secondary hash for position variance within strategy
-  let hash2 = 0;
-  for (let i = trackId.length - 1; i >= 0; i--) {
-    hash2 = ((hash2 << 3) + hash2) + trackId.charCodeAt(i);
-    hash2 = hash2 & hash2;
-  }
-  const variance = (Math.abs(hash2) % 10); // 0-9 for fine-tuning
-
-  switch (strategy) {
-    case 'entrance':
-      // Start at very beginning (0-15%) - intro the vibe
-      return Math.min(15, variance * 1.5);
-
-    case 'hotspot':
-      // Start at the hot part - instant hook
-      return hotspot;
-
-    case 'pre-hook':
-      // Start 10-20% before hotspot - build tension
-      return Math.max(5, hotspot - 10 - variance);
-
-    case 'middle':
-      // Surprise position (35-55%) - unexpected moment
-      return 35 + (variance * 2);
-
-    default:
-      return hotspot;
-  }
-};
+const DEFAULT_SEEK_PERCENT = 25; // Where to start if no hotspots
 
 // Discovery config - searches to cycle through for infinite feed
 // Rotating queries ensure variety and never-ending content
@@ -159,35 +97,21 @@ const DISCOVERY_QUERIES = [
 ];
 const DISCOVERY_THRESHOLD = 5; // Load more when 5 tracks from end
 
-// Snippet modes - TEASE psychology: leave them wanting MORE
+// Snippet modes
 const SNIPPET_MODES = {
   full: {
-    duration: 20, // 20 seconds - show the vibe, not the whole story
+    duration: 25, // 25 seconds for full preview
     label: 'Full',
     icon: '🎵',
-    description: 'Full 20s preview',
+    description: 'Full 25s preview',
   },
   extract: {
-    duration: 10, // 10 seconds - hit the hook, cut before the drop
+    duration: 12, // 12 seconds for hot extract (the peak moment)
     label: 'Extract',
     icon: '🔥',
-    description: 'Hot extract',
+    description: 'Hot 12s extract',
   },
 } as const;
-
-// Varied durations to feel natural (not robotic)
-// Uses trackId as seed for consistent variation per track
-// TEASE PSYCHOLOGY: Shorter variance = more consistent tease effect
-const getVariedDuration = (baseDuration: number, trackId: string): number => {
-  // Simple hash from trackId for consistent "random" variance
-  let hash = 0;
-  for (let i = 0; i < trackId.length; i++) {
-    hash = ((hash << 5) - hash) + trackId.charCodeAt(i);
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  const variance = (Math.abs(hash) % 7) - 3; // -3 to +3 seconds based on trackId
-  return Math.max(8, baseDuration + variance); // Never less than 8s - quick tease minimum
-};
 
 type SnippetMode = keyof typeof SNIPPET_MODES;
 
@@ -609,26 +533,16 @@ const FeedCard = ({
 
   // Auto-play snippet when card becomes active
   useEffect(() => {
-    if (isActive) {
-      if (!isThisTrack) {
-        // This card is now active but different track - start new snippet
-        onPlay();
+    if (isActive && !isThisTrack) {
+      // This card is now active but not playing - start snippet
+      onPlay();
 
-        // Seek using TEASER STRATEGY - variety creates discovery!
-        setTimeout(() => {
-          const seekPosition = getTeaserStartPosition(trackId, hottestPosition);
-          onSeekToHotspot?.(seekPosition);
-          setSnippetStarted(true);
-          console.log(`[Feed] 🎯 ${trackTitle} → ${getTeaserStrategy(trackId)} strategy @ ${seekPosition}%`);
-        }, 50);
-      } else if (isThisTrack && !isPlaying) {
-        // This track is loaded but paused - resume it!
-        // This fixes the "stops after few videos" bug
-        onTogglePlay();
-        if (!snippetStarted) {
-          setSnippetStarted(true);
-        }
-      }
+      // Seek to hottest part (or default position) after a brief delay for load
+      setTimeout(() => {
+        const seekPosition = hottestPosition ?? DEFAULT_SEEK_PERCENT;
+        onSeekToHotspot?.(seekPosition);
+        setSnippetStarted(true);
+      }, 300);
     }
 
     // Reset snippet state when card becomes inactive
@@ -639,36 +553,23 @@ const FeedCard = ({
         snippetTimerRef.current = null;
       }
     }
-  }, [isActive, isThisTrack, isPlaying, onPlay, onTogglePlay, onSeekToHotspot, hottestPosition, snippetStarted]);
-
-  // Store latest callback ref to avoid timer cancellation when callback changes
-  const onSnippetEndRef = useRef(onSnippetEnd);
-  useEffect(() => {
-    onSnippetEndRef.current = onSnippetEnd;
-  }, [onSnippetEnd]);
+  }, [isActive, isThisTrack, onPlay, onSeekToHotspot, hottestPosition]);
 
   // Auto-advance timer - trigger after snippetDuration seconds
   useEffect(() => {
-    // Only start timer if all conditions met and no timer already running
-    if (isActive && isPlaying && isThisTrack && snippetStarted && !snippetTimerRef.current) {
-      console.log(`[Feed] Starting ${snippetDuration}s timer for ${trackTitle}`);
+    if (isActive && isPlaying && isThisTrack && snippetStarted && onSnippetEnd) {
       snippetTimerRef.current = setTimeout(() => {
         console.log(`[Feed] ${snippetMode === 'extract' ? 'Hot extract' : 'Snippet'} ended for ${trackTitle}, auto-advancing...`);
-        onSnippetEndRef.current?.();
-        snippetTimerRef.current = null;
+        onSnippetEnd();
       }, snippetDuration * 1000);
-    }
 
-    // Cleanup when card becomes inactive or playback stops
-    return () => {
-      if (!isActive || !isPlaying || !isThisTrack) {
+      return () => {
         if (snippetTimerRef.current) {
           clearTimeout(snippetTimerRef.current);
-          snippetTimerRef.current = null;
         }
-      }
-    };
-  }, [isActive, isPlaying, isThisTrack, snippetStarted, trackTitle, snippetDuration, snippetMode]);
+      };
+    }
+  }, [isActive, isPlaying, isThisTrack, snippetStarted, onSnippetEnd, trackTitle, snippetDuration, snippetMode]);
 
   // Count reactions
   const reactionCounts = useMemo(() => {
@@ -732,7 +633,6 @@ const FeedCard = ({
           isPlaying={isPlaying}
           isThisTrack={isThisTrack}
           shouldPreload={shouldPreload}
-          teaserStrategy={getTeaserStrategy(trackId)}
           forceContentType={ENABLE_VIDEO_SNIPPETS ? undefined : 'animated_art'}
         />
 
@@ -1355,7 +1255,7 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
       if (newIndex !== currentIndex && newIndex >= 0 && newIndex < trackGroups.length) {
         setCurrentIndex(newIndex);
       }
-    }, 16); // Single frame - instant detection
+    }, 50); // 50ms debounce
   };
 
   // Handle play - check pool first, then seed tracks
@@ -1543,7 +1443,7 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
         {trackGroups.map((group, index) => {
           const isThisTrack = currentTrack?.trackId === group.trackId || currentTrack?.id === group.trackId;
           const cardIsActive = isActive && index === currentIndex;
-          const isNextCard = index >= currentIndex + 1 && index <= currentIndex + 3; // Preload next 3
+          const isNextCard = index === currentIndex + 1 || index === currentIndex + 2; // Preload next 2
           const artistHandle = group.trackArtist.toLowerCase().replace(/\s+/g, '_');
           return (
             <div key={group.trackId} className="h-full w-full snap-start snap-always">
@@ -1555,7 +1455,7 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
                 reactions={group.reactions}
                 nativeOyeScore={group.nativeOyeScore}
                 hottestPosition={group.hottestPosition}
-                snippetDuration={getVariedDuration(snippetConfig.duration, group.trackId)}
+                snippetDuration={snippetConfig.duration}
                 snippetMode={snippetMode}
                 isActive={cardIsActive}
                 isPlaying={isPlaying && isThisTrack}
