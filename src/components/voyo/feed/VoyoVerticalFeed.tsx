@@ -40,7 +40,69 @@ import { SmartImage } from '../../ui/SmartImage';
 
 // Snippet config
 const ENABLE_VIDEO_SNIPPETS = true; // Toggle video snippets on/off
-const DEFAULT_SEEK_PERCENT = 25; // Where to start if no hotspots
+
+// ============================================
+// TEASER START STRATEGY - The Winning Formula
+// ============================================
+// Not all clips should start at the same position!
+// Variety creates discovery and anticipation.
+//
+// Strategy distribution (seeded by trackId for consistency):
+// 40% ENTRANCE (0-15%)    → "Intro the vibe" - builds anticipation
+// 35% HOTSPOT             → "The hook" - instant gratification
+// 15% PRE-HOOK (-15%)     → "Build to drop" - tension before payoff
+// 10% MIDDLE (35-55%)     → "Surprise moment" - unexpected discovery
+
+type TeaserStrategy = 'entrance' | 'hotspot' | 'pre-hook' | 'middle';
+
+const getTeaserStrategy = (trackId: string): TeaserStrategy => {
+  // Seeded hash from trackId for consistent strategy per track
+  let hash = 0;
+  for (let i = 0; i < trackId.length; i++) {
+    hash = ((hash << 5) - hash) + trackId.charCodeAt(i);
+    hash = hash & hash;
+  }
+  const roll = Math.abs(hash) % 100;
+
+  if (roll < 40) return 'entrance';      // 40%
+  if (roll < 75) return 'hotspot';       // 35%
+  if (roll < 90) return 'pre-hook';      // 15%
+  return 'middle';                        // 10%
+};
+
+const getTeaserStartPosition = (trackId: string, hottestPosition?: number): number => {
+  const strategy = getTeaserStrategy(trackId);
+  const hotspot = hottestPosition ?? 30; // Default hotspot at 30% if none
+
+  // Secondary hash for position variance within strategy
+  let hash2 = 0;
+  for (let i = trackId.length - 1; i >= 0; i--) {
+    hash2 = ((hash2 << 3) + hash2) + trackId.charCodeAt(i);
+    hash2 = hash2 & hash2;
+  }
+  const variance = (Math.abs(hash2) % 10); // 0-9 for fine-tuning
+
+  switch (strategy) {
+    case 'entrance':
+      // Start at very beginning (0-15%) - intro the vibe
+      return Math.min(15, variance * 1.5);
+
+    case 'hotspot':
+      // Start at the hot part - instant hook
+      return hotspot;
+
+    case 'pre-hook':
+      // Start 10-20% before hotspot - build tension
+      return Math.max(5, hotspot - 10 - variance);
+
+    case 'middle':
+      // Surprise position (35-55%) - unexpected moment
+      return 35 + (variance * 2);
+
+    default:
+      return hotspot;
+  }
+};
 
 // Discovery config - searches to cycle through for infinite feed
 // Rotating queries ensure variety and never-ending content
@@ -552,11 +614,12 @@ const FeedCard = ({
         // This card is now active but different track - start new snippet
         onPlay();
 
-        // Seek to hottest part FAST - 50ms is enough for track to register
+        // Seek using TEASER STRATEGY - variety creates discovery!
         setTimeout(() => {
-          const seekPosition = hottestPosition ?? DEFAULT_SEEK_PERCENT;
+          const seekPosition = getTeaserStartPosition(trackId, hottestPosition);
           onSeekToHotspot?.(seekPosition);
           setSnippetStarted(true);
+          console.log(`[Feed] 🎯 ${trackTitle} → ${getTeaserStrategy(trackId)} strategy @ ${seekPosition}%`);
         }, 50);
       } else if (isThisTrack && !isPlaying) {
         // This track is loaded but paused - resume it!
