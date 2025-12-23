@@ -13,8 +13,8 @@
  * - Video metadata: YouTube embed readiness
  */
 
-import { getCachedBandwidth } from '../utils/bandwidth';
-import type { ThumbnailQuality } from '../utils/bandwidth';
+// Simplified - always use high quality for modern connections
+type ThumbnailQuality = 'default' | 'medium' | 'high' | 'max';
 
 // Cache configuration
 const PRECACHE_AHEAD = 3;      // Pre-cache 3 tracks ahead
@@ -194,9 +194,8 @@ class MediaCacheService {
    * Uses adaptive quality based on bandwidth
    */
   private async fetchThumbnailBlob(trackId: string): Promise<string | undefined> {
-    // Get bandwidth recommendation
-    const bandwidth = await getCachedBandwidth();
-    const quality = bandwidth.recommendedThumbnailQuality;
+    // Use high quality by default - modern connections can handle it
+    const quality: ThumbnailQuality = 'high';
 
     // Build quality fallback chain based on detected bandwidth
     const qualityMap: Record<ThumbnailQuality, string[]> = {
