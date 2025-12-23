@@ -100,18 +100,31 @@ const DISCOVERY_THRESHOLD = 5; // Load more when 5 tracks from end
 // Snippet modes
 const SNIPPET_MODES = {
   full: {
-    duration: 25, // 25 seconds for full preview
+    duration: 30, // 30 seconds for full preview
     label: 'Full',
     icon: '🎵',
-    description: 'Full 25s preview',
+    description: 'Full 30s preview',
   },
   extract: {
-    duration: 12, // 12 seconds for hot extract (the peak moment)
+    duration: 18, // 18 seconds base for hot extract (feels more natural)
     label: 'Extract',
     icon: '🔥',
-    description: 'Hot 12s extract',
+    description: 'Hot extract',
   },
 } as const;
+
+// Varied durations to feel natural (not robotic)
+// Uses trackId as seed for consistent variation per track
+const getVariedDuration = (baseDuration: number, trackId: string): number => {
+  // Simple hash from trackId for consistent "random" variance
+  let hash = 0;
+  for (let i = 0; i < trackId.length; i++) {
+    hash = ((hash << 5) - hash) + trackId.charCodeAt(i);
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  const variance = (Math.abs(hash) % 11) - 5; // -5 to +5 seconds based on trackId
+  return Math.max(15, baseDuration + variance); // Never less than 15s
+};
 
 type SnippetMode = keyof typeof SNIPPET_MODES;
 
@@ -533,16 +546,25 @@ const FeedCard = ({
 
   // Auto-play snippet when card becomes active
   useEffect(() => {
-    if (isActive && !isThisTrack) {
-      // This card is now active but not playing - start snippet
-      onPlay();
+    if (isActive) {
+      if (!isThisTrack) {
+        // This card is now active but different track - start new snippet
+        onPlay();
 
-      // Seek to hottest part FAST - 50ms is enough for track to register
-      setTimeout(() => {
-        const seekPosition = hottestPosition ?? DEFAULT_SEEK_PERCENT;
-        onSeekToHotspot?.(seekPosition);
-        setSnippetStarted(true);
-      }, 50);
+        // Seek to hottest part FAST - 50ms is enough for track to register
+        setTimeout(() => {
+          const seekPosition = hottestPosition ?? DEFAULT_SEEK_PERCENT;
+          onSeekToHotspot?.(seekPosition);
+          setSnippetStarted(true);
+        }, 50);
+      } else if (isThisTrack && !isPlaying) {
+        // This track is loaded but paused - resume it!
+        // This fixes the "stops after few videos" bug
+        onTogglePlay();
+        if (!snippetStarted) {
+          setSnippetStarted(true);
+        }
+      }
     }
 
     // Reset snippet state when card becomes inactive
@@ -553,7 +575,7 @@ const FeedCard = ({
         snippetTimerRef.current = null;
       }
     }
-  }, [isActive, isThisTrack, onPlay, onSeekToHotspot, hottestPosition]);
+  }, [isActive, isThisTrack, isPlaying, onPlay, onTogglePlay, onSeekToHotspot, hottestPosition, snippetStarted]);
 
   // Auto-advance timer - trigger after snippetDuration seconds
   useEffect(() => {
@@ -1455,7 +1477,7 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
                 reactions={group.reactions}
                 nativeOyeScore={group.nativeOyeScore}
                 hottestPosition={group.hottestPosition}
-                snippetDuration={snippetConfig.duration}
+                snippetDuration={getVariedDuration(snippetConfig.duration, group.trackId)}
                 snippetMode={snippetMode}
                 isActive={cardIsActive}
                 isPlaying={isPlaying && isThisTrack}
