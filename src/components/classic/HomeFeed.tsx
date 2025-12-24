@@ -162,20 +162,21 @@ const VibeCard = ({ vibe, onSelect }: VibeCardProps) => (
   <motion.button
     className="flex-shrink-0 w-28 h-32 relative group"
     onClick={onSelect}
-    whileHover={{ scale: 1.08, y: -6 }}
+    whileHover={{ scale: 1.08, y: -8 }}
     whileTap={{ scale: 0.95 }}
+    style={{ transform: 'translateY(-4px)' }} // Lift cards up to pop out of fade
   >
-    {/* Glow effect behind card */}
+    {/* Deep shadow for 3D pop effect */}
     <div
-      className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${vibe.gradient} blur-xl opacity-40 group-hover:opacity-70 transition-opacity`}
-      style={{ transform: 'translateY(8px) scale(0.9)' }}
+      className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${vibe.gradient} blur-2xl opacity-50 group-hover:opacity-70 transition-opacity`}
+      style={{ transform: 'translateY(12px) scale(0.85)' }}
     />
 
     {/* Main card with organic blob shape */}
     <div
-      className={`relative w-full h-full rounded-[28px] bg-gradient-to-br ${vibe.gradient} overflow-hidden shadow-2xl`}
+      className={`relative w-full h-full rounded-[28px] bg-gradient-to-br ${vibe.gradient} overflow-hidden`}
       style={{
-        boxShadow: `0 8px 32px ${vibe.color}44, inset 0 1px 0 rgba(255,255,255,0.2)`,
+        boxShadow: `0 12px 40px ${vibe.color}66, 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.25)`,
       }}
     >
       {/* Paint splash texture overlay */}
@@ -426,12 +427,13 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
       )}
 
       {/* Browse by Vibes (matches MixBoard + database) */}
-      <div className="relative -mx-4 px-4 pt-4 pb-8">
-        {/* Gradient fade background - prominent at bottom, fades to top, extends beyond cards */}
+      <div className="relative -mx-4 px-4 pt-6 pb-10">
+        {/* Gradient fade background - sits behind cards, cards pop OUT of it */}
         <div
-          className="absolute inset-0 -top-4 pointer-events-none rounded-t-3xl"
+          className="absolute left-0 right-0 bottom-0 pointer-events-none rounded-t-[40px]"
           style={{
-            background: 'linear-gradient(to top, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.2) 40%, rgba(139, 92, 246, 0.08) 70%, transparent 100%)',
+            height: '85%',
+            background: 'linear-gradient(to top, rgba(139, 92, 246, 0.35) 0%, rgba(139, 92, 246, 0.25) 30%, rgba(139, 92, 246, 0.1) 60%, transparent 100%)',
           }}
         />
         <div className="relative z-10">
