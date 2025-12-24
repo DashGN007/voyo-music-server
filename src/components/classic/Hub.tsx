@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import {
   Settings, Plus, X, Play, Pause, Volume2,
-  Send, Heart, ChevronRight, BadgeCheck, Music2
+  Send, Heart, ChevronRight, BadgeCheck, Music2, User
 } from 'lucide-react';
 import { UniversePanel } from '../universe/UniversePanel';
 
@@ -417,9 +417,10 @@ export const Hub = ({ onOpenProfile }: HubProps) => {
       {/* My Profile + Now Playing Preview */}
       <div className="px-6 pt-5 pb-4">
         <motion.div
-          className="relative flex items-center gap-4 p-5 rounded-3xl bg-gradient-to-br from-purple-500/[0.12] via-fuchsia-500/[0.08] to-pink-500/[0.12] border border-white/[0.08] overflow-hidden"
+          className="relative flex items-center gap-4 p-5 rounded-3xl bg-gradient-to-br from-purple-500/[0.12] via-fuchsia-500/[0.08] to-pink-500/[0.12] border border-white/[0.08] overflow-hidden cursor-pointer"
           whileTap={{ scale: 0.98 }}
           transition={{ duration: 0.2 }}
+          onClick={() => setIsUniverseOpen(true)}
         >
           {/* Subtle glow effect */}
           <div className="absolute inset-0 bg-gradient-to-br from-purple-400/[0.03] to-pink-400/[0.03] blur-2xl" />
@@ -433,8 +434,11 @@ export const Hub = ({ onOpenProfile }: HubProps) => {
           </div>
 
           <div className="flex-1 min-w-0 z-10">
-            <p className="text-white font-semibold text-base mb-0.5">Dash</p>
-            <p className="text-white/50 text-sm font-medium">Listening now...</p>
+            <div className="flex items-center gap-2 mb-0.5">
+              <p className="text-white font-semibold text-base">Dash</p>
+              <ChevronRight className="w-4 h-4 text-white/40" />
+            </div>
+            <p className="text-white/50 text-sm font-medium">Tap for account & stats</p>
           </div>
 
           {/* Timeline Preview - Right */}
@@ -458,7 +462,10 @@ export const Hub = ({ onOpenProfile }: HubProps) => {
             <div className="relative w-11 h-11 rounded-lg overflow-hidden opacity-50 ring-1 ring-white/[0.05]">
               <img src="https://i.ytimg.com/vi/GqAYPiCWLgU/maxresdefault.jpg" alt="" className="w-full h-full object-cover" />
             </div>
-            <ChevronRight className="w-4 h-4 text-white/40" />
+            {/* Account Icon */}
+            <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center ml-1">
+              <User className="w-4 h-4 text-white/60" />
+            </div>
           </div>
         </motion.div>
       </div>
