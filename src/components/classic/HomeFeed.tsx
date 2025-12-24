@@ -274,7 +274,7 @@ const VibeCard = ({ vibe, onSelect, index }: VibeCardProps) => (
                 fallbackEmoji="🌙"
                 size={48}
                 loop={true}
-                speed={0.3}
+                speed={0.15}
               />
             </motion.div>
           )}
