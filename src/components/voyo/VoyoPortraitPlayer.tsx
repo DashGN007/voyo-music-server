@@ -44,6 +44,9 @@ import {
   MixBoardMode,
 } from '../../services/centralDJ';
 
+// OYO Island - DJ Voice Search & Chat
+import { OyoIsland } from './OyoIsland';
+
 // ============================================
 // ISOLATED TIME COMPONENTS - Prevents full re-renders
 // These subscribe directly to currentTime/duration without
@@ -4040,6 +4043,7 @@ export const VoyoPortraitPlayer = ({
   const [activateChatTrigger, setActivateChatTrigger] = useState(0); // Increment to trigger chat
   const [showDJWakeMessage, setShowDJWakeMessage] = useState(false); // Tutorial toast
   const [djWakeMessageText, setDjWakeMessageText] = useState(''); // Dynamic message content
+  const [showOyoIsland, setShowOyoIsland] = useState(false); // OYO DJ Island - tap to show
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTapRef = useRef<number>(0);
   const didHoldRef = useRef(false);
@@ -4124,35 +4128,22 @@ export const VoyoPortraitPlayer = ({
       return;
     }
 
-    const now = Date.now();
-    if (now - lastTapRef.current < 300) {
-      // Double tap → Straight to Wazzguan chat!
-      setIsControlsRevealed(true);
-      setIsReactionsRevealed(true);
-      setActivateChatTrigger(prev => prev + 1); // Trigger chat activation
-      haptics.medium();
-    } else {
-      // Single tap → Toggle quick controls only
-      if (!isReactionsRevealed) {
-        const wasHidden = !isControlsRevealed;
-        setIsControlsRevealed(prev => !prev);
-        if (wasHidden) {
-          haptics.light();
-          // In 'disappear' mode: show Peace toast on reveal (tutorial moment)
-          if (oyeBarBehavior === 'disappear') {
-            showDJWakeToast();
-          }
-        }
+    // Single tap → Show OYO Island DJ widget + controls
+    // OYO Island handles chat/voice internally - tap OYO for chat, tap mic for voice search
+    if (!isReactionsRevealed) {
+      const wasHidden = !isControlsRevealed;
+      setIsControlsRevealed(prev => !prev);
 
-        // Track single taps for tutorial hint
-        singleTapCountRef.current++;
-        if (singleTapCountRef.current === 3 && !hasShownHintRef.current) {
-          showTutorialHint();
-        }
+      // Show OYO Island when revealing controls
+      if (wasHidden) {
+        setShowOyoIsland(true);
+        haptics.light();
+      } else {
+        // Hiding controls also hides OYO Island
+        setShowOyoIsland(false);
       }
     }
-    lastTapRef.current = now;
-  }, [isControlsRevealed, isReactionsRevealed, showTutorialHint, oyeBarBehavior, showDJWakeToast]);
+  }, [isControlsRevealed, isReactionsRevealed]);
 
   // AUTO-HIDE controls after 2.5s - encourages double-tap discovery
   const controlsHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -4453,6 +4444,22 @@ export const VoyoPortraitPlayer = ({
 
       {/* Noise texture overlay */}
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay pointer-events-none z-[1]" />
+
+      {/* OYO ISLAND - DJ Voice Search & Chat (tap screen to show) */}
+      <OyoIsland
+        visible={showOyoIsland}
+        onHide={() => setShowOyoIsland(false)}
+        onActivity={() => {
+          // Reset controls auto-hide timer when interacting with OYO
+          if (controlsHideTimerRef.current) {
+            clearTimeout(controlsHideTimerRef.current);
+            controlsHideTimerRef.current = setTimeout(() => {
+              setIsControlsRevealed(false);
+              setShowOyoIsland(false);
+            }, 5000); // Extended timeout when interacting
+          }
+        }}
+      />
 
       {/* TEASER PREVIEW INDICATOR - Shows when 30s preview is active */}
       <AnimatePresence>
