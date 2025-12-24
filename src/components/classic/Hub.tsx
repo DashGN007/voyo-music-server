@@ -470,9 +470,9 @@ export const Hub = ({ onOpenProfile }: HubProps) => {
               </div>
             )}
             {/* Next in Queue */}
-            {nextTrack?.trackId ? (
+            {nextTrack?.track?.trackId ? (
               <div className="relative w-11 h-11 rounded-lg overflow-hidden opacity-50 ring-1 ring-white/[0.05]">
-                <img src={getYouTubeThumbnail(nextTrack.trackId, 'medium')} alt="" className="w-full h-full object-cover" />
+                <img src={getYouTubeThumbnail(nextTrack.track.trackId, 'medium')} alt="" className="w-full h-full object-cover" />
               </div>
             ) : (
               <div className="w-11 h-11 rounded-lg bg-white/5 opacity-50 ring-1 ring-white/[0.05]" />

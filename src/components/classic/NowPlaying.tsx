@@ -370,7 +370,7 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
         >
           {/* BACKGROUND - Album Art */}
-          <AlbumArtBackground coverUrl={getTrackThumbnailUrl(currentTrack, 'large')} />
+          <AlbumArtBackground coverUrl={getTrackThumbnailUrl(currentTrack, 'max')} />
 
           {/* GRADIENT OVERLAYS - Black Contour Style */}
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent z-10" />

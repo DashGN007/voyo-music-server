@@ -1804,7 +1804,7 @@ StreamCard.displayName = 'StreamCard';
 // BIG CENTER CARD (NOW PLAYING - Canva-style purple fade with premium typography)
 // TAP ALBUM ART FOR LYRICS VIEW
 // ============================================
-const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics }: { track: Track; onExpandVideo?: () => void; onShowLyrics?: () => void }) => (
+const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = false }: { track: Track; onExpandVideo?: () => void; onShowLyrics?: () => void; showOverlay?: boolean }) => (
   <motion.div
     className="relative w-52 h-52 md:w-60 md:h-60 rounded-[2rem] overflow-hidden z-20 group"
     style={{
@@ -1840,22 +1840,30 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics }: { track: Tra
       )}
     </div>
 
-    {/* CANVA-STYLE PURPLE FADE - Bottom to top gradient */}
-    <div
-      className="absolute inset-0 pointer-events-none"
-      style={{
-        background: `linear-gradient(
-          to top,
-          rgba(88, 28, 135, 0.95) 0%,
-          rgba(139, 92, 246, 0.7) 15%,
-          rgba(139, 92, 246, 0.4) 30%,
-          rgba(139, 92, 246, 0.1) 50%,
-          transparent 70%
-        )`,
-      }}
-    />
+    {/* CANVA-STYLE PURPLE FADE - Only shows on tap */}
+    <AnimatePresence>
+      {showOverlay && (
+        <motion.div
+          className="absolute inset-0 pointer-events-none z-20"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          style={{
+            background: `linear-gradient(
+              to top,
+              rgba(88, 28, 135, 0.95) 0%,
+              rgba(139, 92, 246, 0.7) 15%,
+              rgba(139, 92, 246, 0.4) 30%,
+              rgba(139, 92, 246, 0.1) 50%,
+              transparent 70%
+            )`,
+          }}
+        />
+      )}
+    </AnimatePresence>
 
-    {/* Subtle vignette for depth */}
+    {/* Subtle vignette for depth - always visible */}
     <div
       className="absolute inset-0 pointer-events-none opacity-40"
       style={{
@@ -1868,35 +1876,44 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics }: { track: Tra
       <ExpandVideoButton onClick={onExpandVideo} />
     )}
 
-    {/* PREMIUM TITLE SECTION */}
-    <div className="absolute bottom-0 left-0 right-0 p-5">
-      {/* Track Title - Bold and prominent */}
-      <h1
-        className="text-xl font-black text-white mb-1.5 line-clamp-2 leading-tight tracking-tight"
-        style={{
-          fontFamily: "'Plus Jakarta Sans', sans-serif",
-          textShadow: '0 2px 20px rgba(0,0,0,0.8)',
-          letterSpacing: '-0.02em',
-        }}
-      >
-        {/* FIX: Sanitize text to prevent XSS and layout breaking */}
-        {track.title?.replace(/[<>]/g, '').slice(0, 80) || 'Unknown Title'}
-      </h1>
-
-      {/* Artist Name - Elegant and subtle */}
-      <div className="flex items-center gap-2">
-        <div className="w-1 h-1 rounded-full bg-purple-400" />
-        <p
-          className="text-purple-200/90 text-sm font-medium tracking-wide truncate"
-          style={{
-            fontFamily: "'Inter', sans-serif",
-            textShadow: '0 1px 10px rgba(0,0,0,0.6)',
-          }}
+    {/* PREMIUM TITLE SECTION - Only shows on tap */}
+    <AnimatePresence>
+      {showOverlay && (
+        <motion.div
+          className="absolute bottom-0 left-0 right-0 p-5 z-30"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          transition={{ duration: 0.3 }}
         >
-          {track.artist?.replace(/[<>]/g, '').slice(0, 60) || 'Unknown Artist'}
-        </p>
-      </div>
-    </div>
+          {/* Track Title - Bold and prominent */}
+          <h1
+            className="text-xl font-black text-white mb-1.5 line-clamp-2 leading-tight tracking-tight"
+            style={{
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              textShadow: '0 2px 20px rgba(0,0,0,0.8)',
+              letterSpacing: '-0.02em',
+            }}
+          >
+            {track.title?.replace(/[<>]/g, '').slice(0, 80) || 'Unknown Title'}
+          </h1>
+
+          {/* Artist Name - Elegant and subtle */}
+          <div className="flex items-center gap-2">
+            <div className="w-1 h-1 rounded-full bg-purple-400" />
+            <p
+              className="text-purple-200/90 text-sm font-medium tracking-wide truncate"
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                textShadow: '0 1px 10px rgba(0,0,0,0.6)',
+              }}
+            >
+              {track.artist?.replace(/[<>]/g, '').slice(0, 60) || 'Unknown Artist'}
+            </p>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
 
     {/* Glowing border accent */}
     <div
@@ -4128,7 +4145,23 @@ export const VoyoPortraitPlayer = ({
       return;
     }
 
-    // Single tap → Show OYO Island DJ widget + controls
+    const now = Date.now();
+    const timeSinceLastTap = now - lastTapRef.current;
+    lastTapRef.current = now;
+
+    // DOUBLE-TAP (under 300ms) → Wazzguan direct input (chat widget in reactions bar)
+    const isDoubleTap = timeSinceLastTap < 300;
+
+    if (isDoubleTap) {
+      // Double-tap opens Wazzguan direct input
+      setIsControlsRevealed(true);
+      setIsReactionsRevealed(true);
+      setActivateChatTrigger(prev => prev + 1);
+      haptics.medium();
+      return;
+    }
+
+    // Single tap → Toggle OYO Island DJ widget + controls
     // OYO Island handles chat/voice internally - tap OYO for chat, tap mic for voice search
     if (!isReactionsRevealed) {
       const wasHidden = !isControlsRevealed;
@@ -4143,9 +4176,9 @@ export const VoyoPortraitPlayer = ({
         setShowOyoIsland(false);
       }
     }
-  }, [isControlsRevealed, isReactionsRevealed]);
+  }, [isControlsRevealed, isReactionsRevealed, showDJWakeToast]);
 
-  // AUTO-HIDE controls after 2.5s - encourages double-tap discovery
+  // AUTO-HIDE controls + OyoIsland after 3s - encourages double-tap discovery
   const controlsHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     // Auto-hide when controls are revealed but not in full DJ mode
@@ -4153,7 +4186,8 @@ export const VoyoPortraitPlayer = ({
     if (isControlsRevealed && !isReactionsRevealed) {
       controlsHideTimerRef.current = setTimeout(() => {
         setIsControlsRevealed(false);
-      }, 2500); // Hide after 2.5 seconds - quick enough to try double-tap
+        setShowOyoIsland(false); // Also hide OyoIsland
+      }, 3000); // Hide after 3 seconds
     }
     return () => {
       if (controlsHideTimerRef.current) clearTimeout(controlsHideTimerRef.current);
@@ -4609,6 +4643,7 @@ export const VoyoPortraitPlayer = ({
               track={currentTrack}
               onExpandVideo={handleExpandVideo}
               onShowLyrics={() => setShowLyricsOverlay(true)}
+              showOverlay={true}
             />
           ) : (
             <div className="w-48 h-48 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center">

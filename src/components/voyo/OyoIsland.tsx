@@ -230,18 +230,59 @@ export function OyoIsland({ visible, onHide, onActivity }: OyoIslandProps) {
     }
   }, []);
 
-  // Chat submit handler - with play capability
+  // Chat submit handler - with play capability AND conversation
   const handleChatSubmit = useCallback(async () => {
     if (!chatInput.trim()) return;
 
     const userMessage = chatInput.trim();
+    const lowerMessage = userMessage.toLowerCase();
     setChatInput('');
     setChatHistory(prev => [...prev, { role: 'user', message: userMessage }]);
 
     // Check for play intent keywords
     const playIntent = /^(play|queue|hit|drop|spin)\s+/i.test(userMessage);
-    const searchQuery = playIntent ? userMessage.replace(/^(play|queue|hit|drop|spin)\s+/i, '') : userMessage;
 
+    // Check for music search intent (explicit song/artist references)
+    const musicIntent = playIntent ||
+      /\b(song|track|music|album|artist|by|feat|ft\.?|featuring)\b/i.test(userMessage) ||
+      /^(find|search|look for|got any)\s+/i.test(userMessage);
+
+    // Conversation responses - when NOT looking for music
+    if (!musicIntent) {
+      // Greetings
+      if (/^(hey|hi|hello|yo|sup|what'?s? ?up|wazzguan|wazguan)/i.test(lowerMessage)) {
+        setChatHistory(prev => [...prev, { role: 'oyo', message: "Yo! What's good? 🎧 Need a vibe or just chillin'?" }]);
+        return;
+      }
+      // How are you
+      if (/how (are|r) (you|u)|how('?s| is) it going/i.test(lowerMessage)) {
+        setChatHistory(prev => [...prev, { role: 'oyo', message: "I'm vibin'! 🔥 Ready to drop some heat. What you wanna hear?" }]);
+        return;
+      }
+      // Thanks
+      if (/^(thanks|thank you|thx|ty|appreciate)/i.test(lowerMessage)) {
+        setChatHistory(prev => [...prev, { role: 'oyo', message: "Anytime fam! 🤙 Hit me up when you need more vibes" }]);
+        return;
+      }
+      // What can you do
+      if (/what (can|do) you do|help|commands/i.test(lowerMessage)) {
+        setChatHistory(prev => [...prev, { role: 'oyo', message: "I'm your DJ! 🎵 Say 'play [song]' to hear something, or just chat. I can also hum-search with 🎤!" }]);
+        return;
+      }
+      // Mood/recommendation request
+      if (/recommend|suggest|something (good|fire|chill|hype)|what should i/i.test(lowerMessage)) {
+        setChatHistory(prev => [...prev, { role: 'oyo', message: "What's the vibe? Chill? Hype? Afrobeats? Tell me the mood and I'll hook you up! 🎯" }]);
+        return;
+      }
+      // Fallback for short non-music messages
+      if (userMessage.length < 15 && !/[A-Z]/.test(userMessage.slice(1))) {
+        setChatHistory(prev => [...prev, { role: 'oyo', message: "I'm here! 🎧 Want me to play something? Just say 'play [song name]'" }]);
+        return;
+      }
+    }
+
+    // Music search flow
+    const searchQuery = playIntent ? userMessage.replace(/^(play|queue|hit|drop|spin)\s+/i, '') : userMessage;
     setChatHistory(prev => [...prev, { role: 'oyo', message: `Searching for "${searchQuery}"...` }]);
 
     // Search for the track
