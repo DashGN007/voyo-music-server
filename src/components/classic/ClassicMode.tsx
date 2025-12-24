@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { Home, Radio, Library as LibraryIcon, Users, Zap, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, Radio, Library as LibraryIcon, Users, Zap, Plus, Shuffle, Repeat, Repeat1 } from 'lucide-react';
 import { HomeFeed } from './HomeFeed';
 import { Library } from './Library';
 import { Hub } from './Hub';
@@ -28,11 +28,16 @@ interface ClassicModeProps {
 }
 
 // Mini Player (shown at bottom when a track is playing)
-// Swipe left/right for next/prev, tap to open Voyo Player
-const MiniPlayer = ({ onClick }: { onClick: () => void }) => {
-  const { currentTrack, isPlaying, togglePlay, progress, nextTrack, prevTrack } = usePlayerStore();
+// Tap = floating bubble controls, Swipe = next/prev
+// VOYO = Music Experience App, not just a player!
+const MiniPlayer = () => {
+  const {
+    currentTrack, isPlaying, togglePlay, progress, nextTrack, prevTrack,
+    shuffleMode, repeatMode, toggleShuffle, cycleRepeat
+  } = usePlayerStore();
   const [shouldScroll, setShouldScroll] = useState(false);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+  const [showBubbles, setShowBubbles] = useState(false);
   const titleRef = useRef<HTMLParagraphElement>(null);
 
   // Check if title needs scrolling (longer than container)
@@ -58,6 +63,14 @@ const MiniPlayer = ({ onClick }: { onClick: () => void }) => {
     }
   }, [nextTrack, prevTrack]);
 
+  // Auto-hide bubbles after 3 seconds
+  useEffect(() => {
+    if (showBubbles) {
+      const timer = setTimeout(() => setShowBubbles(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showBubbles]);
+
   if (!currentTrack) return null;
 
   return (
@@ -67,14 +80,73 @@ const MiniPlayer = ({ onClick }: { onClick: () => void }) => {
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 100, opacity: 0 }}
     >
+      {/* Floating Bubble Controls - appear on tap */}
+      <AnimatePresence>
+        {showBubbles && (
+          <motion.div
+            className="absolute -top-16 left-1/2 -translate-x-1/2 flex items-center gap-4 z-50"
+            initial={{ opacity: 0, y: 20, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.9 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+          >
+            {/* Shuffle Bubble */}
+            <motion.button
+              className={`w-12 h-12 rounded-full backdrop-blur-xl flex items-center justify-center shadow-lg ${
+                shuffleMode
+                  ? 'bg-purple-500/80 border-2 border-purple-400'
+                  : 'bg-black/60 border border-white/20'
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleShuffle();
+              }}
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <Shuffle className={`w-5 h-5 ${shuffleMode ? 'text-white' : 'text-white/70'}`} />
+            </motion.button>
+
+            {/* Repeat/Loop Bubble */}
+            <motion.button
+              className={`w-12 h-12 rounded-full backdrop-blur-xl flex items-center justify-center shadow-lg ${
+                repeatMode !== 'off'
+                  ? 'bg-pink-500/80 border-2 border-pink-400'
+                  : 'bg-black/60 border border-white/20'
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                cycleRepeat();
+              }}
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              {repeatMode === 'one' ? (
+                <Repeat1 className="w-5 h-5 text-white" />
+              ) : (
+                <Repeat className={`w-5 h-5 ${repeatMode === 'all' ? 'text-white' : 'text-white/70'}`} />
+              )}
+              {repeatMode !== 'off' && (
+                <motion.div
+                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-pink-400 text-[8px] font-bold text-white flex items-center justify-center"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                >
+                  {repeatMode === 'one' ? '1' : '∞'}
+                </motion.div>
+              )}
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <motion.div
         className="w-full flex items-center gap-3 p-3 pr-4 rounded-2xl bg-black/25 border border-white/10 backdrop-blur-xl shadow-2xl relative overflow-hidden cursor-pointer"
-        onClick={onClick}
+        onClick={() => setShowBubbles(!showBubbles)}
         drag="x"
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.3}
         onDragEnd={handleDragEnd}
-        whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
         animate={{
           x: swipeDirection === 'left' ? -20 : swipeDirection === 'right' ? 20 : 0,
@@ -348,7 +420,7 @@ export const ClassicMode = ({ onSwitchToVOYO, onSearch }: ClassicModeProps) => {
       {/* Mini Player */}
       <AnimatePresence>
         {currentTrack && !showNowPlaying && (
-          <MiniPlayer onClick={() => setShowNowPlaying(true)} />
+          <MiniPlayer />
         )}
       </AnimatePresence>
 
