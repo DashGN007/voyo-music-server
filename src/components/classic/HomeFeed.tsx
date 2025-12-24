@@ -426,23 +426,25 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
       )}
 
       {/* Browse by Vibes (matches MixBoard + database) */}
-      <div className="relative -mx-4 px-4 py-6">
-        {/* Gradient fade background - prominent at bottom, fades to top */}
+      <div className="relative -mx-4 px-4 pt-4 pb-8">
+        {/* Gradient fade background - prominent at bottom, fades to top, extends beyond cards */}
         <div
-          className="absolute inset-0 pointer-events-none"
+          className="absolute inset-0 -top-4 pointer-events-none rounded-t-3xl"
           style={{
-            background: 'linear-gradient(to top, rgba(139, 92, 246, 0.25) 0%, rgba(139, 92, 246, 0.15) 30%, rgba(139, 92, 246, 0.05) 60%, transparent 100%)',
+            background: 'linear-gradient(to top, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.2) 40%, rgba(139, 92, 246, 0.08) 70%, transparent 100%)',
           }}
         />
-        <Shelf title="Browse by Vibes">
-          {vibes.map((vibe) => (
-            <VibeCard
-              key={vibe.id}
-              vibe={vibe}
-              onSelect={() => handleVibeSelect(vibe)}
-            />
-          ))}
-        </Shelf>
+        <div className="relative z-10">
+          <Shelf title="Browse by Vibes">
+            {vibes.map((vibe) => (
+              <VibeCard
+                key={vibe.id}
+                vibe={vibe}
+                onSelect={() => handleVibeSelect(vibe)}
+              />
+            ))}
+          </Shelf>
+        </div>
       </div>
 
       {/* New Releases */}
