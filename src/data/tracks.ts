@@ -9,7 +9,7 @@ export { getThumb as getThumbnailUrl, getThumb as getYouTubeThumbnail, getThumbW
 const getThumbnailUrl = getThumb;
 
 // ============================================
-// MOOD TUNNELS
+// MOOD TUNNELS (legacy - for compatibility)
 // ============================================
 
 export const MOOD_TUNNELS: MoodTunnel[] = [
@@ -54,6 +54,61 @@ export const MOOD_TUNNELS: MoodTunnel[] = [
     icon: '💔',
     color: '#ec4899',
     gradient: 'from-pink-500 to-rose-500',
+  },
+];
+
+// ============================================
+// VIBES (matches MixBoard modes + database vibes)
+// ============================================
+export interface Vibe {
+  id: string;           // Matches database vibe name (afro-heat, etc.)
+  name: string;         // Display name
+  icon: string;         // Emoji
+  color: string;        // Primary color
+  gradient: string;     // Tailwind gradient classes
+  description: string;  // Short description
+}
+
+export const VIBES: Vibe[] = [
+  {
+    id: 'afro-heat',
+    name: 'Afro Heat',
+    icon: '🔥',
+    color: '#f97316',
+    gradient: 'from-orange-500 to-red-500',
+    description: 'High-energy Afrobeats & Amapiano',
+  },
+  {
+    id: 'chill-vibes',
+    name: 'Chill Vibes',
+    icon: '🌙',
+    color: '#8b5cf6',
+    gradient: 'from-violet-500 to-purple-600',
+    description: 'Smooth R&B & mellow sounds',
+  },
+  {
+    id: 'party-mode',
+    name: 'Party Mode',
+    icon: '🎉',
+    color: '#ec4899',
+    gradient: 'from-pink-500 to-fuchsia-500',
+    description: 'Club bangers & dance floor energy',
+  },
+  {
+    id: 'late-night',
+    name: 'Late Night',
+    icon: '🌃',
+    color: '#3b82f6',
+    gradient: 'from-blue-500 to-indigo-600',
+    description: 'Moody, atmospheric vibes',
+  },
+  {
+    id: 'workout',
+    name: 'Workout',
+    icon: '💪',
+    color: '#22c55e',
+    gradient: 'from-green-500 to-emerald-500',
+    description: 'High tempo, pump up energy',
   },
 ];
 

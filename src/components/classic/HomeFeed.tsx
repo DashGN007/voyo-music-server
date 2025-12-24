@@ -12,11 +12,11 @@ import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Bell, Play, RefreshCw } from 'lucide-react';
 import { getThumb } from '../../utils/thumbnail';
-import { TRACKS, MOOD_TUNNELS, getHotTracks } from '../../data/tracks';
+import { TRACKS, VIBES, getHotTracks, Vibe } from '../../data/tracks';
 import { getUserTopTracks, getPoolAwareHotTracks } from '../../services/personalization';
 import { usePlayerStore } from '../../store/playerStore';
 import { useTrackPoolStore } from '../../store/trackPoolStore';
-import { Track, MoodTunnel } from '../../types';
+import { Track } from '../../types';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -146,23 +146,24 @@ const TrackCard = ({ track, onPlay }: TrackCardProps) => {
 };
 
 // ============================================
-// MOOD CARD COMPONENT
+// VIBE CARD COMPONENT (matches MixBoard + database vibes)
 // ============================================
 
-interface MoodCardProps {
-  mood: MoodTunnel;
+interface VibeCardProps {
+  vibe: Vibe;
   onSelect: () => void;
 }
 
-const MoodCard = ({ mood, onSelect }: MoodCardProps) => (
+const VibeCard = ({ vibe, onSelect }: VibeCardProps) => (
   <motion.button
-    className={`flex-shrink-0 w-28 h-28 rounded-2xl bg-gradient-to-br ${mood.gradient} flex flex-col items-center justify-center shadow-lg`}
+    className={`flex-shrink-0 w-32 h-36 rounded-2xl bg-gradient-to-br ${vibe.gradient} flex flex-col items-center justify-center shadow-lg p-3`}
     onClick={onSelect}
     whileHover={{ scale: 1.05, y: -4 }}
     whileTap={{ scale: 0.95 }}
   >
-    <span className="text-3xl mb-1">{mood.icon}</span>
-    <span className="text-white font-bold text-sm">{mood.name}</span>
+    <span className="text-3xl mb-2">{vibe.icon}</span>
+    <span className="text-white font-bold text-sm mb-1">{vibe.name}</span>
+    <span className="text-white/70 text-[10px] text-center leading-tight">{vibe.description}</span>
   </motion.button>
 );
 
@@ -199,16 +200,33 @@ export const HomeFeed = ({ onTrackPlay, onSearch }: HomeFeedProps) => {
 
   // LIVE RECOMMENDATIONS from playerStore (updated by pool + intent)
   const madeForYou = hotTracks.length > 0 ? hotTracks : getPoolAwareHotTracks(10);
-  const moods = MOOD_TUNNELS;
+  const vibes = VIBES; // Matches MixBoard modes + database vibes
   const newReleases = useMemo(() => getNewReleases(10), []);
 
   // Time-based greeting
   const greeting = getGreeting();
 
-  // Mood selection handler
-  const handleMoodSelect = (mood: MoodTunnel) => {
-    // TODO: Navigate to mood tunnel view - feature coming soon
-    // For now, we could filter tracks by mood tag
+  // Vibe selection handler - plays tracks matching this vibe
+  const handleVibeSelect = (vibe: Vibe) => {
+    // Get tracks from pool matching this vibe
+    const { hotPool } = useTrackPoolStore.getState();
+    const matchingTracks = hotPool
+      .filter(t => t.detectedMode === vibe.id)
+      .sort((a, b) => b.poolScore - a.poolScore)
+      .slice(0, 10);
+
+    if (matchingTracks.length > 0) {
+      // Play first track, queue the rest
+      onTrackPlay(matchingTracks[0]);
+      const { addToQueue } = usePlayerStore.getState();
+      matchingTracks.slice(1).forEach(track => addToQueue(track));
+    } else {
+      // Fallback: play hot tracks (will be filtered by vibe in the future)
+      const fallback = getPoolAwareHotTracks(10);
+      if (fallback.length > 0) {
+        onTrackPlay(fallback[0]);
+      }
+    }
   };
 
   // Check if user has listening history
@@ -319,13 +337,13 @@ export const HomeFeed = ({ onTrackPlay, onSearch }: HomeFeedProps) => {
         </Shelf>
       )}
 
-      {/* Browse by Mood */}
-      <Shelf title="Browse by Mood">
-        {moods.map((mood) => (
-          <MoodCard
-            key={mood.id}
-            mood={mood}
-            onSelect={() => handleMoodSelect(mood)}
+      {/* Browse by Vibes (matches MixBoard + database) */}
+      <Shelf title="Browse by Vibes">
+        {vibes.map((vibe) => (
+          <VibeCard
+            key={vibe.id}
+            vibe={vibe}
+            onSelect={() => handleVibeSelect(vibe)}
           />
         ))}
       </Shelf>
