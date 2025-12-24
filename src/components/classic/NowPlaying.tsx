@@ -1,37 +1,36 @@
 /**
- * VOYO Music - Classic Mode: Now Playing
- * Reference: Classic Mode - When clicked on profile.jpg (Right phone)
+ * VOYO Music - Premium Now Playing Experience
+ * Spotify-inspired with video background + VOYO design language
  *
  * Features:
- * - Standard music player (Spotify-style)
- * - Large album art
- * - Song title & artist
- * - Progress bar with timestamps
- * - Shuffle, Previous, Play/Pause, Next, Queue
- * - Heart to like
- * - VOYO DJ: Live reactions & comments (social layer)
+ * - FULL SCREEN VIDEO LOOP: Muted looped YouTube video
+ * - COMPACT CONTROLS: Bottom panel with all controls
+ * - COMMUNITY VIBES: Collapsible comments section (replaces Explore)
+ * - VOYO GRADIENT: Purple/pink design language
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown,
   Heart,
-  Share2,
   Shuffle,
   SkipBack,
   Play,
   Pause,
   SkipForward,
-  ListMusic,
-  ListPlus,
   Repeat,
-  Volume2,
   MessageCircle,
   ChevronUp,
   Send,
   User,
-  BarChart2
+  Plus,
+  X,
+  Share2,
+  ListMusic,
+  Video,
+  Music,
+  Zap
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import { usePreferenceStore } from '../../store/preferenceStore';
@@ -42,65 +41,134 @@ import { useReactionStore, Reaction, ReactionCategory, TrackStats } from '../../
 import { useUniverseStore } from '../../store/universeStore';
 
 // ============================================
-// VOYO DJ TYPES
+// VOYO ID DECODER
+// ============================================
+const decodeVoyoId = (trackId: string): string => {
+  if (!trackId.startsWith('vyo_')) return trackId;
+  const encoded = trackId.substring(4);
+  let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4 !== 0) base64 += '=';
+  try {
+    return atob(base64);
+  } catch {
+    return trackId;
+  }
+};
+
+// ============================================
+// THUMBNAIL BACKGROUND (When video is off)
+// ============================================
+const ThumbnailBackground = ({ coverUrl }: { coverUrl: string }) => (
+  <div className="absolute inset-0 overflow-hidden">
+    <img
+      src={coverUrl}
+      alt="Album cover"
+      className="absolute w-full h-full object-cover scale-110 blur-sm"
+    />
+    {/* Extra blur overlay for depth */}
+    <div className="absolute inset-0 bg-black/40" />
+  </div>
+);
+
+// ============================================
+// VIDEO BACKGROUND COMPONENT
+// ============================================
+const VideoBackground = ({
+  trackId,
+  isPlaying,
+  showVideo
+}: {
+  trackId: string;
+  isPlaying: boolean;
+  showVideo: boolean;
+}) => {
+  const youtubeId = useMemo(() => decodeVoyoId(trackId), [trackId]);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  const embedUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      autoplay: '1',
+      mute: '1',
+      loop: '1',
+      controls: '0',
+      showinfo: '0',
+      rel: '0',
+      modestbranding: '1',
+      playsinline: '1',
+      playlist: youtubeId,
+      enablejsapi: '1',
+      origin: window.location.origin,
+    });
+    return `https://www.youtube.com/embed/${youtubeId}?${params.toString()}`;
+  }, [youtubeId]);
+
+  useEffect(() => {
+    if (iframeRef.current?.contentWindow && isLoaded) {
+      const command = isPlaying ? 'playVideo' : 'pauseVideo';
+      iframeRef.current.contentWindow.postMessage(
+        JSON.stringify({ event: 'command', func: command }),
+        '*'
+      );
+    }
+  }, [isPlaying, isLoaded]);
+
+  if (!showVideo) return null;
+
+  return (
+    <div className="absolute inset-0 overflow-hidden">
+      <iframe
+        ref={iframeRef}
+        src={embedUrl}
+        className="absolute w-full h-full"
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          width: '177.78vh',
+          height: '100vh',
+          minWidth: '100%',
+          minHeight: '56.25vw',
+          transform: 'translate(-50%, -50%)',
+          pointerEvents: 'none',
+        }}
+        allow="autoplay; encrypted-media"
+        allowFullScreen={false}
+        onLoad={() => setIsLoaded(true)}
+      />
+    </div>
+  );
+};
+
+// ============================================
+// FLOATING REACTIONS
 // ============================================
 interface FloatingReaction {
   id: number;
-  type: 'oye' | 'fire' | 'love' | 'zap';
   emoji: string;
   x: number;
-  xOffset1: number;
-  xOffset2: number;
+  xOffset: number;
 }
 
-interface LiveComment {
-  id: number;
-  user: string;
-  text: string;
-}
-
-// ============================================
-// CATEGORY CONFIG
-// ============================================
-const CATEGORY_CONFIG: Record<ReactionCategory, { emoji: string; color: string; name: string }> = {
-  'afro-heat': { emoji: '🔥', color: '#FF6B35', name: 'Afro Heat' },
-  'chill-vibes': { emoji: '🌙', color: '#A855F7', name: 'Chill Vibes' },
-  'party-mode': { emoji: '🎉', color: '#EC4899', name: 'Party Mode' },
-  'late-night': { emoji: '✨', color: '#6366F1', name: 'Late Night' },
-  'workout': { emoji: '💪', color: '#10B981', name: 'Workout' },
-};
-
-// Fallback comments for when no real reactions exist yet
-const FALLBACK_COMMENTS: LiveComment[] = [
-  { id: 1, user: 'nathanp2001', text: 'This track is FIRE 🔥🔥🔥' },
-  { id: 2, user: 'abdoulaziz', text: 'DJ I found youuuu OHhhhh!' },
-  { id: 3, user: 'saralove', text: 'Great vibez 🔥💯 New afro 🎶' },
-  { id: 4, user: 'dashfam', text: 'OYÉÉÉÉ!!! 🦉⚡' },
-  { id: 5, user: 'afrovibes', text: 'Amapiano hits different 🌙' },
-];
-
-// ============================================
-// FLOATING REACTIONS COMPONENT
-// ============================================
 const FloatingReactions = ({ reactions }: { reactions: FloatingReaction[] }) => (
-  <div className="absolute inset-0 pointer-events-none overflow-hidden z-50">
+  <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
     <AnimatePresence>
       {reactions.map((reaction) => (
         <motion.div
           key={reaction.id}
-          className="absolute text-3xl"
-          style={{ left: `${reaction.x}%`, bottom: '40%' }}
+          className="absolute text-4xl"
+          style={{ left: `${reaction.x}%`, bottom: '30%' }}
           initial={{ opacity: 1, y: 0, scale: 0.5 }}
           animate={{
             opacity: [1, 1, 0],
-            y: -250,
-            scale: [0.5, 1.3, 1],
-            x: [0, reaction.xOffset1, reaction.xOffset2]
+            y: -300,
+            scale: [0.5, 1.5, 1],
+            x: [0, reaction.xOffset, reaction.xOffset * 1.5]
           }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 2.5, ease: 'easeOut' }}
+          transition={{ duration: 3, ease: 'easeOut' }}
         >
-          <span className="drop-shadow-lg">{reaction.emoji}</span>
+          <span className="drop-shadow-2xl">{reaction.emoji}</span>
         </motion.div>
       ))}
     </AnimatePresence>
@@ -108,111 +176,25 @@ const FloatingReactions = ({ reactions }: { reactions: FloatingReaction[] }) => 
 );
 
 // ============================================
-// REACTION BUTTONS COMPONENT
+// COMMUNITY VIBES PANEL (Replaces Explore)
 // ============================================
-const ReactionButtons = ({ onReaction }: { onReaction: (type: FloatingReaction['type'], emoji: string) => void }) => {
-  const reactions = [
-    { type: 'oye' as const, emoji: '⚡', label: 'OYÉ', color: 'from-yellow-500 to-orange-500' },
-    { type: 'fire' as const, emoji: '🔥', label: 'FIRE', color: 'from-red-500 to-orange-500' },
-    { type: 'love' as const, emoji: '❤️', label: 'LOVE', color: 'from-pink-500 to-red-500' },
-    { type: 'zap' as const, emoji: '💥', label: 'MAD!', color: 'from-purple-500 to-blue-500' },
-  ];
-
-  return (
-    <div className="flex justify-center gap-2">
-      {reactions.map((r) => (
-        <motion.button
-          key={r.type}
-          className={`px-3 py-1.5 rounded-full bg-gradient-to-r ${r.color} text-white font-bold text-xs flex items-center gap-1`}
-          onClick={() => onReaction(r.type, r.emoji)}
-          whileHover={{ scale: 1.1, y: -2 }}
-          whileTap={{ scale: 0.9 }}
-        >
-          <span>{r.emoji}</span>
-          <span>{r.label}</span>
-        </motion.button>
-      ))}
-    </div>
-  );
-};
-
-// ============================================
-// VIBE BREAKDOWN COMPONENT
-// ============================================
-const VibeBreakdown = ({ stats }: { stats: TrackStats | null }) => {
-  if (!stats || stats.total_reactions === 0) return null;
-
-  const allCategories: { key: ReactionCategory; count: number }[] = [
-    { key: 'afro-heat', count: stats.afro_heat_count },
-    { key: 'chill-vibes', count: stats.chill_vibes_count },
-    { key: 'party-mode', count: stats.party_mode_count },
-    { key: 'late-night', count: stats.late_night_count },
-    { key: 'workout', count: stats.workout_count },
-  ];
-  const categories = allCategories.filter(c => c.count > 0).sort((a, b) => b.count - a.count);
-
-  const maxCount = Math.max(...categories.map(c => c.count));
-
-  return (
-    <div className="bg-black/30 rounded-xl p-3 mb-3">
-      <div className="flex items-center gap-2 mb-2">
-        <BarChart2 className="w-4 h-4 text-purple-400" />
-        <span className="text-white/80 text-xs font-bold">VIBE BREAKDOWN</span>
-        <span className="text-white/40 text-xs">• {stats.total_reactions} reactions</span>
-      </div>
-      <div className="space-y-1.5">
-        {categories.map(({ key, count }) => {
-          const config = CATEGORY_CONFIG[key];
-          const percent = (count / maxCount) * 100;
-          return (
-            <div key={key} className="flex items-center gap-2">
-              <span className="text-sm">{config.emoji}</span>
-              <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ backgroundColor: config.color }}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${percent}%` }}
-                  transition={{ duration: 0.5, ease: 'easeOut' }}
-                />
-              </div>
-              <span className="text-white/60 text-[10px] w-8 text-right">{count}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-// ============================================
-// LIVE COMMENTS SECTION (Enhanced with real reactions)
-// ============================================
-const LiveCommentsSection = ({
-  reactions,
-  fallbackComments,
+const CommunityVibesPanel = ({
   isExpanded,
   onToggle,
+  reactions,
   onAddComment,
   trackStats,
-  onUserClick,
+  currentUsername,
 }: {
-  reactions: Reaction[];
-  fallbackComments: LiveComment[];
   isExpanded: boolean;
   onToggle: () => void;
+  reactions: Reaction[];
   onAddComment: (text: string) => void;
   trackStats: TrackStats | null;
-  onUserClick?: (username: string) => void;
+  currentUsername: string | null;
 }) => {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const [commentText, setCommentText] = useState('');
-
-  useEffect(() => {
-    if (scrollRef.current && isExpanded) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [reactions, isExpanded]);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleSubmit = () => {
     if (commentText.trim()) {
@@ -221,15 +203,6 @@ const LiveCommentsSection = ({
     }
   };
 
-  // Use real reactions if available, otherwise fallback
-  const hasRealReactions = reactions.length > 0;
-  const displayCount = hasRealReactions ? reactions.length : fallbackComments.length;
-
-  // Count Signals (billboard contributions) vs regular reactions
-  const signalCount = reactions.filter(r => r.emoji === '📍').length;
-  const reactionCount = reactions.length - signalCount;
-
-  // Format time ago
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
@@ -240,34 +213,41 @@ const LiveCommentsSection = ({
     return `${Math.floor(hours / 24)}d`;
   };
 
+  // Fallback comments
+  const fallbackComments = [
+    { user: 'burna_fan', text: 'This track is FIRE 🔥🔥🔥', time: '2m' },
+    { user: 'afrovibes', text: 'OYÉ OYÉ OYÉ!!! ⚡', time: '5m' },
+    { user: 'dashfam', text: 'On repeat all day 🔂', time: '12m' },
+    { user: 'music_lover', text: 'Best afrobeats this year 💜', time: '1h' },
+  ];
+
   return (
     <motion.div
-      className="bg-black/40 backdrop-blur-sm rounded-2xl overflow-hidden"
-      animate={{ height: isExpanded ? 'auto' : 48 }}
-      transition={{ duration: 0.3 }}
+      className="bg-black/90 backdrop-blur-xl rounded-t-3xl border-t border-white/10"
+      animate={{ height: isExpanded ? 320 : 56 }}
+      transition={{ type: 'spring', damping: 25, stiffness: 300 }}
     >
-      {/* Header - Always visible */}
+      {/* Header */}
       <button
-        className="w-full flex items-center justify-between px-4 py-3"
+        className="w-full flex items-center justify-between px-5 py-4"
         onClick={onToggle}
       >
-        <div className="flex items-center gap-2">
-          <MessageCircle className="w-4 h-4 text-purple-400" />
-          <span className="text-white/80 text-xs font-bold">COMMUNITY VIBES</span>
-          {hasRealReactions && signalCount > 0 ? (
-            <span className="text-white/40 text-xs">
-              • <span className="text-pink-400">{signalCount} Signal{signalCount !== 1 ? 's' : ''}</span>
-              {reactionCount > 0 && <span> + {reactionCount} reaction{reactionCount !== 1 ? 's' : ''}</span>}
-            </span>
-          ) : (
-            <span className="text-white/40 text-xs">• {displayCount} {hasRealReactions ? 'reactions' : 'vibing'}</span>
-          )}
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+            <MessageCircle className="w-4 h-4 text-white" />
+          </div>
+          <div className="text-left">
+            <p className="text-white font-bold text-sm">Community Vibes</p>
+            <p className="text-white/50 text-xs">
+              {trackStats?.total_reactions || reactions.length || 0} vibing now
+            </p>
+          </div>
         </div>
         <motion.div
           animate={{ rotate: isExpanded ? 180 : 0 }}
           transition={{ duration: 0.2 }}
         >
-          <ChevronUp className="w-4 h-4 text-white/50" />
+          <ChevronUp className="w-5 h-5 text-white/50" />
         </motion.div>
       </button>
 
@@ -275,108 +255,65 @@ const LiveCommentsSection = ({
       <AnimatePresence>
         {isExpanded && (
           <motion.div
+            className="px-5 pb-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="px-4 pb-4"
           >
-            {/* Vibe Breakdown */}
-            <VibeBreakdown stats={trackStats} />
-
             {/* Comments List */}
-            <div ref={scrollRef} className="space-y-3 max-h-48 overflow-y-auto scrollbar-hide mb-3">
-              {hasRealReactions ? (
-                // Real reactions from community
-                reactions.map((reaction) => {
-                  const config = CATEGORY_CONFIG[reaction.category];
-                  const isSignal = reaction.emoji === '📍'; // Billboard contribution
-                  return (
-                    <motion.div
-                      key={reaction.id}
-                      className={`flex gap-3 items-start ${isSignal ? 'bg-pink-500/10 -mx-2 px-2 py-1.5 rounded-lg border-l-2 border-pink-500' : ''}`}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3 }}
-                    >
-                      {/* User Avatar */}
-                      <button
-                        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          isSignal
-                            ? 'bg-gradient-to-br from-pink-500 to-rose-500'
-                            : 'bg-gradient-to-br from-purple-500 to-pink-500'
-                        }`}
-                        onClick={() => onUserClick?.(reaction.username)}
-                      >
-                        <User className="w-4 h-4 text-white" />
-                      </button>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <button
-                            className={`text-xs font-bold hover:underline ${isSignal ? 'text-pink-400' : 'text-purple-400'}`}
-                            onClick={() => onUserClick?.(reaction.username)}
-                          >
-                            @{reaction.username}
-                          </button>
-                          {/* Signal Badge for Billboard Contributions */}
-                          {isSignal && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-pink-500/30 text-pink-300 font-bold flex items-center gap-0.5">
-                              📍 SIGNAL
-                            </span>
-                          )}
-                          <span className="text-white/30 text-[10px]">{timeAgo(reaction.created_at)}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <span
-                            className="text-xs px-2 py-0.5 rounded-full"
-                            style={{ backgroundColor: `${config.color}20`, color: config.color }}
-                          >
-                            {config.emoji} {config.name}
-                          </span>
-                          {reaction.comment && (
-                            <span className={`text-xs ${isSignal ? 'text-pink-200' : 'text-white/80'}`}>
-                              "{reaction.comment}"
-                            </span>
-                          )}
-                        </div>
+            <div ref={scrollRef} className="space-y-3 max-h-[180px] overflow-y-auto scrollbar-hide mb-4">
+              {reactions.length > 0 ? (
+                reactions.slice(-10).map((reaction) => (
+                  <div key={reaction.id} className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center flex-shrink-0">
+                      <User className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-purple-400 text-xs font-bold">@{reaction.username}</span>
+                        <span className="text-white/30 text-[10px]">{timeAgo(reaction.created_at)}</span>
                       </div>
-                    </motion.div>
-                  );
-                })
+                      <p className="text-white/80 text-sm">
+                        {reaction.emoji} {reaction.comment || 'sent a vibe'}
+                      </p>
+                    </div>
+                  </div>
+                ))
               ) : (
-                // Fallback comments
-                fallbackComments.map((comment) => (
-                  <motion.div
-                    key={comment.id}
-                    className="flex gap-2"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <span className="text-purple-400 text-xs font-bold">@{comment.user}</span>
-                    <span className="text-white/80 text-xs">{comment.text}</span>
-                  </motion.div>
+                fallbackComments.map((comment, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center flex-shrink-0">
+                      <User className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-purple-400 text-xs font-bold">@{comment.user}</span>
+                        <span className="text-white/30 text-[10px]">{comment.time}</span>
+                      </div>
+                      <p className="text-white/80 text-sm">{comment.text}</p>
+                    </div>
+                  </div>
                 ))
               )}
             </div>
 
-            {/* Add Comment Input */}
+            {/* Input */}
             <div className="flex gap-2">
               <input
                 type="text"
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-                placeholder="Add a vibe... (optional emoji 🔥)"
-                className="flex-1 bg-white/10 rounded-full px-4 py-2 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                placeholder="Drop a vibe... 🔥"
+                className="flex-1 bg-white/10 rounded-full px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
               />
               <motion.button
-                className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center"
+                className="w-12 h-12 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center"
                 onClick={handleSubmit}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
               >
-                <Send className="w-4 h-4 text-white" />
+                <Send className="w-5 h-5 text-white" />
               </motion.button>
             </div>
           </motion.div>
@@ -403,43 +340,35 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
     nextTrack,
     prevTrack,
     seekTo,
-    volume,
-    setVolume
   } = usePlayerStore();
   const { handlePlayPause } = useMobilePlay();
 
-  // Get like state from preference store (persisted)
   const { trackPreferences, setExplicitLike } = usePreferenceStore();
   const isLiked = currentTrack ? trackPreferences[currentTrack.trackId]?.explicitLike === true : false;
 
-  // Reaction system hooks
   const {
     createReaction,
     fetchTrackReactions,
     fetchTrackStats,
     trackReactions,
     trackStats: statsMap,
-    subscribeToReactions,
-    isSubscribed
   } = useReactionStore();
   const { currentUsername } = useUniverseStore();
 
+  // State
+  const [showVideo, setShowVideo] = useState(true);
   const [isShuffled, setIsShuffled] = useState(false);
   const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
-
-  // VOYO DJ State
+  const [isVibesExpanded, setIsVibesExpanded] = useState(false);
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
-  const [visibleComments, setVisibleComments] = useState<LiveComment[]>([]);
-  const [isCommentsExpanded, setIsCommentsExpanded] = useState(false);
-  const commentIndexRef = useRef(0);
 
-  // Get real reactions for current track
+  // Reactions data
   const currentTrackId = currentTrack?.id || '';
   const realReactions = trackReactions.get(currentTrackId) || [];
   const currentTrackStats = statsMap.get(currentTrackId) || null;
 
-  // Fetch reactions when track changes or comments expand
+  // Fetch reactions
   useEffect(() => {
     if (currentTrack && isOpen) {
       fetchTrackReactions(currentTrack.id);
@@ -447,108 +376,70 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
     }
   }, [currentTrack?.id, isOpen, fetchTrackReactions, fetchTrackStats]);
 
-  // Subscribe to realtime updates
-  useEffect(() => {
-    if (!isSubscribed && isOpen) {
-      subscribeToReactions();
-    }
-  }, [isOpen, isSubscribed, subscribeToReactions]);
-
-  // Handle adding a comment with reaction
-  const handleAddComment = useCallback(async (text: string) => {
-    if (!currentTrack) return;
-
-    // Detect category from track or default to afro-heat
-    const defaultCategory: ReactionCategory = 'afro-heat';
-
-    // Check if text has emoji to determine reaction type
-    const hasEmoji = /\p{Emoji}/u.test(text);
-
-    await createReaction({
-      username: currentUsername || 'anonymous',
-      trackId: currentTrack.id,
-      trackTitle: currentTrack.title,
-      trackArtist: currentTrack.artist,
-      trackThumbnail: currentTrack.coverUrl,
-      category: defaultCategory,
-      emoji: hasEmoji ? '🔥' : '💬',
-      reactionType: 'oye',
-      comment: text,
-    });
-
-    // Trigger floating reaction
-    handleReaction('fire', '🔥');
-  }, [currentTrack, currentUsername, createReaction]);
-
-  // Handle clicking on a username to view their portal
-  const handleUserClick = useCallback((username: string) => {
-    // Navigate to user's portal
-    window.open(`/u/${username}`, '_blank');
-  }, []);
-
-  // Format time in MM:SS
+  // Format time
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Calculate current time from progress
   const currentTime = (progress / 100) * duration;
 
-  // Auto-add comments when playing
-  useEffect(() => {
-    if (!isPlaying || !isOpen) return;
-
-    const interval = setInterval(() => {
-      if (commentIndexRef.current < FALLBACK_COMMENTS.length) {
-        setVisibleComments(prev => [...prev, FALLBACK_COMMENTS[commentIndexRef.current]]);
-        commentIndexRef.current++;
-      } else {
-        // Loop comments
-        commentIndexRef.current = 0;
-      }
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [isPlaying, isOpen]);
-
-  // Reset comments when track changes
-  useEffect(() => {
-    setVisibleComments([]);
-    commentIndexRef.current = 0;
-  }, [currentTrack?.id]);
-
-  // Handle user reactions - useCallback to avoid stale closure in useEffect
-  const handleReaction = useCallback((type: FloatingReaction['type'], emoji: string) => {
+  // Handle floating reaction
+  const spawnReaction = useCallback((emoji: string) => {
     const id = Date.now() + Math.random();
-    const x = 10 + Math.random() * 80;
-    const xOffset1 = (Math.random() - 0.5) * 50;
-    const xOffset2 = (Math.random() - 0.5) * 80;
+    const x = 20 + Math.random() * 60;
+    const xOffset = (Math.random() - 0.5) * 100;
 
-    setFloatingReactions(prev => [...prev, { id, type, emoji, x, xOffset1, xOffset2 }]);
-
-    // Remove after animation
+    setFloatingReactions(prev => [...prev, { id, emoji, x, xOffset }]);
     setTimeout(() => {
       setFloatingReactions(prev => prev.filter(r => r.id !== id));
-    }, 2500);
+    }, 3000);
   }, []);
 
-  // Auto-spawn reactions when playing (ambient vibe)
+  // Handle OYÉ reaction
+  const handleOye = useCallback(() => {
+    spawnReaction('⚡');
+    if (currentTrack) {
+      createReaction({
+        username: currentUsername || 'anonymous',
+        trackId: currentTrack.id,
+        trackTitle: currentTrack.title,
+        trackArtist: currentTrack.artist,
+        trackThumbnail: currentTrack.coverUrl,
+        category: 'afro-heat',
+        emoji: '⚡',
+        reactionType: 'oye',
+      });
+    }
+  }, [currentTrack, currentUsername, createReaction, spawnReaction]);
+
+  // Handle comment
+  const handleAddComment = useCallback(async (text: string) => {
+    if (!currentTrack) return;
+    spawnReaction('🔥');
+    await createReaction({
+      username: currentUsername || 'anonymous',
+      trackId: currentTrack.id,
+      trackTitle: currentTrack.title,
+      trackArtist: currentTrack.artist,
+      trackThumbnail: currentTrack.coverUrl,
+      category: 'afro-heat',
+      emoji: '💬',
+      reactionType: 'oye',
+      comment: text,
+    });
+  }, [currentTrack, currentUsername, createReaction, spawnReaction]);
+
+  // Auto-spawn ambient reactions
   useEffect(() => {
     if (!isPlaying || !isOpen) return;
-
     const interval = setInterval(() => {
-      const emojis = ['🔥', '⚡', '❤️', '💥', '🎵', '💜'];
-      const emoji = emojis[Math.floor(Math.random() * emojis.length)];
-      const types: FloatingReaction['type'][] = ['fire', 'oye', 'love', 'zap'];
-      const type = types[Math.floor(Math.random() * types.length)];
-
-      handleReaction(type, emoji);
-    }, 3000 + Math.random() * 3000);
-
+      const emojis = ['🔥', '⚡', '💜', '🎵', '✨'];
+      spawnReaction(emojis[Math.floor(Math.random() * emojis.length)]);
+    }, 4000 + Math.random() * 3000);
     return () => clearInterval(interval);
-  }, [isPlaying, isOpen, handleReaction]);
+  }, [isPlaying, isOpen, spawnReaction]);
 
   if (!currentTrack) return null;
 
@@ -556,290 +447,226 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-50 bg-gradient-to-b from-[#1a1a2e] to-[#0a0a0f] overflow-y-auto"
+          className="fixed inset-0 z-50 bg-black flex flex-col"
           initial={{ y: '100%' }}
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
         >
-          {/* Floating Reactions Layer */}
+          {/* BACKGROUND - Video or Thumbnail */}
+          {showVideo ? (
+            <VideoBackground
+              trackId={currentTrack.trackId}
+              isPlaying={isPlaying}
+              showVideo={showVideo}
+            />
+          ) : (
+            <ThumbnailBackground coverUrl={getTrackThumbnailUrl(currentTrack, 'large')} />
+          )}
+
+          {/* GRADIENT OVERLAYS - Black Contour Style */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent z-10" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-transparent z-10" />
+
+          {/* FLOATING REACTIONS */}
           <FloatingReactions reactions={floatingReactions} />
 
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-4">
-            <motion.button
-              className="p-2"
-              onClick={onClose}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <ChevronDown className="w-6 h-6 text-white/70" />
-            </motion.button>
-            <div className="text-center">
-              <p className="text-white/50 text-xs uppercase tracking-wider">Now Playing</p>
-              <p className="text-white text-sm font-medium">Your Library</p>
-            </div>
-            <motion.button
-              className="p-2"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <Share2 className="w-5 h-5 text-white/70" />
-            </motion.button>
-          </div>
-
-          {/* Album Art */}
-          <div className="flex items-center justify-center px-8 py-4">
-            <motion.div
-              className="relative w-full max-w-xs aspect-square rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-purple-900/30 to-pink-900/20"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.1 }}
-              key={currentTrack.id}
-            >
-              <img
-                src={getTrackThumbnailUrl(currentTrack, 'high')}
-                alt={currentTrack.title}
-                className="w-full h-full object-cover"
-                loading="eager"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.opacity = '0';
-                }}
-              />
-              {/* Vinyl effect overlay */}
-              <motion.div
-                className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent"
-                animate={isPlaying ? { opacity: [0.05, 0.1, 0.05] } : { opacity: 0.05 }}
-                transition={{ duration: 2, repeat: Infinity }}
-              />
-            </motion.div>
-          </div>
-
-          {/* Track Info */}
-          <div className="px-8 py-2">
-            <div className="flex items-start justify-between">
-              <div className="flex-1 min-w-0">
-                <motion.h2
-                  className="text-xl font-bold text-white truncate"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  key={currentTrack.id}
-                >
-                  {currentTrack.title}
-                </motion.h2>
-                <motion.p
-                  className="text-white/60 text-base truncate"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.05 }}
-                  key={`${currentTrack.id}-artist`}
-                >
-                  {currentTrack.artist}
-                </motion.p>
-              </div>
-              {/* Heart button: tap to like, hold to add to playlist */}
+          {/* MAIN CONTENT */}
+          <div className="relative z-30 flex flex-col h-full">
+            {/* TOP BAR */}
+            <div className="flex items-center justify-between px-4 py-4">
               <motion.button
-                className="p-2 relative"
-                onClick={() => currentTrack && setExplicitLike(currentTrack.trackId, !isLiked)}
-                onPointerDown={() => {
-                  // Start long press timer (500ms)
-                  const timer = setTimeout(() => {
-                    setShowPlaylistModal(true);
-                  }, 500);
-                  (window as any).__heartLongPressTimer = timer;
-                }}
-                onPointerUp={() => {
-                  // Clear timer on release
-                  clearTimeout((window as any).__heartLongPressTimer);
-                }}
-                onPointerLeave={() => {
-                  // Clear timer if pointer leaves
-                  clearTimeout((window as any).__heartLongPressTimer);
-                }}
-                whileHover={{ scale: 1.2 }}
+                className="p-2"
+                onClick={onClose}
                 whileTap={{ scale: 0.9 }}
               >
-                <Heart
-                  className={`w-6 h-6 transition-colors ${
-                    isLiked ? 'text-pink-500 fill-pink-500' : 'text-white/50'
+                <ChevronDown className="w-7 h-7 text-white" />
+              </motion.button>
+              <div className="text-center">
+                <p className="text-white/50 text-xs uppercase tracking-wider">Playing from playlist</p>
+                <p className="text-white text-sm font-medium">{currentTrack.album || 'Your Library'}</p>
+              </div>
+              <div className="w-11" /> {/* Spacer */}
+            </div>
+
+            {/* SPACER - Push content to bottom */}
+            <div className="flex-1" />
+
+            {/* VIDEO/THUMBNAIL TOGGLE - Similar to Portrait Player */}
+            <div className="px-4 mb-4">
+              <div className="inline-flex items-center gap-2 px-2 py-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/20">
+                {/* Video Option */}
+                <motion.button
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${
+                    showVideo
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+                      : 'text-white/50 hover:text-white/80'
                   }`}
+                  onClick={() => setShowVideo(true)}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Video className="w-4 h-4" />
+                  <span className="text-xs font-semibold">Video</span>
+                </motion.button>
+
+                {/* Thumbnail Option */}
+                <motion.button
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${
+                    !showVideo
+                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+                      : 'text-white/50 hover:text-white/80'
+                  }`}
+                  onClick={() => setShowVideo(false)}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Music className="w-4 h-4" />
+                  <span className="text-xs font-semibold">Cover</span>
+                </motion.button>
+              </div>
+            </div>
+
+            {/* TRACK INFO ROW */}
+            <div className="flex items-center gap-4 px-4 mb-3">
+              {/* Album Art */}
+              <div className="w-14 h-14 rounded-lg overflow-hidden shadow-xl ring-1 ring-white/10">
+                <img
+                  src={getTrackThumbnailUrl(currentTrack, 'medium')}
+                  alt={currentTrack.title}
+                  className="w-full h-full object-cover"
                 />
-                {/* Long press hint ring */}
-                <motion.div
-                  className="absolute inset-0 rounded-full border-2 border-purple-500/0"
-                  whileTap={{
-                    borderColor: 'rgba(168, 85, 247, 0.5)',
-                    scale: 1.3,
-                    transition: { duration: 0.5 }
-                  }}
-                />
+              </div>
+
+              {/* Title & Artist */}
+              <div className="flex-1 min-w-0">
+                <h2 className="text-white font-bold text-lg truncate">{currentTrack.title}</h2>
+                <p className="text-white/60 text-sm truncate">{currentTrack.artist}</p>
+              </div>
+
+              {/* Action Buttons */}
+              <motion.button
+                className="p-2"
+                onClick={() => currentTrack && setExplicitLike(currentTrack.trackId, !isLiked)}
+                whileTap={{ scale: 0.9 }}
+              >
+                <X className="w-6 h-6 text-white/60" />
+              </motion.button>
+              <motion.button
+                className="p-2"
+                onClick={() => setShowPlaylistModal(true)}
+                whileTap={{ scale: 0.9 }}
+              >
+                <Plus className="w-6 h-6 text-white" strokeWidth={2.5} />
               </motion.button>
             </div>
-          </div>
 
-          {/* Progress Bar */}
-          <div className="px-8 py-2">
-            <div
-              className="relative h-1 bg-white/20 rounded-full cursor-pointer"
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const percent = ((e.clientX - rect.left) / rect.width) * 100;
-                const timeInSeconds = (percent / 100) * duration;
-                seekTo(timeInSeconds);
-              }}
-            >
-              <motion.div
-                className="absolute left-0 top-0 h-full bg-white rounded-full"
-                style={{ width: `${progress}%` }}
-              />
-              <motion.div
-                className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg"
-                style={{ left: `${progress}%`, marginLeft: '-6px' }}
-                whileHover={{ scale: 1.3 }}
-              />
-            </div>
-            <div className="flex justify-between mt-2 text-xs text-white/40">
-              <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(duration)}</span>
-            </div>
-          </div>
-
-          {/* Main Controls */}
-          <div className="flex items-center justify-center gap-6 px-8 py-4">
-            <motion.button
-              className={`p-2 ${isShuffled ? 'text-purple-400' : 'text-white/50'}`}
-              onClick={() => setIsShuffled(!isShuffled)}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <Shuffle className="w-5 h-5" />
-            </motion.button>
-
-            <motion.button
-              className="p-3 text-white"
-              onClick={prevTrack}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <SkipBack className="w-7 h-7" fill="white" />
-            </motion.button>
-
-            <motion.button
-              className="w-14 h-14 rounded-full bg-white flex items-center justify-center"
-              onClick={handlePlayPause}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              {isPlaying ? (
-                <Pause className="w-7 h-7 text-black" fill="black" />
-              ) : (
-                <Play className="w-7 h-7 text-black ml-1" fill="black" />
-              )}
-            </motion.button>
-
-            <motion.button
-              className="p-3 text-white"
-              onClick={nextTrack}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <SkipForward className="w-7 h-7" fill="white" />
-            </motion.button>
-
-            <motion.button
-              className={`p-2 ${repeatMode !== 'off' ? 'text-purple-400' : 'text-white/50'}`}
-              onClick={() => {
-                const modes: Array<'off' | 'all' | 'one'> = ['off', 'all', 'one'];
-                const currentIndex = modes.indexOf(repeatMode);
-                setRepeatMode(modes[(currentIndex + 1) % modes.length]);
-              }}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <Repeat className="w-5 h-5" />
-              {repeatMode === 'one' && (
-                <span className="absolute text-[8px] font-bold">1</span>
-              )}
-            </motion.button>
-          </div>
-
-          {/* VOYO DJ Reaction Buttons - Creates real reactions */}
-          <div className="px-8 py-2">
-            <ReactionButtons onReaction={(type, emoji) => {
-              // Visual floating effect
-              handleReaction(type, emoji);
-
-              // Save to store (community reaction)
-              // Simplified types: like, oye, fire
-              if (currentTrack) {
-                const categoryMap: Record<string, ReactionCategory> = {
-                  'oye': 'afro-heat',
-                  'fire': 'afro-heat',
-                  'love': 'chill-vibes',
-                  'zap': 'party-mode',
-                };
-                // Map old types to new simplified types
-                const reactionTypeMap: Record<string, 'like' | 'oye' | 'fire'> = {
-                  'oye': 'oye',
-                  'fire': 'fire',
-                  'love': 'like',
-                  'zap': 'oye',
-                };
-                createReaction({
-                  username: currentUsername || 'anonymous',
-                  trackId: currentTrack.id,
-                  trackTitle: currentTrack.title,
-                  trackArtist: currentTrack.artist,
-                  trackThumbnail: currentTrack.coverUrl,
-                  category: categoryMap[type] || 'afro-heat',
-                  emoji,
-                  reactionType: reactionTypeMap[type] || 'oye',
-                });
-              }
-            }} />
-          </div>
-
-          {/* Bottom Controls */}
-          <div className="flex items-center justify-between px-8 py-2">
-            {/* Volume */}
-            <div className="flex items-center gap-2 flex-1">
-              <Volume2 className="w-5 h-5 text-white/50" />
+            {/* PROGRESS BAR */}
+            <div className="px-4 mb-2">
               <div
-                className="w-20 h-1 bg-white/20 rounded-full cursor-pointer"
+                className="relative h-1 bg-white/20 rounded-full cursor-pointer"
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
-                  const newVolume = ((e.clientX - rect.left) / rect.width) * 100;
-                  setVolume(Math.max(0, Math.min(100, newVolume)));
+                  const percent = ((e.clientX - rect.left) / rect.width) * 100;
+                  seekTo((percent / 100) * duration);
                 }}
               >
                 <div
-                  className="h-full bg-white/50 rounded-full"
-                  style={{ width: `${volume}%` }}
+                  className="absolute left-0 top-0 h-full bg-white rounded-full"
+                  style={{ width: `${progress}%` }}
                 />
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg"
+                  style={{ left: `${progress}%`, marginLeft: '-6px' }}
+                />
+              </div>
+              <div className="flex justify-between mt-1 text-xs text-white/50">
+                <span>{formatTime(currentTime)}</span>
+                <span>{formatTime(duration)}</span>
               </div>
             </div>
 
-            {/* Queue */}
-            <motion.button
-              className="p-2 text-white/50"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <ListMusic className="w-6 h-6" />
-            </motion.button>
-          </div>
+            {/* MAIN CONTROLS */}
+            <div className="flex items-center justify-between px-6 py-4">
+              <motion.button
+                className={isShuffled ? 'text-purple-400' : 'text-white/60'}
+                onClick={() => setIsShuffled(!isShuffled)}
+                whileTap={{ scale: 0.9 }}
+              >
+                <Shuffle className="w-6 h-6" />
+              </motion.button>
 
-          {/* VOYO DJ Live Comments - Real community reactions */}
-          <div className="px-4 pb-6 pt-2">
-            <LiveCommentsSection
+              <motion.button
+                className="text-white"
+                onClick={prevTrack}
+                whileTap={{ scale: 0.9 }}
+              >
+                <SkipBack className="w-8 h-8" fill="white" />
+              </motion.button>
+
+              <motion.button
+                className="w-16 h-16 rounded-full bg-white flex items-center justify-center"
+                onClick={handlePlayPause}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {isPlaying ? (
+                  <Pause className="w-8 h-8 text-black" fill="black" />
+                ) : (
+                  <Play className="w-8 h-8 text-black ml-1" fill="black" />
+                )}
+              </motion.button>
+
+              <motion.button
+                className="text-white"
+                onClick={nextTrack}
+                whileTap={{ scale: 0.9 }}
+              >
+                <SkipForward className="w-8 h-8" fill="white" />
+              </motion.button>
+
+              <motion.button
+                className={repeatMode !== 'off' ? 'text-purple-400' : 'text-white/60'}
+                onClick={() => {
+                  const modes: Array<'off' | 'all' | 'one'> = ['off', 'all', 'one'];
+                  setRepeatMode(modes[(modes.indexOf(repeatMode) + 1) % 3]);
+                }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <Repeat className="w-6 h-6" />
+              </motion.button>
+            </div>
+
+            {/* SECONDARY CONTROLS */}
+            <div className="flex items-center justify-between px-6 py-2">
+              {/* OYÉ Button */}
+              <motion.button
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-orange-500 to-orange-600"
+                onClick={handleOye}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Zap className="w-4 h-4 text-white" fill="white" />
+                <span className="text-white text-sm font-bold">OYÉ</span>
+              </motion.button>
+
+              {/* Right buttons */}
+              <div className="flex items-center gap-4">
+                <motion.button className="text-white/60" whileTap={{ scale: 0.9 }}>
+                  <Share2 className="w-5 h-5" />
+                </motion.button>
+                <motion.button className="text-white/60" whileTap={{ scale: 0.9 }}>
+                  <ListMusic className="w-5 h-5" />
+                </motion.button>
+              </div>
+            </div>
+
+            {/* COMMUNITY VIBES PANEL */}
+            <CommunityVibesPanel
+              isExpanded={isVibesExpanded}
+              onToggle={() => setIsVibesExpanded(!isVibesExpanded)}
               reactions={realReactions}
-              fallbackComments={visibleComments.length > 0 ? visibleComments : FALLBACK_COMMENTS}
-              isExpanded={isCommentsExpanded}
-              onToggle={() => setIsCommentsExpanded(!isCommentsExpanded)}
               onAddComment={handleAddComment}
               trackStats={currentTrackStats}
-              onUserClick={handleUserClick}
+              currentUsername={currentUsername}
             />
           </div>
 
