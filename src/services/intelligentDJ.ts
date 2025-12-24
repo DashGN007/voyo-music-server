@@ -18,6 +18,15 @@ import { searchMusic } from './api';
 import { useTrackPoolStore } from '../store/trackPoolStore';
 import { getThumb } from '../utils/thumbnail';
 import { encodeVoyoId } from '../utils/voyoId';
+import centralDJ, {
+  getTracksByMode,
+  getTracksByVibe,
+  saveVerifiedTrack,
+  centralToTracks,
+  MixBoardMode,
+  VibeProfile,
+} from './centralDJ';
+import { useReactionStore } from '../store/reactionStore';
 
 // Gemini Configuration
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
@@ -152,13 +161,14 @@ function buildContext(): ListeningContext {
   // Get category preferences from reaction store
   let categoryPreferences: CategoryPreference[] = [];
   try {
-    const reactionStore = require('../store/reactionStore').useReactionStore.getState();
-    const prefs = reactionStore.userCategoryPreferences;
+    const reactionState = useReactionStore.getState();
+    const prefs = reactionState.userCategoryPreferences;
+    const pulse = reactionState.categoryPulse as Record<string, { isHot?: boolean }>;
     categoryPreferences = Object.values(prefs).map((p: any) => ({
       category: p.category,
       score: p.score,
       reactionCount: p.reactionCount,
-      isHot: reactionStore.categoryPulse[p.category]?.isHot || false,
+      isHot: pulse[p.category]?.isHot || false,
     }));
   } catch (e) {
     console.warn('[DJ] Could not load category preferences');
@@ -403,8 +413,11 @@ function suggestionToTrack(suggestion: DJSuggestion, youtubeId: string): Track {
  * SMART VERIFICATION:
  * Gemini suggests artist + title → We search our backend → Use VERIFIED IDs
  * This prevents hallucinated URLs from breaking the app
+ *
+ * THE FLYWHEEL:
+ * Every verified track gets saved to Central DB → Next user gets it FREE
  */
-async function processSuggestions(suggestions: DJSuggestion[]): Promise<number> {
+async function processSuggestions(suggestions: DJSuggestion[], dominantMode?: MixBoardMode): Promise<number> {
   const poolStore = useTrackPoolStore.getState();
   let added = 0;
 
@@ -441,6 +454,15 @@ async function processSuggestions(suggestions: DJSuggestion[]): Promise<number> 
         poolStore.addToPool(track, 'llm');
         added++;
 
+        // ============================================
+        // THE FLYWHEEL: Save to Central DB!
+        // ============================================
+        saveVerifiedTrack(track, undefined, 'gemini').then(saved => {
+          if (saved) {
+            console.log(`[Intelligent DJ] 💾 Saved to Central DB for future users!`);
+          }
+        }).catch(() => {});
+
         console.log(`[Intelligent DJ] ✅ VERIFIED: ${suggestion.artist} - ${suggestion.title}`);
         console.log(`[Intelligent DJ]    → Found: ${verified.artist} - ${verified.title}`);
       } else if (geminiId && isValidYouTubeId(geminiId)) {
@@ -448,6 +470,9 @@ async function processSuggestions(suggestions: DJSuggestion[]): Promise<number> 
         const track = suggestionToTrack(suggestion, geminiId);
         poolStore.addToPool(track, 'llm');
         added++;
+
+        // Still save to Central DB (unverified)
+        saveVerifiedTrack(track, undefined, 'gemini').catch(() => {});
 
         console.log(`[Intelligent DJ] ⚠️ UNVERIFIED (using Gemini ID): ${suggestion.artist} - ${suggestion.title}`);
       } else {
@@ -459,6 +484,10 @@ async function processSuggestions(suggestions: DJSuggestion[]): Promise<number> 
         const track = suggestionToTrack(suggestion, geminiId);
         poolStore.addToPool(track, 'llm');
         added++;
+
+        // Still save to Central DB
+        saveVerifiedTrack(track, undefined, 'gemini').catch(() => {});
+
         console.log(`[Intelligent DJ] ⚠️ Search failed, using Gemini ID: ${suggestion.artist} - ${suggestion.title}`);
       }
     }
@@ -510,17 +539,54 @@ async function checkDJTrigger(): Promise<void> {
 
 /**
  * Run the intelligent DJ
+ *
+ * THE FLYWHEEL FLOW:
+ * 1. Check Central DB first (FREE, instant)
+ * 2. If enough tracks → Use them (no Gemini call!)
+ * 3. If not enough → Gemini discovers → Save to Central DB
+ * 4. Next user benefits from the discovery
  */
 export async function runDJ(): Promise<number> {
   lastDJRun = Date.now();
 
   console.log('[Intelligent DJ] 🎧 DJ is finding tracks for you...');
 
-  // Build context and prompt
+  // Build context
   const context = buildContext();
-  const prompt = buildDJPrompt(context);
 
-  // Call Gemini
+  // ============================================
+  // STEP 1: Check Central DB first (THE FLYWHEEL!)
+  // ============================================
+  const dominantMode = getDominantMode(context);
+  console.log(`[Intelligent DJ] 🎯 Dominant vibe: ${dominantMode}`);
+
+  const centralTracks = await getTracksByMode(dominantMode, MAX_VIDEOS_PER_RUN);
+
+  if (centralTracks.length >= MAX_VIDEOS_PER_RUN / 2) {
+    // We have enough tracks in Central DB - use them!
+    console.log(`[Intelligent DJ] ✨ Using ${centralTracks.length} tracks from Central DB (no Gemini call!)`);
+
+    const poolStore = useTrackPoolStore.getState();
+    const tracks = centralToTracks(centralTracks);
+
+    for (const track of tracks) {
+      poolStore.addToPool(track, 'related');
+    }
+
+    // Trigger recommendation refresh
+    import('../store/playerStore').then(({ usePlayerStore }) => {
+      usePlayerStore.getState().refreshRecommendations?.();
+    }).catch(() => {});
+
+    return tracks.length;
+  }
+
+  // ============================================
+  // STEP 2: Not enough in Central DB - ask Gemini
+  // ============================================
+  console.log(`[Intelligent DJ] 🔍 Central DB has ${centralTracks.length} tracks, need more - calling Gemini...`);
+
+  const prompt = buildDJPrompt(context);
   const response = await callGeminiDJ(prompt);
 
   if (!response || !response.suggestions || response.suggestions.length === 0) {
@@ -528,10 +594,10 @@ export async function runDJ(): Promise<number> {
     return await fallbackToSearch(context);
   }
 
-  // Process suggestions
-  const added = await processSuggestions(response.suggestions);
+  // Process suggestions and save to Central DB
+  const added = await processSuggestions(response.suggestions, dominantMode);
 
-  console.log(`[Intelligent DJ] 🎉 Added ${added} tracks to your queue`);
+  console.log(`[Intelligent DJ] 🎉 Added ${added} tracks to your queue (and Central DB!)`);
 
   // Trigger recommendation refresh
   import('../store/playerStore').then(({ usePlayerStore }) => {
@@ -539,6 +605,31 @@ export async function runDJ(): Promise<number> {
   }).catch(() => {});
 
   return added;
+}
+
+/**
+ * Determine the dominant MixBoard mode from listening context
+ */
+function getDominantMode(context: ListeningContext): MixBoardMode {
+  // Check category preferences
+  if (context.categoryPreferences.length > 0) {
+    const sorted = [...context.categoryPreferences].sort((a, b) => b.score - a.score);
+    const topCategory = sorted[0].category as MixBoardMode;
+    if (topCategory && ['afro-heat', 'chill-vibes', 'party-mode', 'late-night', 'workout'].includes(topCategory)) {
+      return topCategory;
+    }
+  }
+
+  // Infer from mood
+  if (context.currentMood === 'vibing') return 'afro-heat';
+  if (context.currentMood === 'searching') return 'random-mixer';
+
+  // Infer from time of day
+  if (context.timeOfDay === 'late night') return 'late-night';
+  if (context.timeOfDay === 'morning') return 'chill-vibes';
+
+  // Default
+  return 'afro-heat';
 }
 
 /**

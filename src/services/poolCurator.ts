@@ -173,7 +173,7 @@ function inferTags(title: string, artist: string): string[] {
   return tags;
 }
 
-function inferMood(title: string): string {
+function inferMood(title: string): 'afro' | 'hype' | 'chill' | 'rnb' {
   const lower = title.toLowerCase();
   if (lower.includes('party') || lower.includes('dance')) return 'hype';
   if (lower.includes('love') || lower.includes('heart')) return 'rnb';
