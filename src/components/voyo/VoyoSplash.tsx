@@ -13,7 +13,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useDownloadStore } from '../../store/downloadStore';
 import { usePreferenceStore } from '../../store/preferenceStore';
 import { TRACKS } from '../../data/tracks';
-import { getThumbnailUrl } from '../../utils/imageHelpers';
+import { mediaCache } from '../../services/mediaCache';
+import { searchAlbums } from '../../services/api';
 
 interface VoyoSplashProps {
   onComplete: () => void;
@@ -31,11 +32,11 @@ export const VoyoSplash = ({ onComplete, minDuration = 2800 }: VoyoSplashProps) 
   const initDownloads = useDownloadStore((s) => s.initialize);
   const preferenceStore = usePreferenceStore(); // Touch to initialize
 
-  // Preload: Initialize stores AND preload first track thumbnails
+  // Preload: Initialize stores AND cache real content
   useEffect(() => {
     const preloadData = async () => {
       try {
-        console.log('🎵 SPLASH: Initializing stores...');
+        console.log('🎵 SPLASH: Initializing stores & caching content...');
 
         // 1. Initialize IndexedDB for cached tracks (with timeout)
         await Promise.race([
@@ -44,28 +45,37 @@ export const VoyoSplash = ({ onComplete, minDuration = 2800 }: VoyoSplashProps) 
         ]).catch(err => {
           console.warn('🎵 SPLASH: IndexedDB init failed/timeout, continuing:', err);
         });
-        console.log('🎵 SPLASH: ✅ IndexedDB ready (or skipped)!');
+        console.log('🎵 SPLASH: ✅ IndexedDB ready!');
 
-        // 2. Preload first 3 track thumbnails for instant display
-        const firstTracks = TRACKS.slice(0, 3);
-        const thumbnailPromises = firstTracks.map(track => {
-          return new Promise<void>((resolve) => {
-            const img = new Image();
-            img.onload = () => resolve();
-            img.onerror = () => resolve(); // Don't fail on thumbnail errors
-            img.src = getThumbnailUrl(track.trackId, 'high');
-          });
+        // 2. Cache first 5 track thumbnails using mediaCache (not just Image preload)
+        const firstTracks = TRACKS.slice(0, 5);
+        const cachePromises = firstTracks.map(track =>
+          mediaCache.cacheTrack(track.trackId, { thumbnail: true }).catch(() => null)
+        );
+        await Promise.race([
+          Promise.all(cachePromises),
+          new Promise(resolve => setTimeout(resolve, 2000))
+        ]);
+        console.log('🎵 SPLASH: ✅ First 5 thumbnails cached!');
+
+        // 3. Pre-fetch trending search results (warm up API cache)
+        const trendingQueries = ['afrobeats', 'amapiano', 'burna boy'];
+        const searchPromises = trendingQueries.map(query =>
+          searchAlbums(query).catch(() => [])
+        );
+        Promise.all(searchPromises).then(() => {
+          console.log('🎵 SPLASH: ✅ Trending searches warmed up!');
         });
 
-        // Wait for thumbnails with timeout
-        await Promise.race([
-          Promise.all(thumbnailPromises),
-          new Promise(resolve => setTimeout(resolve, 1500)) // Max 1.5s for thumbnails
-        ]);
-        console.log('🎵 SPLASH: ✅ Thumbnails preloaded!');
-
-        // 3. Touch preference store to ensure it's initialized
+        // 4. Touch preference store to ensure it's initialized
         console.log('🎵 SPLASH: ✅ Preferences loaded!', Object.keys(preferenceStore.trackPreferences).length, 'tracks');
+
+        // 5. Pre-cache audio for first track (background, non-blocking)
+        if (firstTracks[0]) {
+          mediaCache.cacheTrack(firstTracks[0].trackId, { audio: true, thumbnail: true })
+            .then(() => console.log('🎵 SPLASH: ✅ First track audio pre-cached!'))
+            .catch(() => {});
+        }
 
         isDataReadyRef.current = true;
         setIsDataReady(true);
