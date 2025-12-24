@@ -4,6 +4,27 @@
 
 ---
 
+## The VOYO Soul
+
+**VOYO = African Putomayo + Spotify + Collective Intelligence**
+
+What makes VOYO different from Spotify:
+1. **Dash's DNA** - Curated African essence as the foundation (not algorithm-first)
+2. **African DJ Originals** - Putomayo-style curated playlists from Africa
+3. **Community Vibes** - Users create playlists that grow organically
+4. **Collective Intelligence** - Every user makes it smarter for everyone
+5. **Transparent Algorithm** - MixBoard shows what's influencing your feed
+
+### The Three Sources (ALWAYS BLEND)
+```
+Feed = Seed Essence + Gemini Discovery + Collective Heat
+       (Dash DNA)    (Fresh finds)      (What's working)
+```
+
+**Gemini NEVER stops.** It keeps discovering. DB just prevents redundant verification.
+
+---
+
 ## Pages Status
 
 | Page | Status | Notes |
