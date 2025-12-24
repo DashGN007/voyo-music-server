@@ -1155,10 +1155,10 @@ function App() {
                   <Search className="w-5 h-5 text-white/70" />
                 </motion.button>
 
-                {/* Profile → DAHUB (social hub, profile inside) */}
+                {/* Profile → Voyo Universe (login/profile portal) */}
                 <motion.button
                   className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                  onClick={() => setVoyoTab('dahub')}
+                  onClick={() => setIsProfileOpen(true)}
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                 >
