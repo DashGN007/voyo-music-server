@@ -8,7 +8,7 @@
  * - Mobile-first, touch-friendly design
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Bell, Play, RefreshCw } from 'lucide-react';
 import { getThumb } from '../../utils/thumbnail';
@@ -24,9 +24,6 @@ import { Track } from '../../types';
 // HELPER FUNCTIONS
 // ============================================
 
-/**
- * Get time-based greeting
- */
 const getGreeting = (): string => {
   const hour = new Date().getHours();
   if (hour < 12) return 'Good morning';
@@ -34,10 +31,7 @@ const getGreeting = (): string => {
   return 'Good evening';
 };
 
-/**
- * Get new releases (sorted by createdAt)
- */
-const getNewReleases = (limit: number = 10): Track[] => {
+const getNewReleases = (limit: number = 15): Track[] => {
   return [...TRACKS]
     .sort((a, b) => {
       const dateA = new Date(a.createdAt || '2024-01-01').getTime();
@@ -47,14 +41,38 @@ const getNewReleases = (limit: number = 10): Track[] => {
     .slice(0, limit);
 };
 
-/**
- * Get unique tracks from history (for Continue Listening)
- */
+const getArtistsYouLove = (history: any[], limit: number = 8): { name: string; tracks: Track[]; playCount: number }[] => {
+  const artistPlays: Record<string, { tracks: Set<string>; count: number }> = {};
+  history.forEach(item => {
+    if (item.track?.artist) {
+      const artist = item.track.artist;
+      if (!artistPlays[artist]) {
+        artistPlays[artist] = { tracks: new Set(), count: 0 };
+      }
+      artistPlays[artist].tracks.add(item.track.id);
+      artistPlays[artist].count++;
+    }
+  });
+  return Object.entries(artistPlays)
+    .map(([name, data]) => ({
+      name,
+      playCount: data.count,
+      tracks: TRACKS.filter(t => t.artist === name).slice(0, 5),
+    }))
+    .filter(a => a.tracks.length > 0)
+    .sort((a, b) => b.playCount - a.playCount)
+    .slice(0, limit);
+};
+
+const getTrendingTracks = (hotPool: any[], limit: number = 15): Track[] => {
+  return [...hotPool]
+    .sort((a, b) => b.poolScore - a.poolScore)
+    .slice(0, limit) as Track[];
+};
+
 const getRecentlyPlayed = (history: any[], limit: number = 10): Track[] => {
   const seen = new Set<string>();
   const uniqueTracks: Track[] = [];
-
-  // Iterate backwards (most recent first)
   for (let i = history.length - 1; i >= 0; i--) {
     const item = history[i];
     if (item.track && !seen.has(item.track.id)) {
@@ -63,7 +81,6 @@ const getRecentlyPlayed = (history: any[], limit: number = 10): Track[] => {
       if (uniqueTracks.length >= limit) break;
     }
   }
-
   return uniqueTracks;
 };
 
@@ -92,7 +109,10 @@ const Shelf = ({ title, onSeeAll, children }: ShelfProps) => (
         </motion.button>
       )}
     </div>
-    <div className="flex gap-3 px-4 overflow-x-auto scrollbar-hide">
+    <div
+      className="flex gap-3 px-4 overflow-x-auto scrollbar-hide"
+      style={{ scrollSnapType: 'x proximity', WebkitOverflowScrolling: 'touch' }}
+    >
       {children}
     </div>
   </div>
@@ -118,9 +138,9 @@ const TrackCard = ({ track, onPlay }: TrackCardProps) => {
       onHoverEnd={() => setIsHovered(false)}
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
+      style={{ scrollSnapAlign: 'start' }}
     >
       <div className="relative w-32 h-32 rounded-xl overflow-hidden mb-2 bg-white/5">
-        {/* SmartImage with self-healing: if thumbnail fails, verifies and fixes */}
         <SmartImage
           src={getThumb(track.trackId)}
           alt={track.title}
@@ -129,13 +149,19 @@ const TrackCard = ({ track, onPlay }: TrackCardProps) => {
           artist={track.artist}
           title={track.title}
         />
-        {/* Play button overlay on hover */}
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: 'linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(236,72,153,0.08) 100%)',
+          }}
+          animate={{ opacity: isHovered ? 0 : 1 }}
+          transition={{ duration: 0.2 }}
+        />
         {isHovered && (
           <motion.div
             className="absolute inset-0 bg-black/40 flex items-center justify-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
           >
             <div className="w-12 h-12 rounded-full bg-purple-500 flex items-center justify-center">
               <Play className="w-6 h-6 text-white ml-1" fill="white" />
@@ -149,9 +175,323 @@ const TrackCard = ({ track, onPlay }: TrackCardProps) => {
   );
 };
 
+// ============================================
+// WIDE TRACK CARD - 16:9 for Continue Listening
+// ============================================
+
+const WideTrackCard = ({ track, onPlay }: TrackCardProps) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const youtubeId = useMemo(() => decodeVoyoId(track.trackId), [track.trackId]);
+  const thumbnailUrl = `https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg`;
+
+  return (
+    <motion.button
+      className="flex-shrink-0"
+      onClick={onPlay}
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+      whileHover={{ scale: 1.03 }}
+      whileTap={{ scale: 0.97 }}
+      style={{ scrollSnapAlign: 'start', width: '180px' }}
+    >
+      <div className="relative w-full rounded-xl overflow-hidden mb-2 bg-white/5" style={{ aspectRatio: '16/9' }}>
+        <SmartImage
+          src={thumbnailUrl}
+          alt={track.title}
+          className="w-full h-full object-cover"
+          trackId={track.trackId}
+          artist={track.artist}
+          title={track.title}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+        {isHovered && (
+          <motion.div
+            className="absolute inset-0 bg-black/30 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <div className="w-10 h-10 rounded-full bg-purple-500/90 flex items-center justify-center">
+              <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
+            </div>
+          </motion.div>
+        )}
+        <div className="absolute bottom-0 left-0 right-0 p-2">
+          <p className="text-white text-xs font-semibold truncate drop-shadow-lg">{track.title}</p>
+        </div>
+      </div>
+      <p className="text-white/60 text-[11px] truncate">{track.artist}</p>
+    </motion.button>
+  );
+};
 
 // ============================================
-// VIBE CARD COMPONENT - Premium Glass Design
+// ARTIST CARD COMPONENT
+// ============================================
+
+interface ArtistCardProps {
+  artist: { name: string; tracks: Track[]; playCount: number };
+  onPlay: (track: Track) => void;
+}
+
+const ArtistCard = ({ artist, onPlay }: ArtistCardProps) => {
+  const firstTrack = artist.tracks[0];
+
+  return (
+    <motion.button
+      className="flex-shrink-0 w-32"
+      onClick={() => firstTrack && onPlay(firstTrack)}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      style={{ scrollSnapAlign: 'start' }}
+    >
+      <div className="relative w-32 h-32 rounded-full overflow-hidden mb-2 bg-white/5 mx-auto">
+        {firstTrack && (
+          <SmartImage
+            src={getThumb(firstTrack.trackId)}
+            alt={artist.name}
+            className="w-full h-full object-cover"
+            style={{ objectPosition: 'center 35%', transform: 'scale(1.4)' }}
+            trackId={firstTrack.trackId}
+            artist={artist.name}
+            title={firstTrack.title}
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-purple-500/80 text-[10px] text-white font-medium">
+          {artist.playCount} plays
+        </div>
+      </div>
+      <p className="text-white text-sm font-medium truncate text-center">{artist.name}</p>
+      <p className="text-white/50 text-xs truncate text-center">{artist.tracks.length} tracks</p>
+    </motion.button>
+  );
+};
+
+// ============================================
+// AFRICAN VIBES VIDEO CARD - With golden glow & video
+// ============================================
+
+// Decode VOYO ID to YouTube ID
+const decodeVoyoId = (trackId: string): string => {
+  if (!trackId.startsWith('vyo_')) return trackId;
+  const encoded = trackId.substring(4);
+  let base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4 !== 0) base64 += '=';
+  try {
+    return atob(base64);
+  } catch {
+    return trackId;
+  }
+};
+
+const AfricanVibesVideoCard = ({
+  track,
+  idx,
+  isActive,
+  isMuted,
+  onToggleMute,
+  onTrackPlay
+}: {
+  track: Track;
+  idx: number;
+  isActive: boolean;
+  isMuted: boolean;
+  onToggleMute: () => void;
+  onTrackPlay: () => void;
+}) => {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Decode VOYO ID to real YouTube ID
+  const youtubeId = useMemo(() => decodeVoyoId(track.trackId), [track.trackId]);
+
+  const embedUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      autoplay: '0',
+      mute: '1',
+      controls: '0',
+      disablekb: '1',
+      fs: '0',
+      iv_load_policy: '3',
+      modestbranding: '1',
+      playsinline: '1',
+      rel: '0',
+      showinfo: '0',
+      enablejsapi: '1',
+      origin: window.location.origin,
+    });
+    return `https://www.youtube.com/embed/${youtubeId}?${params.toString()}`;
+  }, [youtubeId]);
+
+  useEffect(() => {
+    if (!iframeRef.current || !isLoaded) return;
+    const cmd = isActive ? 'playVideo' : 'pauseVideo';
+    iframeRef.current.contentWindow?.postMessage(
+      `{"event":"command","func":"${cmd}","args":""}`, '*'
+    );
+  }, [isActive, isLoaded]);
+
+  useEffect(() => {
+    if (!iframeRef.current || !isLoaded || !isActive) return;
+    const cmd = isMuted ? 'mute' : 'unMute';
+    iframeRef.current.contentWindow?.postMessage(
+      `{"event":"command","func":"${cmd}","args":""}`, '*'
+    );
+  }, [isMuted, isActive, isLoaded]);
+
+  return (
+    <motion.button
+      className="flex-shrink-0 relative rounded-xl"
+      style={{ width: '95px', height: '142px' }}
+      onClick={onTrackPlay}
+      whileHover={{ scale: 1.04, y: -3 }}
+      whileTap={{ scale: 0.97 }}
+    >
+      {/* Golden glow - stronger for hero (idx 0) */}
+      <div
+        className="absolute -inset-1 rounded-xl pointer-events-none"
+        style={{
+          background: idx === 0
+            ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.4) 0%, rgba(251, 191, 36, 0.15) 20%, transparent 50%)'
+            : 'linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.08) 15%, transparent 40%)',
+          filter: 'blur(8px)',
+        }}
+      />
+
+      <div className="relative w-full h-full rounded-xl overflow-hidden bg-black">
+        {/* Thumbnail */}
+        <img
+          src={`https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg`}
+          alt={track.title}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ transform: 'scale(1.8)' }}
+        />
+
+        {/* Video iframe */}
+        <div
+          className="absolute inset-0 transition-opacity duration-300"
+          style={{ opacity: isActive && isLoaded ? 1 : 0 }}
+        >
+          <iframe
+            ref={iframeRef}
+            src={embedUrl}
+            className="pointer-events-none"
+            style={{
+              border: 'none',
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '300%',
+              height: '300%',
+            }}
+            allow="accelerometer; autoplay; encrypted-media"
+            onLoad={() => setIsLoaded(true)}
+          />
+        </div>
+
+        {/* Purple overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none z-10"
+          style={{
+            background: 'linear-gradient(180deg, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0.08) 40%, rgba(0,0,0,0.75) 100%)'
+          }}
+        />
+
+        {/* Genre pill */}
+        <div className="absolute top-1.5 left-1.5 z-20">
+          <span className="px-1.5 py-0.5 rounded text-[6px] font-bold uppercase bg-purple-600/50 text-white/80">
+            {track.tags?.[0] || 'Afrobeats'}
+          </span>
+        </div>
+
+        {/* Sound toggle */}
+        {isActive && isLoaded && (
+          <button
+            className="absolute top-1.5 right-1.5 z-30 w-5 h-5 rounded-full bg-black/40 flex items-center justify-center"
+            onClick={(e) => { e.stopPropagation(); onToggleMute(); }}
+          >
+            {isMuted ? (
+              <svg className="w-2.5 h-2.5 text-white/60" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+              </svg>
+            ) : (
+              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+              </svg>
+            )}
+          </button>
+        )}
+
+        {/* Blinking recording dot */}
+        {isActive && isLoaded && (
+          <motion.div
+            className="absolute top-7 right-2 z-20 w-1.5 h-1.5 rounded-full bg-red-500"
+            animate={{ opacity: [1, 0.3, 1] }}
+            transition={{ duration: 1.2, repeat: Infinity }}
+          />
+        )}
+
+        {/* Track info */}
+        <div className="absolute bottom-0 left-0 right-0 p-1.5 z-20">
+          <p className="text-white text-[9px] font-bold truncate">{track.title}</p>
+          <p className="text-white/60 text-[7px] truncate">{track.artist}</p>
+          <div className="flex items-center gap-0.5 mt-0.5">
+            <span className="text-[7px]">🔥</span>
+            <span className="text-[6px] font-bold text-amber-400">
+              {track.oyeScore ? (track.oyeScore / 1000).toFixed(0) + 'K' : 'Hot'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </motion.button>
+  );
+};
+
+// ============================================
+// AFRICAN VIBES CAROUSEL
+// ============================================
+
+const AfricanVibesCarousel = ({ tracks, onTrackPlay }: { tracks: Track[]; onTrackPlay: (track: Track) => void }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [activeIdx, setActiveIdx] = useState<number>(0);
+  const [isMuted, setIsMuted] = useState(true);
+  const [isInView, setIsInView] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsInView(entry.isIntersecting),
+      { threshold: 0.5 }
+    );
+    if (containerRef.current) observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex gap-4 overflow-x-auto scrollbar-hide py-3 pr-4"
+      style={{ paddingLeft: '28px' }}
+      onMouseLeave={() => setActiveIdx(0)}
+    >
+      {tracks.slice(0, 6).map((track, idx) => (
+        <div key={track.id} onMouseEnter={() => setActiveIdx(idx)}>
+          <AfricanVibesVideoCard
+            track={track}
+            idx={idx}
+            isActive={isInView && activeIdx === idx}
+            isMuted={isMuted}
+            onToggleMute={() => setIsMuted(!isMuted)}
+            onTrackPlay={() => onTrackPlay(track)}
+          />
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ============================================
+// VIBE CARD COMPONENT
 // ============================================
 
 interface VibeCardProps {
@@ -171,24 +511,18 @@ const VibeCard = ({ vibe, onSelect, index }: VibeCardProps) => (
     whileTap={{ scale: 0.95 }}
     style={{ width: '120px' }}
   >
-    {/* Concert lights glow - rotation + pulse */}
     <motion.div
       className="absolute -inset-[3px] rounded-[24px]"
       style={{
         background: `conic-gradient(from 0deg, ${vibe.color}, ${vibe.color}44, ${vibe.color})`,
         filter: 'blur(8px)',
       }}
-      animate={{
-        rotate: [0, 360],
-        opacity: [0.4, 0.6, 0.4],
-      }}
+      animate={{ rotate: [0, 360], opacity: [0.4, 0.6, 0.4] }}
       transition={{
         rotate: { duration: 10, repeat: Infinity, ease: 'linear' },
         opacity: { duration: 3, repeat: Infinity, ease: 'easeInOut' },
       }}
     />
-
-    {/* Main card - BOLD solid color, VOYO energy */}
     <div
       className="relative rounded-[22px] overflow-hidden"
       style={{
@@ -197,222 +531,27 @@ const VibeCard = ({ vibe, onSelect, index }: VibeCardProps) => (
         boxShadow: `0 6px 24px ${vibe.color}50`,
       }}
     >
-      {/* Texture overlay - vinyl/album feel (more translucent) */}
-      <div
-        className="absolute inset-0 opacity-[0.15]"
-        style={{
-          backgroundImage: `radial-gradient(circle at 50% 50%, rgba(255,255,255,0.6) 0.5px, transparent 1px)`,
-          backgroundSize: '6px 6px',
-        }}
-      />
-
-      {/* Shine streak */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: 'linear-gradient(130deg, rgba(255,255,255,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.15) 100%)',
-        }}
-      />
-
-      {/* Content */}
+      <div className="absolute inset-0 opacity-[0.15]" style={{
+        backgroundImage: `radial-gradient(circle at 50% 50%, rgba(255,255,255,0.6) 0.5px, transparent 1px)`,
+        backgroundSize: '6px 6px',
+      }} />
+      <div className="absolute inset-0" style={{
+        background: 'linear-gradient(130deg, rgba(255,255,255,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.15) 100%)',
+      }} />
       <div className="relative h-full flex flex-col items-center justify-center p-3">
-        {/* Animated Icon - unique per vibe */}
         <div className="mb-2 drop-shadow-lg text-4xl flex items-center justify-center">
-          {vibe.id === 'afro-heat' && (
-            <motion.div
-              style={{ display: 'inline-block' }}
-              whileHover={{ scale: 1.1 }}
-            >
-              <LottieIcon
-                lottieUrl="/lottie/fire.json"
-                fallbackEmoji="🔥"
-                size={48}
-                loop={true}
-              />
-            </motion.div>
-          )}
-          {vibe.id === 'chill-vibes' && (
-            <motion.div
-              style={{ display: 'inline-block' }}
-              animate={{
-                scale: [1, 1.12, 1],
-                opacity: [0.6, 1, 0.6],
-              }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              💜
-            </motion.div>
-          )}
-          {vibe.id === 'party-mode' && (
-            <div className="relative">
-              <LottieIcon
-                lottieUrl={vibe.lottie}
-                fallbackEmoji="🪩"
-                size={44}
-              />
-              <motion.div
-                className="absolute -top-1 -right-2 text-lg"
-                style={{ display: 'inline-block' }}
-                animate={{
-                  scale: [0.8, 1.2, 0.8],
-                  rotate: [0, 15, -15, 0],
-                  opacity: [0.7, 1, 0.7],
-                }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-              >
-                ✨
-              </motion.div>
-            </div>
-          )}
-          {vibe.id === 'late-night' && (
-            <motion.div
-              style={{ display: 'inline-block' }}
-              whileHover={{ scale: 1.1 }}
-            >
-              <LottieIcon
-                lottieUrl="/lottie/night-clear.json"
-                fallbackEmoji="🌙"
-                size={48}
-                loop={true}
-                speed={0.6}
-              />
-            </motion.div>
-          )}
-          {vibe.id === 'workout' && (
-            <motion.div
-              style={{ display: 'inline-block' }}
-              animate={{
-                scale: [1, 1.08, 1],
-                opacity: [0.9, 1, 0.9],
-              }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              ⚡
-            </motion.div>
-          )}
+          {vibe.id === 'afro-heat' && <LottieIcon lottieUrl="/lottie/fire.json" fallbackEmoji="🔥" size={48} loop={true} />}
+          {vibe.id === 'chill-vibes' && <motion.div animate={{ scale: [1, 1.12, 1], opacity: [0.6, 1, 0.6] }} transition={{ duration: 3, repeat: Infinity }}>💜</motion.div>}
+          {vibe.id === 'party-mode' && <LottieIcon lottieUrl={vibe.lottie} fallbackEmoji="🪩" size={44} />}
+          {vibe.id === 'late-night' && <LottieIcon lottieUrl="/lottie/night-clear.json" fallbackEmoji="🌙" size={48} loop={true} speed={0.6} />}
+          {vibe.id === 'workout' && <motion.div animate={{ scale: [1, 1.08, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>⚡</motion.div>}
         </div>
-
-        {/* Name - bold, no subtlety */}
-        <h3 className="text-white font-black text-xs tracking-wide text-center drop-shadow-md">
-          {vibe.name}
-        </h3>
-
-        {/* Description */}
-        <p className="text-white/80 text-[9px] mt-1 text-center font-medium">
-          {vibe.description}
-        </p>
+        <h3 className="text-white font-black text-xs tracking-wide text-center drop-shadow-md">{vibe.name}</h3>
+        <p className="text-white/80 text-[9px] mt-1 text-center font-medium">{vibe.description}</p>
       </div>
-
-      {/* Colored footer accent */}
-      <div
-        className="absolute bottom-0 left-0 right-0 h-[3px]"
-        style={{
-          background: `linear-gradient(90deg, transparent 5%, rgba(255,255,255,0.5) 50%, transparent 95%)`,
-        }}
-      />
-
-      {/* AFRO HEAT - Full Fire Orchestration */}
-      {vibe.id === 'afro-heat' && (
-        <>
-          {/* Ember wave 1 - syncs with main fire pulse 2 */}
-          {[
-            { left: '20%', delay: 0.8, dir: 1 },
-            { left: '40%', delay: 1.6, dir: -1 },
-            { left: '60%', delay: 2.4, dir: 1 },
-            { left: '80%', delay: 3.2, dir: -1 },
-          ].map((spark, i) => (
-            <motion.div
-              key={`ember-${i}`}
-              className="absolute rounded-full"
-              style={{
-                bottom: '2px',
-                left: spark.left,
-                width: '4px',
-                height: '4px',
-                background: 'radial-gradient(circle, #ffeb3b 0%, #ff9800 40%, #f4511e 100%)',
-                boxShadow: '0 0 6px 1px rgba(255, 152, 0, 0.7)',
-              }}
-              animate={{
-                y: [0, -30, -60, -90, -115],
-                x: [0, spark.dir * 4, spark.dir * -2, spark.dir * 5, spark.dir * 2],
-                opacity: [0, 0.9, 0.8, 0.5, 0],
-                scale: [0.3, 0.7, 0.9, 0.6, 0.3],
-              }}
-              transition={{
-                duration: 4,
-                repeat: Infinity,
-                repeatDelay: 1,
-                delay: spark.delay,
-                ease: [0.4, 0, 0.2, 1],
-              }}
-            />
-          ))}
-
-          {/* Fire bloom - appears when main fire peaks */}
-          {[
-            { left: '30%', delay: 2.5 },
-            { left: '70%', delay: 3.5 },
-          ].map((bloom, i) => (
-            <motion.div
-              key={`bloom-${i}`}
-              className="absolute text-[11px]"
-              style={{
-                bottom: '85px',
-                left: bloom.left,
-                marginLeft: '-7px',
-              }}
-              animate={{
-                y: [0, -8, -20],
-                opacity: [0, 1, 0],
-                scale: [0.4, 1, 1.4],
-              }}
-              transition={{
-                duration: 2.5,
-                repeat: Infinity,
-                repeatDelay: 2.5,
-                delay: bloom.delay,
-                ease: 'easeOut',
-              }}
-            >
-              🔥
-            </motion.div>
-          ))}
-
-          {/* Tiny sparks - rapid, random feel */}
-          {[
-            { left: '25%', delay: 0, size: 3 },
-            { left: '50%', delay: 0.5, size: 2 },
-            { left: '75%', delay: 1, size: 3 },
-            { left: '35%', delay: 1.5, size: 2 },
-            { left: '65%', delay: 2, size: 2 },
-          ].map((spark, i) => (
-            <motion.div
-              key={`spark-${i}`}
-              className="absolute rounded-full"
-              style={{
-                bottom: '0px',
-                left: spark.left,
-                width: `${spark.size}px`,
-                height: `${spark.size}px`,
-                background: '#ffcc00',
-                boxShadow: '0 0 4px #ff9900',
-              }}
-              animate={{
-                y: [0, -20, -35],
-                opacity: [0, 1, 0],
-                x: [0, (i % 2 === 0 ? 3 : -3), 0],
-              }}
-              transition={{
-                duration: 1.2,
-                repeat: Infinity,
-                repeatDelay: 0.8,
-                delay: spark.delay,
-                ease: 'easeOut',
-              }}
-            />
-          ))}
-        </>
-      )}
+      <div className="absolute bottom-0 left-0 right-0 h-[3px]" style={{
+        background: 'linear-gradient(90deg, transparent 5%, rgba(255,255,255,0.5) 50%, transparent 95%)',
+      }} />
     </div>
   </motion.button>
 );
@@ -425,7 +564,6 @@ interface HomeFeedProps {
   onTrackPlay: (track: Track) => void;
   onSearch: () => void;
   onDahub: () => void;
-  onArtistClick?: (artist: { name: string; tracks: Track[] }) => void;
 }
 
 export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
@@ -433,62 +571,51 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
   const { hotPool } = useTrackPoolStore();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Refresh recommendations on mount and when pool changes
   useEffect(() => {
     refreshRecommendations();
   }, [hotPool.length, refreshRecommendations]);
 
-  // Handle manual refresh
   const handleRefresh = () => {
     setIsRefreshing(true);
     refreshRecommendations();
     setTimeout(() => setIsRefreshing(false), 500);
   };
 
-  // Data for shelves - now reactive to store changes!
-  const recentlyPlayed = useMemo(() => getRecentlyPlayed(history, 10), [history]);
-  const heavyRotation = useMemo(() => getUserTopTracks(10), [history]); // Re-compute when history changes
+  const recentlyPlayed = useMemo(() => getRecentlyPlayed(history, 15), [history]);
+  const heavyRotation = useMemo(() => getUserTopTracks(15), [history]);
+  const madeForYou = hotTracks.length > 0 ? hotTracks : getPoolAwareHotTracks(15);
+  const vibes = VIBES;
+  const newReleases = useMemo(() => getNewReleases(15), []);
+  const artistsYouLove = useMemo(() => getArtistsYouLove(history, 8), [history]);
+  const trending = useMemo(() => getTrendingTracks(hotPool, 15), [hotPool]);
 
-  // LIVE RECOMMENDATIONS from playerStore (updated by pool + intent)
-  const madeForYou = hotTracks.length > 0 ? hotTracks : getPoolAwareHotTracks(10);
-  const vibes = VIBES; // Matches MixBoard modes + database vibes
-  const newReleases = useMemo(() => getNewReleases(10), []);
-
-  // Time-based greeting
   const greeting = getGreeting();
 
-  // Vibe selection handler - plays tracks matching this vibe
   const handleVibeSelect = (vibe: Vibe) => {
-    // Get tracks from pool matching this vibe
     const { hotPool } = useTrackPoolStore.getState();
     const matchingTracks = hotPool
       .filter(t => t.detectedMode === vibe.id)
       .sort((a, b) => b.poolScore - a.poolScore)
       .slice(0, 10);
-
     if (matchingTracks.length > 0) {
-      // Play first track, queue the rest
       onTrackPlay(matchingTracks[0]);
       const { addToQueue } = usePlayerStore.getState();
       matchingTracks.slice(1).forEach(track => addToQueue(track));
     } else {
-      // Fallback: play hot tracks (will be filtered by vibe in the future)
       const fallback = getPoolAwareHotTracks(10);
-      if (fallback.length > 0) {
-        onTrackPlay(fallback[0]);
-      }
+      if (fallback.length > 0) onTrackPlay(fallback[0]);
     }
   };
 
-  // Check if user has listening history
   const hasHistory = recentlyPlayed.length > 0;
   const hasPreferences = heavyRotation.length > 0;
+  const hasArtists = artistsYouLove.length > 0;
+  const hasTrending = trending.length > 0;
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto pb-44 scrollbar-hide">
+    <div className="flex flex-col h-full overflow-y-auto pb-72 scrollbar-hide">
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 sticky top-0 bg-[#0a0a0f]/95 backdrop-blur-lg z-10">
-        {/* Profile Avatar → DAHUB */}
         <motion.button
           className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold"
           onClick={onDahub}
@@ -497,22 +624,11 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
         >
           D
         </motion.button>
-
-        {/* Search & Notifications */}
         <div className="flex items-center gap-2">
-          <motion.button
-            className="p-2 rounded-full bg-white/10 hover:bg-white/20"
-            onClick={onSearch}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-          >
+          <motion.button className="p-2 rounded-full bg-white/10 hover:bg-white/20" onClick={onSearch} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
             <Search className="w-5 h-5 text-white/70" />
           </motion.button>
-          <motion.button
-            className="p-2 rounded-full bg-white/10 hover:bg-white/20 relative"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-          >
+          <motion.button className="p-2 rounded-full bg-white/10 hover:bg-white/20 relative" whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
             <Bell className="w-5 h-5 text-white/70" />
             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
           </motion.button>
@@ -524,33 +640,73 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
         <h1 className="text-2xl font-bold text-white">{greeting}, Dash</h1>
       </div>
 
-      {/* Continue Listening (only if user has history) */}
+      {/* Continue Listening */}
       {hasHistory && (
         <Shelf title="Continue Listening">
           {recentlyPlayed.map((track) => (
-            <TrackCard
-              key={track.id}
-              track={track}
-              onPlay={() => onTrackPlay(track)}
-            />
+            <WideTrackCard key={track.id} track={track} onPlay={() => onTrackPlay(track)} />
           ))}
         </Shelf>
       )}
 
-      {/* Heavy Rotation (only if user has preferences) */}
+      {/* Heavy Rotation */}
       {hasPreferences && (
         <Shelf title="Your Heavy Rotation">
           {heavyRotation.map((track) => (
-            <TrackCard
-              key={track.id}
-              track={track}
-              onPlay={() => onTrackPlay(track)}
-            />
+            <TrackCard key={track.id} track={track} onPlay={() => onTrackPlay(track)} />
           ))}
         </Shelf>
       )}
 
-      {/* Made For You - LIVE recommendations from pool + intent */}
+      {/* 🌍 African Vibes */}
+      <div className="mb-6">
+        <div className="px-4 mb-3 flex items-center gap-2">
+          <span className="text-xl">🌍</span>
+          <div className="flex-1">
+            <h2 className="text-white font-bold text-lg">African Vibes</h2>
+            <p
+              className="text-[9px] font-medium tracking-wider uppercase"
+              style={{
+                background: 'linear-gradient(90deg, #fbbf24 0%, #ea580c 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                opacity: 0.85
+              }}
+            >
+              From Lagos to Johannesburg
+            </p>
+          </div>
+          <motion.button
+            className="px-3 py-1.5 rounded-full text-[10px] font-semibold text-amber-400 bg-transparent border border-amber-500/40"
+            onClick={() => usePlayerStore.getState().setVoyoTab('feed')}
+            whileHover={{ scale: 1.05, boxShadow: '0 0 20px rgba(251, 191, 36, 0.3)', borderColor: 'rgba(251, 191, 36, 0.6)' }}
+            whileTap={{ scale: 0.95 }}
+          >
+            Watch More →
+          </motion.button>
+        </div>
+        <div className="relative">
+          {/* TRENDING - Contour style */}
+          <div className="absolute left-1 top-0 bottom-0 flex items-center pointer-events-none" style={{ width: '24px' }}>
+            <span
+              className="text-[9px] font-black tracking-wider"
+              style={{
+                writingMode: 'vertical-rl',
+                transform: 'rotate(180deg)',
+                letterSpacing: '0.15em',
+                color: 'transparent',
+                WebkitTextStroke: '0.5px rgba(251, 191, 36, 0.7)',
+                textShadow: '0 0 8px rgba(251, 191, 36, 0.15)'
+              }}
+            >
+              TRENDING
+            </span>
+          </div>
+          <AfricanVibesCarousel tracks={madeForYou.slice(0, 8)} onTrackPlay={onTrackPlay} />
+        </div>
+      </div>
+
+      {/* Made For You */}
       <div className="mb-6">
         <div className="flex justify-between items-center px-4 mb-3">
           <h2 className="text-white font-bold text-lg">Made For You</h2>
@@ -567,41 +723,136 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
         </div>
         <div className="flex gap-3 px-4 overflow-x-auto scrollbar-hide">
           {madeForYou.map((track) => (
-            <TrackCard
-              key={track.id}
-              track={track}
-              onPlay={() => onTrackPlay(track)}
-            />
+            <TrackCard key={track.id} track={track} onPlay={() => onTrackPlay(track)} />
           ))}
         </div>
       </div>
 
-      {/* Discovery - Based on what you're playing + intent */}
+      {/* Discover More */}
       {discoverTracks.length > 0 && (
         <Shelf title="Discover More">
           {discoverTracks.map((track) => (
-            <TrackCard
-              key={track.id}
-              track={track}
-              onPlay={() => onTrackPlay(track)}
-            />
+            <TrackCard key={track.id} track={track} onPlay={() => onTrackPlay(track)} />
           ))}
         </Shelf>
       )}
 
-      {/* Browse by Vibes - Floating cards */}
+      {/* Artists You Love */}
+      {hasArtists && (
+        <Shelf title="Artists You Love">
+          {artistsYouLove.map((artist) => (
+            <ArtistCard key={artist.name} artist={artist} onPlay={onTrackPlay} />
+          ))}
+        </Shelf>
+      )}
+
+      {/* Top 10 on VOYO */}
+      {hasTrending && (
+        <div className="mb-8 py-6" style={{ background: 'linear-gradient(180deg, rgba(157,78,221,0.12) 0%, rgba(157,78,221,0.03) 50%, transparent 100%)' }}>
+          <div className="px-4 mb-5 flex items-center gap-2">
+            <span className="text-yellow-400 text-xl">⭐</span>
+            <h2 className="text-white font-bold text-lg">Top 10 on VOYO</h2>
+          </div>
+          <style>{`
+            @keyframes top10-marquee {
+              0% { transform: translateX(0); }
+              100% { transform: translateX(-50%); }
+            }
+            .top10-scroll-title {
+              display: inline-block;
+              animation: top10-marquee 6s linear infinite;
+            }
+          `}</style>
+          <div className="flex gap-5 px-4 overflow-x-auto scrollbar-hide" style={{ scrollSnapType: 'x proximity', paddingBottom: '60px' }}>
+            {trending.slice(0, 10).map((track, index) => {
+              const maxChars = 12;
+              const titleNeedsScroll = track.title.length > maxChars;
+              const artistNeedsScroll = track.artist.length > maxChars;
+              const isPodium = index < 3;
+              const numberFill = index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : 'transparent';
+              const numberStroke = index === 0 ? '#B8860B' : index === 1 ? '#808080' : index === 2 ? '#8B4513' : '#9D4EDD';
+              const strokeWidth = isPodium ? '2px' : '3px';
+              const numberGlow = index === 0 ? '0 0 30px rgba(255, 215, 0, 0.5)' : index === 1 ? '0 0 20px rgba(192, 192, 192, 0.4)' : index === 2 ? '0 0 20px rgba(205, 127, 50, 0.4)' : '0 0 25px rgba(157, 78, 221, 0.5), 3px 3px 0 rgba(0,0,0,0.6)';
+
+              return (
+                <motion.button
+                  key={track.id}
+                  className="flex-shrink-0 flex items-end relative"
+                  onClick={() => onTrackPlay(track)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  style={{ scrollSnapAlign: 'start' }}
+                >
+                  <div
+                    className="font-black select-none self-center"
+                    style={{
+                      fontSize: index < 9 ? '5.5rem' : '4.5rem',
+                      lineHeight: '1',
+                      marginRight: '-22px',
+                      zIndex: 1,
+                      color: numberFill,
+                      WebkitTextStroke: `${strokeWidth} ${numberStroke}`,
+                      textShadow: numberGlow,
+                      fontFamily: 'Arial Black, sans-serif',
+                    }}
+                  >
+                    {index + 1}
+                  </div>
+                  <div className="relative" style={{ zIndex: 2 }}>
+                    <div className="absolute -inset-2 rounded-full opacity-40" style={{
+                      background: 'radial-gradient(circle, rgba(157,78,221,0.5) 0%, transparent 70%)',
+                      filter: 'blur(8px)',
+                    }} />
+                    <div className="relative rounded-full overflow-hidden" style={{ width: '85px', height: '85px', boxShadow: '0 4px 20px rgba(0,0,0,0.5), 0 0 20px rgba(157,78,221,0.2)' }}>
+                      <SmartImage
+                        src={getThumb(track.trackId)}
+                        alt={track.title}
+                        className="w-full h-full object-cover"
+                        style={{ transform: 'scale(1.3)', objectPosition: 'center 35%' }}
+                        trackId={track.trackId}
+                        artist={track.artist}
+                        title={track.title}
+                      />
+                      <div className="absolute inset-0 rounded-full" style={{
+                        background: 'radial-gradient(circle, transparent 28%, rgba(0,0,0,0.3) 48%, transparent 52%, rgba(0,0,0,0.2) 100%)',
+                        boxShadow: 'inset 0 0 15px rgba(0,0,0,0.5)',
+                      }} />
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#0a0a0f]" style={{ width: '10px', height: '10px', boxShadow: '0 0 5px rgba(0,0,0,0.8)' }} />
+                    </div>
+                  </div>
+                  <div className="absolute text-center" style={{ width: '110px', left: '50%', transform: 'translateX(-50%)', bottom: '-52px' }}>
+                    <div className="overflow-hidden mx-auto" style={{ width: '100px' }}>
+                      <p className={`text-white text-[10px] font-semibold whitespace-nowrap ${titleNeedsScroll ? 'top10-scroll-title' : ''}`}>
+                        {titleNeedsScroll ? <>{track.title}<span className="mx-3">•</span>{track.title}<span className="mx-3">•</span></> : track.title}
+                      </p>
+                    </div>
+                    <div className="overflow-hidden mx-auto" style={{ width: '100px' }}>
+                      <p className={`text-white/50 text-[9px] whitespace-nowrap ${artistNeedsScroll ? 'top10-scroll-title' : ''}`} style={{ animationDelay: '1s' }}>
+                        {artistNeedsScroll ? <>{track.artist}<span className="mx-3">•</span>{track.artist}<span className="mx-3">•</span></> : track.artist}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-center gap-1 mt-0.5">
+                      <span className="text-yellow-400 text-[9px]">⭐</span>
+                      <span className="text-yellow-400/80 text-[9px] font-medium">
+                        {track.oyeScore ? (track.oyeScore / 1000).toFixed(1) : ((10 - index) * 1.2).toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Browse by Vibes */}
       <div className="mb-6">
         <div className="px-4 mb-4">
           <h2 className="text-white font-bold text-lg">Browse by Vibes</h2>
         </div>
         <div className="flex gap-5 px-4 overflow-x-auto scrollbar-hide py-4">
           {vibes.map((vibe, index) => (
-            <VibeCard
-              key={vibe.id}
-              vibe={vibe}
-              index={index}
-              onSelect={() => handleVibeSelect(vibe)}
-            />
+            <VibeCard key={vibe.id} vibe={vibe} index={index} onSelect={() => handleVibeSelect(vibe)} />
           ))}
         </div>
       </div>
@@ -609,24 +860,17 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
       {/* New Releases */}
       <Shelf title="New Releases">
         {newReleases.map((track) => (
-          <TrackCard
-            key={track.id}
-            track={track}
-            onPlay={() => onTrackPlay(track)}
-          />
+          <TrackCard key={track.id} track={track} onPlay={() => onTrackPlay(track)} />
         ))}
       </Shelf>
 
-      {/* Empty State (only if no history AND no preferences) */}
+      {/* Empty State */}
       {!hasHistory && !hasPreferences && (
         <div className="px-4 py-8 text-center">
-          <p className="text-white/50 text-sm mb-4">
-            Start listening to build your personalized collection
-          </p>
+          <p className="text-white/50 text-sm mb-4">Start listening to build your personalized collection</p>
           <motion.button
             className="px-6 py-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold"
             onClick={() => {
-              // Play a random track to get started
               const randomTrack = getHotTracks()[0];
               if (randomTrack) onTrackPlay(randomTrack);
             }}

@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Radio, Library as LibraryIcon, Users } from 'lucide-react';
+import { Home, Radio, Library as LibraryIcon, Users, Zap, Plus } from 'lucide-react';
 import { HomeFeed } from './HomeFeed';
 import { Library } from './Library';
 import { Hub } from './Hub';
@@ -18,7 +18,6 @@ import { NowPlaying } from './NowPlaying';
 import { usePlayerStore } from '../../store/playerStore';
 import { getYouTubeThumbnail } from '../../data/tracks';
 import { SmartImage } from '../ui/SmartImage';
-import { BoostButton } from '../ui/BoostButton';
 import { Track } from '../../types';
 
 type ClassicTab = 'home' | 'hub' | 'library';
@@ -50,25 +49,25 @@ const MiniPlayer = ({ onClick }: { onClick: () => void }) => {
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 100, opacity: 0 }}
     >
-      <motion.button
-        className="w-full flex items-center gap-3 p-3 pr-4 rounded-2xl bg-gradient-to-r from-purple-900/95 to-pink-900/95 border border-white/10 backdrop-blur-xl shadow-2xl relative overflow-hidden"
+      <motion.div
+        className="w-full flex items-center gap-3 p-3 pr-4 rounded-2xl bg-black/25 border border-white/10 backdrop-blur-xl shadow-2xl relative overflow-hidden cursor-pointer"
         onClick={onClick}
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
       >
-        {/* Wave Progress Bar - Dynamic Island style fill */}
-        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/5 overflow-hidden">
+        {/* Wave Progress Bar - VOYO gradient style */}
+        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/10 overflow-hidden rounded-full">
           <motion.div
             className="h-full relative"
             style={{ width: `${progress}%` }}
           >
-            {/* Gradient fill with glow */}
-            <div className="absolute inset-0 bg-gradient-to-r from-violet-500 via-purple-400 to-fuchsia-500" />
-            {/* Wave effect at the edge */}
+            {/* VOYO purple-pink gradient fill */}
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500" />
+            {/* Glowing edge effect */}
             <motion.div
-              className="absolute right-0 top-0 bottom-0 w-3 bg-gradient-to-l from-white/60 to-transparent"
-              animate={{ opacity: [0.4, 1, 0.4] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-pink-400 to-transparent"
+              animate={{ opacity: [0.6, 1, 0.6] }}
+              transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
             />
           </motion.div>
         </div>
@@ -103,10 +102,11 @@ const MiniPlayer = ({ onClick }: { onClick: () => void }) => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0" style={{ marginRight: '4px' }}>
           {/* Add to playlist */}
-          <motion.div
-            className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"
+          <motion.button
+            className="rounded-full bg-white/10 flex items-center justify-center"
+            style={{ width: '30px', height: '30px' }}
             onClick={(e) => {
               e.stopPropagation();
               // TODO: Add to playlist
@@ -114,17 +114,26 @@ const MiniPlayer = ({ onClick }: { onClick: () => void }) => {
             whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.2)' }}
             whileTap={{ scale: 0.9 }}
           >
-            <span className="text-white text-lg font-light">+</span>
-          </motion.div>
+            <Plus className="w-3.5 h-3.5 text-white" />
+          </motion.button>
 
-          {/* Boost Button */}
-          <div onClick={(e) => e.stopPropagation()}>
-            <BoostButton variant="mini" />
-          </div>
+          {/* OYÉ Button - Orange circle with white Zap */}
+          <motion.button
+            className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center"
+            onClick={(e) => {
+              e.stopPropagation();
+              // TODO: OYÉ action
+            }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            style={{ boxShadow: '0 2px 8px rgba(249, 115, 22, 0.4)' }}
+          >
+            <Zap className="w-4 h-4 text-white" style={{ fill: 'white' }} />
+          </motion.button>
 
           {/* Play/Pause */}
-          <motion.div
-            className="w-10 h-10 rounded-full bg-white flex items-center justify-center ml-1"
+          <motion.button
+            className="w-10 h-10 rounded-full bg-white flex items-center justify-center"
             onClick={(e) => {
               e.stopPropagation();
               togglePlay();
@@ -140,9 +149,9 @@ const MiniPlayer = ({ onClick }: { onClick: () => void }) => {
             ) : (
               <div className="w-0 h-0 border-l-[10px] border-l-black border-y-[6px] border-y-transparent ml-1" />
             )}
-          </motion.div>
+          </motion.button>
         </div>
-      </motion.button>
+      </motion.div>
 
       {/* Marquee animation styles */}
       <style>{`
@@ -155,7 +164,7 @@ const MiniPlayer = ({ onClick }: { onClick: () => void }) => {
   );
 };
 
-// Bottom Navigation - Home left, VOYO center, DAHUB right
+// Bottom Navigation - Context-aware: shows nav to OTHER pages, not current
 const BottomNav = ({
   activeTab,
   onTabChange,
@@ -165,19 +174,27 @@ const BottomNav = ({
   onTabChange: (tab: ClassicTab) => void;
   onVOYOClick: () => void;
 }) => {
+  // Left button: Home when on DAHUB/Library, DAHUB when on Home
+  const leftTab = activeTab === 'home' ? 'hub' : 'home';
+  const LeftIcon = activeTab === 'home' ? Users : Home;
+  const leftLabel = activeTab === 'home' ? 'DAHUB' : 'Home';
+
+  // Right button: Library when on Home/DAHUB, DAHUB when on Library
+  const rightTab = activeTab === 'library' ? 'hub' : 'library';
+  const RightIcon = activeTab === 'library' ? Users : LibraryIcon;
+  const rightLabel = activeTab === 'library' ? 'DAHUB' : 'Library';
+
   return (
     <nav className="absolute bottom-0 left-0 right-0 flex items-center justify-around py-3 px-6 bg-[#0a0a0f]/95 backdrop-blur-lg border-t border-white/5">
-      {/* LEFT: Home */}
+      {/* LEFT */}
       <motion.button
-        className={`flex flex-col items-center gap-1 p-2 ${
-          activeTab === 'home' ? 'text-purple-400' : 'text-white/40'
-        }`}
-        onClick={() => onTabChange('home')}
+        className="flex flex-col items-center gap-1 p-2 text-white/40"
+        onClick={() => onTabChange(leftTab)}
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
       >
-        <Home className="w-6 h-6" />
-        <span className="text-xs">Home</span>
+        <LeftIcon className="w-6 h-6" />
+        <span className="text-xs">{leftLabel}</span>
       </motion.button>
 
       {/* CENTER: VOYO Player */}
@@ -192,17 +209,15 @@ const BottomNav = ({
         </div>
       </motion.button>
 
-      {/* RIGHT: DAHUB */}
+      {/* RIGHT */}
       <motion.button
-        className={`flex flex-col items-center gap-1 p-2 ${
-          activeTab === 'hub' ? 'text-purple-400' : 'text-white/40'
-        }`}
-        onClick={() => onTabChange('hub')}
+        className="flex flex-col items-center gap-1 p-2 text-white/40"
+        onClick={() => onTabChange(rightTab)}
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
       >
-        <Users className="w-6 h-6" />
-        <span className="text-xs">DAHUB</span>
+        <RightIcon className="w-6 h-6" />
+        <span className="text-xs">{rightLabel}</span>
       </motion.button>
     </nav>
   );

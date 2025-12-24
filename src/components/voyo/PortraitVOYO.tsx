@@ -139,7 +139,7 @@ export const DJTextInput = ({ isOpen, onClose, onSubmit }: DJTextInputProps) => 
 
 // ============================================
 // MAIN EXPORT - PORTRAIT VOYO MODE (ORCHESTRATOR)
-// Bottom Nav: DAHUB | VOYO | HOME
+// Bottom Nav: HOME | VOYO | DAHUB
 // ============================================
 interface PortraitVOYOProps {
   onSearch?: () => void;

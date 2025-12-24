@@ -1,6 +1,6 @@
 /**
  * VOYO Bottom Navigation - Tab Switcher
- * DAHUB | VOYO (Toggle: Player ↔ Feed) | HOME
+ * HOME | VOYO (Toggle: Player ↔ Feed) | DAHUB
  *
  * When music is playing on Feed, VOYO button cycles:
  * Clean → Play Icon + "Keep Playing" → Clean
@@ -66,15 +66,15 @@ export const VoyoBottomNav = ({ onDahub, onHome }: VoyoBottomNavProps) => {
   return (
     <div className="glass-nav pt-3 pb-4 px-6" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
       <div className="flex items-center justify-around max-w-md mx-auto">
-        {/* LEFT: DAHUB */}
+        {/* LEFT: HOME */}
         <motion.button
-          onClick={onDahub}
+          onClick={onHome}
           className="relative"
           whileTap={{ scale: 0.95 }}
         >
           <div className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl text-white/40 hover:text-white/60">
-            <Sparkles className="w-4 h-4" />
-            <span className="text-[10px] font-bold uppercase tracking-widest">DaHub</span>
+            <Home className="w-4 h-4" />
+            <span className="text-[10px] font-bold uppercase tracking-widest">Home</span>
           </div>
         </motion.button>
 
@@ -141,15 +141,15 @@ export const VoyoBottomNav = ({ onDahub, onHome }: VoyoBottomNavProps) => {
           </div>
         </motion.button>
 
-        {/* RIGHT: HOME (includes library) */}
+        {/* RIGHT: DAHUB */}
         <motion.button
-          onClick={onHome}
+          onClick={onDahub}
           className="relative"
           whileTap={{ scale: 0.95 }}
         >
           <div className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl text-white/40 hover:text-white/60">
-            <Home className="w-4 h-4" />
-            <span className="text-[10px] font-bold uppercase tracking-widest">Home</span>
+            <Sparkles className="w-4 h-4" />
+            <span className="text-[10px] font-bold uppercase tracking-widest">DaHub</span>
           </div>
         </motion.button>
       </div>

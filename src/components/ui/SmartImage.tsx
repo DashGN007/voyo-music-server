@@ -18,6 +18,7 @@ export interface SmartImageProps {
   src: string;
   alt: string;
   className?: string;
+  style?: React.CSSProperties; // Custom inline styles for the image
   fallbackSrc?: string;
   placeholderColor?: string;
   trackId?: string; // For YouTube thumbnail fallback chain
@@ -35,6 +36,7 @@ const SmartImageInner: React.FC<SmartImageProps> = ({
   src,
   alt,
   className = '',
+  style,
   fallbackSrc,
   placeholderColor = '#1a1a1a',
   trackId,
@@ -272,6 +274,7 @@ const SmartImageInner: React.FC<SmartImageProps> = ({
           src={currentSrc}
           alt={alt}
           className={`w-full h-full object-cover ${className}`}
+          style={style}
           initial={{ opacity: 0 }}
           animate={{ opacity: loadState === 'loaded' ? 1 : 0 }}
           transition={{ duration: 0.3 }}
