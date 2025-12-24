@@ -33,6 +33,9 @@ import { Track } from '../types';
 import { TRACKS } from '../data/tracks';
 import { matchTrackToMode, VibeMode } from './intentStore';
 
+// FLYWHEEL: Import Central DJ for cloud signals
+import { signals as centralSignals } from '../services/centralDJ';
+
 // ============================================
 // TYPES
 // ============================================
@@ -236,6 +239,9 @@ export const useTrackPoolStore = create<TrackPoolStore>()(
               : t
           ),
         }));
+
+        // FLYWHEEL: Send to Central DJ (async, fire-and-forget)
+        centralSignals.play(trackId).catch(() => {});
       },
 
       recordCompletion: (trackId, completionRate) => {
@@ -251,6 +257,11 @@ export const useTrackPoolStore = create<TrackPoolStore>()(
               : t
           ),
         }));
+
+        // FLYWHEEL: Record completion to Central DJ (>80% = complete signal)
+        if (completionRate >= 80) {
+          centralSignals.complete(trackId).catch(() => {});
+        }
       },
 
       recordReaction: (trackId) => {
@@ -261,6 +272,9 @@ export const useTrackPoolStore = create<TrackPoolStore>()(
               : t
           ),
         }));
+
+        // FLYWHEEL: Love signal to Central DJ
+        centralSignals.love(trackId).catch(() => {});
       },
 
       recordQueue: (trackId) => {
@@ -271,6 +285,9 @@ export const useTrackPoolStore = create<TrackPoolStore>()(
               : t
           ),
         }));
+
+        // FLYWHEEL: Queue signal to Central DJ
+        centralSignals.queue(trackId).catch(() => {});
       },
 
       recordSkip: (trackId) => {
@@ -281,6 +298,9 @@ export const useTrackPoolStore = create<TrackPoolStore>()(
               : t
           ),
         }));
+
+        // FLYWHEEL: Skip signal to Central DJ
+        centralSignals.skip(trackId).catch(() => {});
       },
 
       // =====================================

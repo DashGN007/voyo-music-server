@@ -36,6 +36,14 @@ import { voiceSearch, recordFromMicrophone, isConfigured as isWhisperConfigured 
 import { searchAlbums, getAlbumTracks } from '../../services/piped';
 import { pipedTrackToVoyoTrack } from '../../data/tracks';
 
+// FLYWHEEL: Central DJ vibe training
+import {
+  trainVibeOnQueue,
+  trainVibeOnBoost,
+  trainVibeOnReaction,
+  MixBoardMode,
+} from '../../services/centralDJ';
+
 // ============================================
 // ISOLATED TIME COMPONENTS - Prevents full re-renders
 // These subscribe directly to currentTime/duration without
@@ -3627,6 +3635,11 @@ export const VoyoPortraitPlayer = ({
     setSignalInputOpen(true);
     setSignalText('');
 
+    // FLYWHEEL: Train vibe when user reacts with a category
+    // (ReactionCategory already excludes random-mixer, so all reactions train vibes)
+    const trackId = currentTrack.trackId || currentTrack.id;
+    trainVibeOnReaction(trackId, category as MixBoardMode).catch(() => {});
+
     console.log(`[Signal] Opening input for ${category} on ${currentTrack.title}`);
   }, [currentTrack]);
 
@@ -3798,6 +3811,12 @@ export const VoyoPortraitPlayer = ({
       ...prev,
       [modeId]: (prev[modeId] || 0) + 1
     }));
+
+    // FLYWHEEL: Train this track's vibe when added to queue
+    if (modeId !== 'random-mixer') {
+      const trackId = track.trackId || track.id;
+      trainVibeOnQueue(trackId, modeId as MixBoardMode).catch(() => {});
+    }
   }, [detectTrackMode]);
 
   // Access queue actions from player store
@@ -3838,6 +3857,13 @@ export const VoyoPortraitPlayer = ({
 
       return newBars;
     });
+
+    // FLYWHEEL: Train current track's vibe when user boosts a mode
+    const track = usePlayerStore.getState().currentTrack;
+    if (track && modeId !== 'random-mixer') {
+      const trackId = track.trackId || track.id;
+      trainVibeOnBoost(trackId, modeId as MixBoardMode).catch(() => {});
+    }
   }, []);
 
   // Handle MixBoard card drag-to-queue - "Give me this vibe NOW!"
