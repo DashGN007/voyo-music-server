@@ -150,105 +150,266 @@ const TrackCard = ({ track, onPlay }: TrackCardProps) => {
 };
 
 // ============================================
-// VIBE CARD COMPONENT - Premium with paint splash effect
+// VIBE CARD COMPONENT - Premium Glass Design
 // ============================================
 
 interface VibeCardProps {
   vibe: Vibe;
   onSelect: () => void;
+  index: number;
 }
 
-const VibeCard = ({ vibe, onSelect }: VibeCardProps) => (
+const VibeCard = ({ vibe, onSelect, index }: VibeCardProps) => (
   <motion.button
-    className="flex-shrink-0 w-24 h-28 relative group"
+    className="flex-shrink-0 relative group"
     onClick={onSelect}
-    whileHover={{ scale: 1.08, y: -4 }}
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: index * 0.08, duration: 0.4 }}
+    whileHover={{ y: -6, scale: 1.05 }}
     whileTap={{ scale: 0.95 }}
+    style={{ width: '120px' }}
   >
-    {/* Deep shadow for 3D pop effect */}
-    <div
-      className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${vibe.gradient} blur-2xl opacity-50 group-hover:opacity-70 transition-opacity`}
-      style={{ transform: 'translateY(12px) scale(0.85)' }}
+    {/* Concert lights glow - rotation + pulse */}
+    <motion.div
+      className="absolute -inset-[3px] rounded-[24px]"
+      style={{
+        background: `conic-gradient(from 0deg, ${vibe.color}, ${vibe.color}44, ${vibe.color})`,
+        filter: 'blur(8px)',
+      }}
+      animate={{
+        rotate: [0, 360],
+        opacity: [0.4, 0.6, 0.4],
+      }}
+      transition={{
+        rotate: { duration: 10, repeat: Infinity, ease: 'linear' },
+        opacity: { duration: 3, repeat: Infinity, ease: 'easeInOut' },
+      }}
     />
 
-    {/* Main card with organic blob shape */}
+    {/* Main card - BOLD solid color, VOYO energy */}
     <div
-      className={`relative w-full h-full rounded-[28px] bg-gradient-to-br ${vibe.gradient} overflow-hidden`}
+      className="relative rounded-[22px] overflow-hidden"
       style={{
-        boxShadow: `0 12px 40px ${vibe.color}66, 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.25)`,
+        aspectRatio: '0.9',
+        background: `linear-gradient(135deg, ${vibe.color} 0%, ${vibe.color}dd 50%, ${vibe.color}bb 100%)`,
+        boxShadow: `0 6px 24px ${vibe.color}50`,
       }}
     >
-      {/* Paint splash texture overlay */}
+      {/* Texture overlay - vinyl/album feel (more translucent) */}
       <div
-        className="absolute inset-0 opacity-30"
+        className="absolute inset-0 opacity-[0.15]"
         style={{
-          background: `
-            radial-gradient(ellipse 80% 60% at 20% 80%, rgba(255,255,255,0.4) 0%, transparent 50%),
-            radial-gradient(ellipse 60% 80% at 80% 20%, rgba(255,255,255,0.3) 0%, transparent 50%),
-            radial-gradient(circle at 50% 50%, transparent 30%, rgba(0,0,0,0.15) 100%)
-          `,
+          backgroundImage: `radial-gradient(circle at 50% 50%, rgba(255,255,255,0.6) 0.5px, transparent 1px)`,
+          backgroundSize: '6px 6px',
         }}
       />
 
-      {/* Animated shimmer on hover */}
-      <motion.div
-        className="absolute inset-0 opacity-0 group-hover:opacity-100"
+      {/* Shine streak */}
+      <div
+        className="absolute inset-0"
         style={{
-          background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.3) 50%, transparent 60%)',
+          background: 'linear-gradient(130deg, rgba(255,255,255,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.15) 100%)',
         }}
-        initial={{ x: '-100%' }}
-        whileHover={{ x: '100%' }}
-        transition={{ duration: 0.6, ease: 'easeInOut' }}
       />
 
       {/* Content */}
-      <div className="relative z-10 h-full flex flex-col items-center justify-center p-2">
-        {/* Animated Lottie icon with emoji fallback + gentle pulse for CHILL */}
-        <motion.div
-          className="drop-shadow-lg mb-1"
-          style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.3))' }}
-          whileHover={{ scale: 1.2, rotate: [0, -10, 10, 0] }}
-          animate={vibe.id === 'chill-vibes' && !vibe.lottie ? {
-            scale: [1, 1.1, 1],
-          } : {}}
-          transition={vibe.id === 'chill-vibes' && !vibe.lottie ? {
-            duration: 2,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          } : { duration: 0.4 }}
-        >
-          <LottieIcon
-            lottieUrl={vibe.lottie}
-            fallbackEmoji={vibe.icon}
-            size={32}
-          />
-        </motion.div>
+      <div className="relative h-full flex flex-col items-center justify-center p-3">
+        {/* Animated Icon - unique per vibe */}
+        <div className="mb-2 drop-shadow-lg text-4xl flex items-center justify-center">
+          {vibe.id === 'afro-heat' && (
+            <motion.div
+              style={{ display: 'inline-block' }}
+              whileHover={{ scale: 1.1 }}
+            >
+              <LottieIcon
+                lottieUrl="/lottie/fire.json"
+                fallbackEmoji="🔥"
+                size={48}
+                loop={true}
+              />
+            </motion.div>
+          )}
+          {vibe.id === 'chill-vibes' && (
+            <motion.div
+              style={{ display: 'inline-block' }}
+              animate={{
+                scale: [1, 1.12, 1],
+                opacity: [0.6, 1, 0.6],
+              }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              💜
+            </motion.div>
+          )}
+          {vibe.id === 'party-mode' && (
+            <div className="relative">
+              <LottieIcon
+                lottieUrl={vibe.lottie}
+                fallbackEmoji="🪩"
+                size={44}
+              />
+              <motion.div
+                className="absolute -top-1 -right-2 text-lg"
+                style={{ display: 'inline-block' }}
+                animate={{
+                  scale: [0.8, 1.2, 0.8],
+                  rotate: [0, 15, -15, 0],
+                  opacity: [0.7, 1, 0.7],
+                }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                ✨
+              </motion.div>
+            </div>
+          )}
+          {vibe.id === 'late-night' && (
+            <motion.div
+              style={{ display: 'inline-block' }}
+              animate={{
+                rotate: [-8, 8, -8],
+                scale: [1, 1.05, 1],
+              }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              🌙
+            </motion.div>
+          )}
+          {vibe.id === 'workout' && (
+            <motion.div
+              style={{ display: 'inline-block' }}
+              animate={{
+                scale: [1, 1.2, 1, 1.15, 1],
+                x: [-2, 2, -2, 2, 0],
+              }}
+              transition={{ duration: 0.6, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              ⚡
+            </motion.div>
+          )}
+        </div>
 
-        {/* Bold name */}
-        <span
-          className="text-white font-black text-[10px] tracking-wide"
-          style={{
-            textShadow: '0 2px 8px rgba(0,0,0,0.4)',
-            letterSpacing: '0.05em',
-          }}
-        >
+        {/* Name - bold, no subtlety */}
+        <h3 className="text-white font-black text-xs tracking-wide text-center drop-shadow-md">
           {vibe.name}
-        </span>
+        </h3>
 
-        {/* Subtle description */}
-        <span
-          className="text-white/80 text-[8px] font-medium mt-0.5"
-          style={{ textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}
-        >
+        {/* Description */}
+        <p className="text-white/80 text-[9px] mt-1 text-center font-medium">
           {vibe.description}
-        </span>
+        </p>
       </div>
 
-      {/* Corner accent blob */}
+      {/* Colored footer accent */}
       <div
-        className="absolute -top-4 -right-4 w-12 h-12 rounded-full opacity-40"
-        style={{ background: 'rgba(255,255,255,0.3)', filter: 'blur(8px)' }}
+        className="absolute bottom-0 left-0 right-0 h-[3px]"
+        style={{
+          background: `linear-gradient(90deg, transparent 5%, rgba(255,255,255,0.5) 50%, transparent 95%)`,
+        }}
       />
+
+      {/* AFRO HEAT - Full Fire Orchestration */}
+      {vibe.id === 'afro-heat' && (
+        <>
+          {/* Ember wave 1 - syncs with main fire pulse 2 */}
+          {[
+            { left: '20%', delay: 0.8, dir: 1 },
+            { left: '40%', delay: 1.6, dir: -1 },
+            { left: '60%', delay: 2.4, dir: 1 },
+            { left: '80%', delay: 3.2, dir: -1 },
+          ].map((spark, i) => (
+            <motion.div
+              key={`ember-${i}`}
+              className="absolute rounded-full"
+              style={{
+                bottom: '2px',
+                left: spark.left,
+                width: '4px',
+                height: '4px',
+                background: 'radial-gradient(circle, #ffeb3b 0%, #ff9800 40%, #f4511e 100%)',
+                boxShadow: '0 0 6px 1px rgba(255, 152, 0, 0.7)',
+              }}
+              animate={{
+                y: [0, -30, -60, -90, -115],
+                x: [0, spark.dir * 4, spark.dir * -2, spark.dir * 5, spark.dir * 2],
+                opacity: [0, 0.9, 0.8, 0.5, 0],
+                scale: [0.3, 0.7, 0.9, 0.6, 0.3],
+              }}
+              transition={{
+                duration: 4,
+                repeat: Infinity,
+                repeatDelay: 1,
+                delay: spark.delay,
+                ease: [0.4, 0, 0.2, 1],
+              }}
+            />
+          ))}
+
+          {/* Fire bloom - appears when main fire peaks */}
+          {[
+            { left: '30%', delay: 2.5 },
+            { left: '70%', delay: 3.5 },
+          ].map((bloom, i) => (
+            <motion.div
+              key={`bloom-${i}`}
+              className="absolute text-[11px]"
+              style={{
+                bottom: '85px',
+                left: bloom.left,
+                marginLeft: '-7px',
+              }}
+              animate={{
+                y: [0, -8, -20],
+                opacity: [0, 1, 0],
+                scale: [0.4, 1, 1.4],
+              }}
+              transition={{
+                duration: 2.5,
+                repeat: Infinity,
+                repeatDelay: 2.5,
+                delay: bloom.delay,
+                ease: 'easeOut',
+              }}
+            >
+              🔥
+            </motion.div>
+          ))}
+
+          {/* Tiny sparks - rapid, random feel */}
+          {[
+            { left: '25%', delay: 0, size: 3 },
+            { left: '50%', delay: 0.5, size: 2 },
+            { left: '75%', delay: 1, size: 3 },
+            { left: '35%', delay: 1.5, size: 2 },
+            { left: '65%', delay: 2, size: 2 },
+          ].map((spark, i) => (
+            <motion.div
+              key={`spark-${i}`}
+              className="absolute rounded-full"
+              style={{
+                bottom: '0px',
+                left: spark.left,
+                width: `${spark.size}px`,
+                height: `${spark.size}px`,
+                background: '#ffcc00',
+                boxShadow: '0 0 4px #ff9900',
+              }}
+              animate={{
+                y: [0, -20, -35],
+                opacity: [0, 1, 0],
+                x: [0, (i % 2 === 0 ? 3 : -3), 0],
+              }}
+              transition={{
+                duration: 1.2,
+                repeat: Infinity,
+                repeatDelay: 0.8,
+                delay: spark.delay,
+                ease: 'easeOut',
+              }}
+            />
+          ))}
+        </>
+      )}
     </div>
   </motion.button>
 );
@@ -425,34 +586,20 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
         </Shelf>
       )}
 
-      {/* Browse by Vibes (matches MixBoard + database) */}
-      <div className="relative -mx-4 px-4 pt-4 pb-6">
-        {/* TOP fade - dark to purple */}
-        <div
-          className="absolute left-0 right-0 top-0 pointer-events-none"
-          style={{
-            height: '45%',
-            background: 'linear-gradient(to bottom, transparent 0%, rgba(139, 92, 246, 0.1) 50%, rgba(139, 92, 246, 0.35) 100%)',
-          }}
-        />
-        {/* BOTTOM fade - purple to dark */}
-        <div
-          className="absolute left-0 right-0 bottom-0 pointer-events-none"
-          style={{
-            height: '45%',
-            background: 'linear-gradient(to bottom, rgba(139, 92, 246, 0.35) 0%, rgba(139, 92, 246, 0.1) 50%, transparent 100%)',
-          }}
-        />
-        <div className="relative z-10">
-          <Shelf title="Browse by Vibes">
-            {vibes.map((vibe) => (
-              <VibeCard
-                key={vibe.id}
-                vibe={vibe}
-                onSelect={() => handleVibeSelect(vibe)}
-              />
-            ))}
-          </Shelf>
+      {/* Browse by Vibes - Floating cards */}
+      <div className="mb-6">
+        <div className="px-4 mb-4">
+          <h2 className="text-white font-bold text-lg">Browse by Vibes</h2>
+        </div>
+        <div className="flex gap-5 px-4 overflow-x-auto scrollbar-hide py-4">
+          {vibes.map((vibe, index) => (
+            <VibeCard
+              key={vibe.id}
+              vibe={vibe}
+              index={index}
+              onSelect={() => handleVibeSelect(vibe)}
+            />
+          ))}
         </div>
       </div>
 
