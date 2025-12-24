@@ -162,9 +162,8 @@ const VibeCard = ({ vibe, onSelect }: VibeCardProps) => (
   <motion.button
     className="flex-shrink-0 w-28 h-32 relative group"
     onClick={onSelect}
-    whileHover={{ scale: 1.08, y: -8 }}
+    whileHover={{ scale: 1.08, y: -6 }}
     whileTap={{ scale: 0.95 }}
-    style={{ transform: 'translateY(-4px)' }} // Lift cards up to pop out of fade
   >
     {/* Deep shadow for 3D pop effect */}
     <div
@@ -428,12 +427,12 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
 
       {/* Browse by Vibes (matches MixBoard + database) */}
       <div className="relative -mx-4 px-4 pt-6 pb-10">
-        {/* Gradient fade background - sits behind cards, cards pop OUT of it */}
+        {/* Gradient fade background - lower so card tops pop into dark */}
         <div
-          className="absolute left-0 right-0 bottom-0 pointer-events-none rounded-t-[40px]"
+          className="absolute left-0 right-0 bottom-0 pointer-events-none rounded-t-[32px]"
           style={{
-            height: '85%',
-            background: 'linear-gradient(to top, rgba(139, 92, 246, 0.35) 0%, rgba(139, 92, 246, 0.25) 30%, rgba(139, 92, 246, 0.1) 60%, transparent 100%)',
+            height: '65%',
+            background: 'linear-gradient(to top, rgba(139, 92, 246, 0.4) 0%, rgba(139, 92, 246, 0.25) 40%, rgba(139, 92, 246, 0.08) 80%, transparent 100%)',
           }}
         />
         <div className="relative z-10">
