@@ -75,6 +75,7 @@ export const VIBES: Vibe[] = [
     id: 'afro-heat',
     name: 'AFRO HEAT',
     icon: '🔥',
+    lottie: 'https://assets2.lottiefiles.com/packages/lf20_UJNc2t.json', // Fire flame animation
     color: '#f97316',
     gradient: 'from-orange-500 via-red-500 to-amber-600',
     description: 'Afrobeats • Amapiano',
@@ -83,6 +84,7 @@ export const VIBES: Vibe[] = [
     id: 'chill-vibes',
     name: 'CHILL',
     icon: '💜',
+    lottie: 'https://assets4.lottiefiles.com/packages/lf20_eop69f3l.json', // Beating heart animation
     color: '#8b5cf6',
     gradient: 'from-violet-500 via-purple-600 to-purple-700',
     description: 'Relax & Be',
