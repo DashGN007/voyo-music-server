@@ -77,7 +77,30 @@ export interface VibeTrainSignal {
 // Anonymous user hash (consistent per device)
 let userHash: string | null = null;
 
+/**
+ * Get user identifier for signals
+ * - If logged in: returns account ID (e.g., "dash-001")
+ * - If anonymous: returns device-consistent hash (e.g., "u_abc123...")
+ *
+ * This allows:
+ * - Anonymous usage (no login required)
+ * - Account-linked data when logged in (syncs across devices)
+ */
 function getUserHash(): string {
+  // Try to get logged-in account ID first
+  try {
+    const accountData = localStorage.getItem('voyo-account');
+    if (accountData) {
+      const parsed = JSON.parse(accountData);
+      if (parsed?.account?.id) {
+        return parsed.account.id; // Use account ID (e.g., "dash-001")
+      }
+    }
+  } catch {
+    // Ignore parse errors
+  }
+
+  // Fall back to anonymous device hash
   if (userHash) return userHash;
 
   // Try to get from localStorage
@@ -87,7 +110,7 @@ function getUserHash(): string {
     return stored;
   }
 
-  // Generate new hash
+  // Generate new anonymous hash
   const newHash = 'u_' + Math.random().toString(36).substring(2, 15) +
                   Math.random().toString(36).substring(2, 15);
   localStorage.setItem('voyo_user_hash', newHash);
