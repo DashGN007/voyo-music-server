@@ -18,6 +18,7 @@ import { NowPlaying } from './NowPlaying';
 import { usePlayerStore } from '../../store/playerStore';
 import { getYouTubeThumbnail } from '../../data/tracks';
 import { SmartImage } from '../ui/SmartImage';
+import { BoostButton } from '../ui/BoostButton';
 import { Track } from '../../types';
 
 type ClassicTab = 'home' | 'hub' | 'library';
@@ -116,18 +117,10 @@ const MiniPlayer = ({ onClick }: { onClick: () => void }) => {
             <span className="text-white text-lg font-light">+</span>
           </motion.div>
 
-          {/* OYÉ Button */}
-          <motion.div
-            className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"
-            onClick={(e) => {
-              e.stopPropagation();
-              // TODO: OYÉ reaction
-            }}
-            whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.2)' }}
-            whileTap={{ scale: 0.9 }}
-          >
-            <span className="text-sm">🔥</span>
-          </motion.div>
+          {/* Boost Button */}
+          <div onClick={(e) => e.stopPropagation()}>
+            <BoostButton variant="mini" />
+          </div>
 
           {/* Play/Pause */}
           <motion.div
@@ -162,7 +155,7 @@ const MiniPlayer = ({ onClick }: { onClick: () => void }) => {
   );
 };
 
-// Bottom Navigation - Home ↔ DAHUB toggle on left
+// Bottom Navigation - Home left, VOYO center, DAHUB right
 const BottomNav = ({
   activeTab,
   onTabChange,
@@ -172,38 +165,19 @@ const BottomNav = ({
   onTabChange: (tab: ClassicTab) => void;
   onVOYOClick: () => void;
 }) => {
-  // Left button toggles between Home and Hub
-  const isHub = activeTab === 'hub';
-  const leftIcon = isHub ? Home : Users;
-  const leftLabel = isHub ? 'Home' : 'DAHUB';
-
   return (
     <nav className="absolute bottom-0 left-0 right-0 flex items-center justify-around py-3 px-6 bg-[#0a0a0f]/95 backdrop-blur-lg border-t border-white/5">
-      {/* LEFT: Home ↔ DAHUB Toggle */}
+      {/* LEFT: Home */}
       <motion.button
         className={`flex flex-col items-center gap-1 p-2 ${
-          activeTab === 'home' || activeTab === 'hub' ? 'text-purple-400' : 'text-white/40'
+          activeTab === 'home' ? 'text-purple-400' : 'text-white/40'
         }`}
-        onClick={() => onTabChange(isHub ? 'home' : 'hub')}
+        onClick={() => onTabChange('home')}
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
       >
-        <motion.div
-          key={leftLabel}
-          initial={{ rotateY: 90, opacity: 0 }}
-          animate={{ rotateY: 0, opacity: 1 }}
-          transition={{ duration: 0.2 }}
-        >
-          {isHub ? <Home className="w-6 h-6" /> : <Users className="w-6 h-6" />}
-        </motion.div>
-        <motion.span
-          key={leftLabel + '-label'}
-          className="text-xs"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
-          {leftLabel}
-        </motion.span>
+        <Home className="w-6 h-6" />
+        <span className="text-xs">Home</span>
       </motion.button>
 
       {/* CENTER: VOYO Player */}
@@ -218,17 +192,17 @@ const BottomNav = ({
         </div>
       </motion.button>
 
-      {/* RIGHT: Library */}
+      {/* RIGHT: DAHUB */}
       <motion.button
         className={`flex flex-col items-center gap-1 p-2 ${
-          activeTab === 'library' ? 'text-purple-400' : 'text-white/40'
+          activeTab === 'hub' ? 'text-purple-400' : 'text-white/40'
         }`}
-        onClick={() => onTabChange('library')}
+        onClick={() => onTabChange('hub')}
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
       >
-        <LibraryIcon className="w-6 h-6" />
-        <span className="text-xs">Library</span>
+        <Users className="w-6 h-6" />
+        <span className="text-xs">DAHUB</span>
       </motion.button>
     </nav>
   );
