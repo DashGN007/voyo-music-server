@@ -14,6 +14,7 @@ import { Search, Bell, Play, RefreshCw } from 'lucide-react';
 import { getThumb } from '../../utils/thumbnail';
 import { SmartImage } from '../ui/SmartImage';
 import { TRACKS, VIBES, getHotTracks, Vibe } from '../../data/tracks';
+import { LottieIcon } from '../ui/LottieIcon';
 import { getUserTopTracks, getPoolAwareHotTracks } from '../../services/personalization';
 import { usePlayerStore } from '../../store/playerStore';
 import { useTrackPoolStore } from '../../store/trackPoolStore';
@@ -202,15 +203,19 @@ const VibeCard = ({ vibe, onSelect }: VibeCardProps) => (
 
       {/* Content */}
       <div className="relative z-10 h-full flex flex-col items-center justify-center p-2">
-        {/* Big emoji with shadow */}
-        <motion.span
-          className="text-4xl drop-shadow-lg mb-1"
-          style={{ textShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
+        {/* Animated Lottie icon with emoji fallback */}
+        <motion.div
+          className="drop-shadow-lg mb-1"
+          style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.3))' }}
           whileHover={{ scale: 1.2, rotate: [0, -10, 10, 0] }}
           transition={{ duration: 0.4 }}
         >
-          {vibe.icon}
-        </motion.span>
+          <LottieIcon
+            lottieUrl={vibe.lottie}
+            fallbackEmoji={vibe.icon}
+            size={40}
+          />
+        </motion.div>
 
         {/* Bold name */}
         <span

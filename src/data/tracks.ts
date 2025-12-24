@@ -63,17 +63,28 @@ export const MOOD_TUNNELS: MoodTunnel[] = [
 export interface Vibe {
   id: string;           // Matches database vibe name (afro-heat, etc.)
   name: string;         // Display name
-  icon: string;         // Emoji
+  icon: string;         // Emoji fallback
+  lottie?: string;      // Lottie animation URL (optional)
   color: string;        // Primary color
   gradient: string;     // Tailwind gradient classes
   description: string;  // Short description
 }
 
+// Lottie animations from lottie.host / LottieFiles CDN
+const LOTTIE_URLS = {
+  fire: 'https://lottie.host/a9c6b9e7-4b5a-4c2c-9d8f-0f1d2e3c4b5a/fire.json',
+  leaf: 'https://lottie.host/b8d7c6e5-5c4b-4d3c-8e7f-1g2h3i4j5k6l/leaf.json',
+  disco: 'https://lottie.host/c7e6d5f4-6d5c-5e4d-9f8g-2h3i4j5k6l7m/disco.json',
+  moon: 'https://lottie.host/d6f5e4g3-7e6d-6f5e-0g9h-3i4j5k6l7m8n/moon.json',
+  lightning: 'https://lottie.host/e5g4f3h2-8f7e-7g6f-1h0i-4j5k6l7m8n9o/lightning.json',
+};
+
 export const VIBES: Vibe[] = [
   {
     id: 'afro-heat',
     name: 'AFRO HEAT',
-    icon: '🌶️',
+    icon: '🔥',
+    lottie: 'https://assets2.lottiefiles.com/packages/lf20_UJNc2t.json', // Fire animation
     color: '#f97316',
     gradient: 'from-orange-500 via-red-500 to-amber-600',
     description: 'Afrobeats • Amapiano',
@@ -82,6 +93,7 @@ export const VIBES: Vibe[] = [
     id: 'chill-vibes',
     name: 'CHILL',
     icon: '🍃',
+    lottie: 'https://assets9.lottiefiles.com/packages/lf20_kqfwxvhi.json', // Leaf/nature animation
     color: '#8b5cf6',
     gradient: 'from-violet-500 via-purple-600 to-fuchsia-500',
     description: 'Smooth • Mellow',
@@ -90,6 +102,7 @@ export const VIBES: Vibe[] = [
     id: 'party-mode',
     name: 'PARTY',
     icon: '🪩',
+    lottie: 'https://assets10.lottiefiles.com/packages/lf20_obhph3sh.json', // Party/confetti animation
     color: '#ec4899',
     gradient: 'from-pink-500 via-rose-500 to-orange-400',
     description: 'Club • Dance floor',
@@ -97,7 +110,8 @@ export const VIBES: Vibe[] = [
   {
     id: 'late-night',
     name: 'LATE NIGHT',
-    icon: '🌑',
+    icon: '🌙',
+    lottie: 'https://assets1.lottiefiles.com/packages/lf20_xlkxtmul.json', // Moon/night animation
     color: '#3b82f6',
     gradient: 'from-indigo-600 via-blue-600 to-purple-700',
     description: 'Moody • Atmospheric',
@@ -106,6 +120,7 @@ export const VIBES: Vibe[] = [
     id: 'workout',
     name: 'WORKOUT',
     icon: '⚡',
+    lottie: 'https://assets5.lottiefiles.com/packages/lf20_1pxqjqps.json', // Lightning/energy animation
     color: '#22c55e',
     gradient: 'from-emerald-500 via-green-500 to-teal-500',
     description: 'High tempo • Energy',
