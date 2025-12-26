@@ -387,6 +387,186 @@ CREATE POLICY "Anyone can delete follows"
   ON follows FOR DELETE USING (true);
 
 -- ============================================
+-- VIDEO INTELLIGENCE TABLE (The Collective Brain)
+-- ============================================
+-- Every YouTube video VOYO encounters gets stored here
+-- One user's discovery = everyone's knowledge
+CREATE TABLE IF NOT EXISTS video_intelligence (
+  -- THE KEY
+  youtube_id TEXT PRIMARY KEY,
+
+  -- METADATA (from YouTube/OCR)
+  title TEXT NOT NULL,
+  artist TEXT,                          -- Extracted artist name
+  channel_name TEXT,                    -- YouTube channel
+  duration_seconds INTEGER,
+  thumbnail_url TEXT,
+
+  -- SEARCH OPTIMIZATION
+  search_terms TEXT[],                  -- Variations: ["davido with you", "davido ft omah lay", "with you remix"]
+  normalized_title TEXT,                -- Lowercase, stripped: "davido with you omah lay"
+
+  -- RELATIONSHIPS (The Graph)
+  related_ids TEXT[] DEFAULT '{}',      -- YouTube's suggested videos
+  similar_ids TEXT[] DEFAULT '{}',      -- VOYO's similarity engine
+
+  -- CLASSIFICATION
+  genres TEXT[] DEFAULT '{}',           -- ["afrobeats", "amapiano"]
+  moods TEXT[] DEFAULT '{}',            -- ["party", "chill", "workout"]
+  language TEXT,                        -- "en", "fr", "yo", "wo"
+  region TEXT,                          -- "NG", "GH", "SN"
+
+  -- COMMUNITY SIGNALS
+  voyo_play_count INTEGER DEFAULT 0,    -- Times played in VOYO
+  voyo_queue_count INTEGER DEFAULT 0,   -- Times added to queue
+  voyo_reaction_count INTEGER DEFAULT 0,-- OYE reactions
+
+  -- DISCOVERY SOURCE
+  discovered_by TEXT,                   -- Username who first found this
+  discovery_method TEXT CHECK (discovery_method IN (
+    'manual_play',      -- User played directly
+    'ocr_extraction',   -- Extracted from YouTube suggestions
+    'api_search',       -- Found via YouTube API
+    'related_crawl',    -- Discovered from related videos
+    'import'            -- Bulk import
+  )),
+
+  -- TIMESTAMPS
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  last_played_at TIMESTAMPTZ
+);
+
+-- ============================================
+-- VIDEO INTELLIGENCE INDEXES
+-- ============================================
+-- Fast fuzzy search on title/artist
+CREATE INDEX IF NOT EXISTS idx_video_normalized_title
+  ON video_intelligence(normalized_title);
+
+-- Full-text search
+CREATE INDEX IF NOT EXISTS idx_video_search
+  ON video_intelligence USING gin(to_tsvector('simple',
+    title || ' ' || COALESCE(artist, '') || ' ' || COALESCE(channel_name, '')
+  ));
+
+-- Search terms array (for exact matching variations)
+CREATE INDEX IF NOT EXISTS idx_video_search_terms
+  ON video_intelligence USING gin(search_terms);
+
+-- Popular videos
+CREATE INDEX IF NOT EXISTS idx_video_popular
+  ON video_intelligence(voyo_play_count DESC);
+
+-- Recent discoveries
+CREATE INDEX IF NOT EXISTS idx_video_recent
+  ON video_intelligence(created_at DESC);
+
+-- ============================================
+-- VIDEO INTELLIGENCE RLS
+-- ============================================
+ALTER TABLE video_intelligence ENABLE ROW LEVEL SECURITY;
+
+-- Anyone can read (the whole point is shared knowledge)
+CREATE POLICY "Video intelligence is public"
+  ON video_intelligence FOR SELECT USING (true);
+
+-- Anyone can contribute
+CREATE POLICY "Anyone can add video intelligence"
+  ON video_intelligence FOR INSERT WITH CHECK (true);
+
+-- Anyone can update (add related videos, increment counts)
+CREATE POLICY "Anyone can update video intelligence"
+  ON video_intelligence FOR UPDATE USING (true) WITH CHECK (true);
+
+-- ============================================
+-- VIDEO INTELLIGENCE FUNCTIONS
+-- ============================================
+
+-- Normalize title for searching
+CREATE OR REPLACE FUNCTION normalize_video_title(title_input TEXT)
+RETURNS TEXT AS $$
+BEGIN
+  RETURN lower(regexp_replace(
+    regexp_replace(title_input, '\(.*?\)|\[.*?\]', '', 'g'),  -- Remove brackets
+    '[^a-z0-9\s]', '', 'g'                                     -- Keep only alphanumeric
+  ));
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Auto-normalize on insert/update
+CREATE OR REPLACE FUNCTION video_intelligence_normalize()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.normalized_title = normalize_video_title(NEW.title);
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER video_intelligence_normalize_trigger
+  BEFORE INSERT OR UPDATE ON video_intelligence
+  FOR EACH ROW
+  EXECUTE FUNCTION video_intelligence_normalize();
+
+-- Increment play count
+CREATE OR REPLACE FUNCTION increment_video_play(video_id TEXT)
+RETURNS void AS $$
+BEGIN
+  UPDATE video_intelligence
+  SET voyo_play_count = voyo_play_count + 1,
+      last_played_at = now()
+  WHERE youtube_id = video_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Increment queue count
+CREATE OR REPLACE FUNCTION increment_video_queue(video_id TEXT)
+RETURNS void AS $$
+BEGIN
+  UPDATE video_intelligence
+  SET voyo_queue_count = voyo_queue_count + 1
+  WHERE youtube_id = video_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Fuzzy search for video by title
+CREATE OR REPLACE FUNCTION search_video_intelligence(search_query TEXT, limit_count INTEGER DEFAULT 5)
+RETURNS TABLE(
+  youtube_id TEXT,
+  title TEXT,
+  artist TEXT,
+  similarity REAL
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    vi.youtube_id,
+    vi.title,
+    vi.artist,
+    similarity(vi.normalized_title, normalize_video_title(search_query)) as sim
+  FROM video_intelligence vi
+  WHERE
+    vi.normalized_title % normalize_video_title(search_query)
+    OR search_query = ANY(vi.search_terms)
+  ORDER BY sim DESC
+  LIMIT limit_count;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Enable trigram extension for fuzzy matching
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- Trigram index for fuzzy search
+CREATE INDEX IF NOT EXISTS idx_video_title_trgm
+  ON video_intelligence USING gin(normalized_title gin_trgm_ops);
+
+-- ============================================
+-- REALTIME FOR VIDEO INTELLIGENCE
+-- ============================================
+ALTER PUBLICATION supabase_realtime ADD TABLE video_intelligence;
+
+-- ============================================
 -- SAMPLE DATA (for testing)
 -- ============================================
 -- INSERT INTO universes (username, pin_hash, public_profile)
