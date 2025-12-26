@@ -16,6 +16,7 @@ import { Library } from './Library';
 import { Hub } from './Hub';
 import { NowPlaying } from './NowPlaying';
 import { usePlayerStore } from '../../store/playerStore';
+import { useMobilePlay } from '../../hooks/useMobilePlay';
 import { getYouTubeThumbnail } from '../../data/tracks';
 import { SmartImage } from '../ui/SmartImage';
 import { Track } from '../../types';
@@ -379,13 +380,17 @@ export const ClassicMode = ({ onSwitchToVOYO, onSearch }: ClassicModeProps) => {
   const [activeTab, setActiveTab] = useState<ClassicTab>('home');
   const [showNowPlaying, setShowNowPlaying] = useState(false);
   const { currentTrack } = usePlayerStore();
+  const { forcePlay } = useMobilePlay();
 
-  const handleTrackClick = (track: Track) => {
-    const { setCurrentTrack, togglePlay } = usePlayerStore.getState();
+  const handleTrackClick = async (track: Track) => {
+    const { setCurrentTrack } = usePlayerStore.getState();
     setCurrentTrack(track);
-    // FIX: Explicitly start playback when user clicks track
-    setTimeout(() => togglePlay(), 100);
     setShowNowPlaying(true);
+    // FIX: Use forcePlay directly in user gesture context - no setTimeout!
+    // Small delay to let AudioPlayer set the source, then force play
+    setTimeout(async () => {
+      await forcePlay();
+    }, 150);
   };
 
   const handleArtistClick = (artist: { name: string; tracks: Track[] }) => {
