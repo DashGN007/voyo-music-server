@@ -13,7 +13,7 @@ import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
 import { motion, AnimatePresence, useInView, TargetAndTransition } from 'framer-motion';
 import {
   Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Maximize2, Film, Settings, Heart,
-  Shuffle, Repeat, Repeat1, Share2, Mic
+  Shuffle, Repeat, Repeat1, Share2, Mic, X
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import { useIntentStore, VibeMode } from '../../store/intentStore';
@@ -1804,7 +1804,7 @@ StreamCard.displayName = 'StreamCard';
 // BIG CENTER CARD (NOW PLAYING - Canva-style purple fade with premium typography)
 // TAP ALBUM ART FOR LYRICS VIEW
 // ============================================
-const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = false }: { track: Track; onExpandVideo?: () => void; onShowLyrics?: () => void; showOverlay?: boolean }) => (
+const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = false, isVideoMode = false, onCloseVideo }: { track: Track; onExpandVideo?: () => void; onShowLyrics?: () => void; showOverlay?: boolean; isVideoMode?: boolean; onCloseVideo?: () => void }) => (
   <motion.div
     className="relative w-52 h-52 md:w-60 md:h-60 rounded-[2rem] overflow-hidden z-20 group"
     style={{
@@ -1816,29 +1816,50 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = 
     whileHover={{ scale: 1.02 }}
     key={track.id}
   >
-    {/* Original artwork - crisp and clean - TAP FOR LYRICS */}
-    <div
-      onClick={onShowLyrics}
-      className="absolute inset-0 cursor-pointer z-10"
-      role="button"
-      aria-label="Show lyrics"
-    >
-      <SmartImage
-        src={getTrackThumbnailUrl(track, 'high')}
-        alt={track.title}
-        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-        trackId={track.trackId}
-        artist={track.artist}
-        title={track.title}
-        lazy={false}
-      />
-      {/* Lyrics hint icon */}
-      {onShowLyrics && (
-        <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <span className="text-white text-xs">📝</span>
-        </div>
-      )}
-    </div>
+    {/* VIDEO MODE: YouTube iframe replaces artwork */}
+    {isVideoMode ? (
+      <div className="absolute inset-0 z-10 bg-black">
+        <iframe
+          src={`https://www.youtube.com/embed/${track.trackId}?autoplay=1&controls=1&modestbranding=1&rel=0&playsinline=1&enablejsapi=1`}
+          className="w-full h-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title={track.title}
+        />
+        {/* Close video button */}
+        <motion.button
+          onClick={onCloseVideo}
+          className="absolute top-2 left-2 z-30 p-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 text-white"
+          whileTap={{ scale: 0.9 }}
+        >
+          <X size={14} />
+        </motion.button>
+      </div>
+    ) : (
+      /* Original artwork - crisp and clean - TAP FOR LYRICS */
+      <div
+        onClick={onShowLyrics}
+        className="absolute inset-0 cursor-pointer z-10"
+        role="button"
+        aria-label="Show lyrics"
+      >
+        <SmartImage
+          src={getTrackThumbnailUrl(track, 'high')}
+          alt={track.title}
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+          trackId={track.trackId}
+          artist={track.artist}
+          title={track.title}
+          lazy={false}
+        />
+        {/* Lyrics hint icon */}
+        {onShowLyrics && (
+          <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="text-white text-xs">📝</span>
+          </div>
+        )}
+      </div>
+    )}
 
     {/* CANVA-STYLE PURPLE FADE - Only shows on tap */}
     <AnimatePresence>
@@ -1871,8 +1892,8 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = 
       }}
     />
 
-    {/* Expand Video Button */}
-    {onExpandVideo && (
+    {/* Expand Video Button - hidden when video is playing */}
+    {onExpandVideo && !isVideoMode && (
       <ExpandVideoButton onClick={onExpandVideo} />
     )}
 
@@ -4641,9 +4662,11 @@ export const VoyoPortraitPlayer = ({
           {currentTrack ? (
             <BigCenterCard
               track={currentTrack}
-              onExpandVideo={handleExpandVideo}
+              onExpandVideo={() => toggleVideoMode()}
+              onCloseVideo={() => toggleVideoMode()}
+              isVideoMode={isVideoMode}
               onShowLyrics={() => setShowLyricsOverlay(true)}
-              showOverlay={true}
+              showOverlay={!isVideoMode}
             />
           ) : (
             <div className="w-48 h-48 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center">

@@ -1,18 +1,17 @@
 /**
- * VOYO Music - Landscape VOYO Mode (No Video)
- * Reference: Voyo No Video - V2 Lanscape.jpg
+ * VOYO Music - Landscape Video Mode
  *
- * Features:
- * - Same as Portrait but wider layout
- * - More cards visible horizontally
- * - Reactions split to left and right sides
- * - Triple-tap center circle to enter Video Mode
- * - Hold center circle to reveal DJ (OYO) mode
+ * VIDEO-FIRST EXPERIENCE:
+ * - YouTube video plays fullscreen as background
+ * - UI overlay auto-hides after 3 seconds
+ * - 1 tap: Show controls briefly
+ * - 2 taps (double-tap): OYO DJ mode directly
+ * - Back button returns to portrait
  */
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
-import { SkipBack, SkipForward, Play, Plus, Volume2 } from 'lucide-react';
+import { SkipBack, SkipForward, Play, Pause, Plus, Volume2, Smartphone } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import { getYouTubeThumbnail } from '../../data/tracks';
 import { Track } from '../../types';
@@ -292,208 +291,300 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
     togglePlay,
   } = usePlayerStore();
 
-  // DJ Mode state
+  // UI visibility state - auto-hide after 3 seconds
+  const [showOverlay, setShowOverlay] = useState(true);
   const [isDJOpen, setIsDJOpen] = useState(false);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTapRef = useRef<number>(0);
 
   const pastTracks = history.slice(-3).map(h => h.track).reverse();
   const queueTracks = queue.slice(0, 2).map(q => q.track);
 
+  // Auto-hide overlay after 3 seconds
+  const startHideTimer = useCallback(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => {
+      if (!isDJOpen) setShowOverlay(false);
+    }, 3000);
+  }, [isDJOpen]);
+
+  // Handle tap on video area
+  const handleVideoTap = useCallback(() => {
+    const now = Date.now();
+    const timeSinceLastTap = now - lastTapRef.current;
+    lastTapRef.current = now;
+
+    // Double-tap detection (< 300ms)
+    if (timeSinceLastTap < 300) {
+      // Double-tap = Open DJ directly
+      setIsDJOpen(true);
+      setShowOverlay(true);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    } else {
+      // Single tap = Toggle overlay visibility
+      if (showOverlay) {
+        setShowOverlay(false);
+        if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      } else {
+        setShowOverlay(true);
+        startHideTimer();
+      }
+    }
+  }, [showOverlay, startHideTimer]);
+
+  // Start hide timer when overlay shown
+  useEffect(() => {
+    if (showOverlay && !isDJOpen) {
+      startHideTimer();
+    }
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [showOverlay, isDJOpen, startHideTimer]);
+
   // Handle DJ command
   const handleDJCommand = (command: string) => {
     setIsDJOpen(false);
+    startHideTimer();
 
     const commandLower = command.toLowerCase();
-    let responseKey = 'default';
-
     if (commandLower.includes('like this') || commandLower.includes('similar')) {
-      responseKey = 'more-like-this';
+      // more-like-this
     } else if (commandLower.includes('different') || commandLower.includes('change')) {
-      responseKey = 'something-different';
+      // something-different
     } else if (commandLower.includes('energy') || commandLower.includes('hype')) {
-      responseKey = 'more-energy';
+      // more-energy
     } else if (commandLower.includes('chill') || commandLower.includes('relax')) {
-      responseKey = 'chill-vibes';
+      // chill-vibes
     }
 
-    // Apply the DJ's suggestion
     refreshRecommendations();
     if (!isPlaying) togglePlay();
   };
 
-  // Handle hold to open DJ
-  const handleHoldForDJ = () => {
-    if (isPlaying) togglePlay(); // Pause music when opening DJ
-    setIsDJOpen(true);
+  // Handle back to portrait
+  const handleBackToPortrait = () => {
+    // Rotate back by exiting fullscreen or just letting orientation change
+    // For now, this is handled by the orientation hook in App.tsx
+    // We could force portrait mode here if needed
   };
 
   return (
-    <div className="flex flex-col h-full p-4">
-      {/* TOP: Timeline */}
-      <div className="flex items-center justify-center gap-2 py-2">
-        {/* Past tracks */}
-        {pastTracks.map((track, i) => (
-          <TimelineCard key={`past-${i}`} track={track} onClick={() => {
-            setCurrentTrack(track);
-            // FIX: Explicitly start playback
-            setTimeout(() => togglePlay(), 100);
-          }} />
-        ))}
-
-        {/* Show hot tracks as suggestions if no history */}
-        {pastTracks.length === 0 && hotTracks.slice(0, 2).map((track, i) => (
-          <TimelineCard key={`suggest-${i}`} track={track} onClick={() => {
-            setCurrentTrack(track);
-            // FIX: Explicitly start playback
-            setTimeout(() => togglePlay(), 100);
-          }} />
-        ))}
-
-        {/* Current track */}
-        {currentTrack && (
-          <TimelineCard track={currentTrack} isCurrent onClick={() => {}} />
-        )}
-
-        {/* Queue tracks */}
-        {queueTracks.map((track, i) => (
-          <TimelineCard key={`queue-${i}`} track={track} onClick={() => {
-            setCurrentTrack(track);
-            // FIX: Explicitly start playback
-            setTimeout(() => togglePlay(), 100);
-          }} />
-        ))}
-
-        {/* Add button */}
-        <motion.button
-          className="w-16 h-14 rounded-xl bg-white/5 border border-dashed border-white/20 flex items-center justify-center"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Plus className="w-5 h-5 text-white/40" />
-        </motion.button>
-
-        {/* Volume indicator */}
-        <div className="ml-4 flex items-center gap-2 text-white/40">
-          <Volume2 className="w-4 h-4" />
-          <span className="text-xs">{Math.round(volume)}%</span>
+    <div className="relative w-full h-full bg-black overflow-hidden">
+      {/* LAYER 1: YouTube Video Fullscreen Background */}
+      {currentTrack && (
+        <div className="absolute inset-0 z-0">
+          <iframe
+            src={`https://www.youtube.com/embed/${currentTrack.trackId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${currentTrack.trackId}&showinfo=0&iv_load_policy=3&fs=0`}
+            className="absolute inset-0 w-full h-full"
+            style={{
+              // Scale up to hide YouTube UI edges
+              transform: 'scale(1.2)',
+              transformOrigin: 'center center',
+            }}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            title={currentTrack.title}
+          />
         </div>
-      </div>
+      )}
 
-      {/* MIDDLE: Play Circle & Controls */}
-      <div className="flex-1 flex items-center justify-center gap-8">
-        {/* Left Reactions */}
-        <div className="flex flex-col gap-2">
-          <motion.button
-            className="px-4 py-2 rounded-full bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 text-white text-sm font-semibold"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => addReaction({ type: 'oyo', multiplier: 1, text: 'OYO', emoji: '🔥', x: 50, y: 50, userId: 'user' })}
-          >
-            OYO 🔥
-          </motion.button>
-          <motion.button
-            className="px-4 py-2 rounded-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-white text-sm font-semibold"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => addReaction({ type: 'oye', multiplier: 1, text: 'OYÉÉ', emoji: '💜', x: 50, y: 50, userId: 'user' })}
-          >
-            OYÉÉ 💜
-          </motion.button>
-        </div>
-
-        {/* Skip Prev */}
-        <motion.button
-          className="p-3 rounded-xl bg-white/5 border border-white/10"
-          onClick={prevTrack}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-        >
-          <SkipBack className="w-6 h-6 text-white/70" />
-        </motion.button>
-
-        {/* Play Circle - Triple-tap for Video, Hold for DJ */}
-        <PlayCircle onTripleTap={onVideoMode} onHold={handleHoldForDJ} />
-
-        {/* Skip Next */}
-        <motion.button
-          className="p-3 rounded-xl bg-white/5 border border-white/10"
-          onClick={nextTrack}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-        >
-          <SkipForward className="w-6 h-6 text-white/70" />
-        </motion.button>
-
-        {/* Right Reactions */}
-        <div className="flex flex-col gap-2">
-          <motion.button
-            className="px-4 py-2 rounded-full bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 text-white text-sm font-semibold"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => addReaction({ type: 'wazzguan', multiplier: 1, text: 'Wazzguán', emoji: '👋', x: 50, y: 50, userId: 'user' })}
-          >
-            Wazzguán 👋
-          </motion.button>
-          <motion.button
-            className="px-4 py-2 rounded-full bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 text-white text-sm font-semibold"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => addReaction({ type: 'fire', multiplier: 1, text: 'Fireee', emoji: '🔥', x: 50, y: 50, userId: 'user' })}
-          >
-            Fireee 🔥
-          </motion.button>
-        </div>
-      </div>
-
-      {/* BOTTOM: HOT | VOYO | DISCOVERY */}
-      <div className="flex items-center justify-center gap-6 py-3">
-        {/* HOT Section */}
-        <div className="flex flex-col items-center gap-2">
-          <span className="text-white/40 text-xs uppercase tracking-wider">HOT</span>
-          <div className="flex gap-2">
-            {hotTracks.slice(0, 4).map((track) => (
-              <MiniCard key={track.id} track={track} onClick={() => {
-                setCurrentTrack(track);
-                // FIX: Explicitly start playback
-                setTimeout(() => togglePlay(), 100);
-              }} />
-            ))}
-          </div>
-        </div>
-
-        {/* VOYO FEED */}
-        <motion.button
-          className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-900/50 to-pink-900/50 border border-purple-500/30 flex flex-col items-center justify-center"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <span className="text-white font-bold text-sm">VOYO</span>
-          <span className="text-white/60 text-xs">FEED</span>
-        </motion.button>
-
-        {/* DISCOVERY Section */}
-        <div className="flex flex-col items-center gap-2">
-          <span className="text-white/40 text-xs uppercase tracking-wider">DISCOVERY</span>
-          <div className="flex gap-2">
-            {discoverTracks.slice(0, 4).map((track) => (
-              <MiniCard key={track.id} track={track} onClick={() => {
-                setCurrentTrack(track);
-                // FIX: Explicitly start playback
-                setTimeout(() => togglePlay(), 100);
-              }} />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Interaction hints */}
-      <p className="text-center text-white/20 text-xs">Triple-tap for Video Mode | Hold for DJ</p>
-
-      {/* DJ Text Input Overlay */}
-      <DJTextInput
-        isOpen={isDJOpen}
-        onClose={() => setIsDJOpen(false)}
-        onSubmit={handleDJCommand}
+      {/* LAYER 2: Tap Detection Area (invisible) */}
+      <div
+        className="absolute inset-0 z-10"
+        onClick={handleVideoTap}
       />
+
+      {/* LAYER 3: UI Overlay - Auto-hides */}
+      <AnimatePresence>
+        {showOverlay && !isDJOpen && (
+          <motion.div
+            className="absolute inset-0 z-20 flex flex-col pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {/* Dark gradient for readability */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/60" />
+
+            {/* TOP: Timeline */}
+            <div className="relative flex items-center justify-center gap-2 p-3 pointer-events-auto">
+              {pastTracks.map((track, i) => (
+                <TimelineCard key={`past-${i}`} track={track} onClick={() => {
+                  setCurrentTrack(track);
+                  setTimeout(() => togglePlay(), 100);
+                  startHideTimer();
+                }} />
+              ))}
+              {pastTracks.length === 0 && hotTracks.slice(0, 2).map((track, i) => (
+                <TimelineCard key={`suggest-${i}`} track={track} onClick={() => {
+                  setCurrentTrack(track);
+                  setTimeout(() => togglePlay(), 100);
+                  startHideTimer();
+                }} />
+              ))}
+              {currentTrack && (
+                <TimelineCard track={currentTrack} isCurrent onClick={() => {}} />
+              )}
+              {queueTracks.map((track, i) => (
+                <TimelineCard key={`queue-${i}`} track={track} onClick={() => {
+                  setCurrentTrack(track);
+                  setTimeout(() => togglePlay(), 100);
+                  startHideTimer();
+                }} />
+              ))}
+              <motion.button
+                className="w-14 h-12 rounded-xl bg-white/10 backdrop-blur-sm border border-dashed border-white/30 flex items-center justify-center"
+                whileTap={{ scale: 0.95 }}
+              >
+                <Plus className="w-4 h-4 text-white/60" />
+              </motion.button>
+            </div>
+
+            {/* MIDDLE: Controls */}
+            <div className="flex-1 flex items-center justify-center gap-6 pointer-events-auto">
+              {/* Left Reactions */}
+              <div className="flex flex-col gap-2">
+                <motion.button
+                  className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-yellow-500/40 text-white text-sm"
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => { addReaction({ type: 'oyo', multiplier: 1, text: 'OYO', emoji: '🔥', x: 50, y: 50, userId: 'user' }); startHideTimer(); }}
+                >
+                  OYO 🔥
+                </motion.button>
+                <motion.button
+                  className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-purple-500/40 text-white text-sm"
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => { addReaction({ type: 'oye', multiplier: 1, text: 'OYÉÉ', emoji: '💜', x: 50, y: 50, userId: 'user' }); startHideTimer(); }}
+                >
+                  OYÉÉ 💜
+                </motion.button>
+              </div>
+
+              {/* Skip Prev */}
+              <motion.button
+                className="p-3 rounded-full bg-white/10 backdrop-blur-sm"
+                onClick={() => { prevTrack(); startHideTimer(); }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <SkipBack className="w-6 h-6 text-white" />
+              </motion.button>
+
+              {/* Play/Pause - Center */}
+              <motion.button
+                className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
+                onClick={() => { togglePlay(); startHideTimer(); }}
+                whileTap={{ scale: 0.9 }}
+              >
+                {isPlaying ? (
+                  <Pause className="w-8 h-8 text-white" fill="white" />
+                ) : (
+                  <Play className="w-8 h-8 text-white ml-1" fill="white" />
+                )}
+              </motion.button>
+
+              {/* Skip Next */}
+              <motion.button
+                className="p-3 rounded-full bg-white/10 backdrop-blur-sm"
+                onClick={() => { nextTrack(); startHideTimer(); }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <SkipForward className="w-6 h-6 text-white" />
+              </motion.button>
+
+              {/* Right Reactions */}
+              <div className="flex flex-col gap-2">
+                <motion.button
+                  className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-cyan-500/40 text-white text-sm"
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => { addReaction({ type: 'wazzguan', multiplier: 1, text: 'Wazzguán', emoji: '👋', x: 50, y: 50, userId: 'user' }); startHideTimer(); }}
+                >
+                  Wazzguán 👋
+                </motion.button>
+                <motion.button
+                  className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-red-500/40 text-white text-sm"
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => { addReaction({ type: 'fire', multiplier: 1, text: 'Fireee', emoji: '🔥', x: 50, y: 50, userId: 'user' }); startHideTimer(); }}
+                >
+                  Fireee 🔥
+                </motion.button>
+              </div>
+            </div>
+
+            {/* BOTTOM: HOT | DISCOVERY + Back Button */}
+            <div className="relative flex items-center justify-center gap-4 p-3 pointer-events-auto">
+              {/* HOT Section */}
+              <div className="flex items-center gap-2">
+                <span className="text-white/60 text-xs uppercase">HOT</span>
+                {hotTracks.slice(0, 3).map((track) => (
+                  <MiniCard key={track.id} track={track} onClick={() => {
+                    setCurrentTrack(track);
+                    setTimeout(() => togglePlay(), 100);
+                    startHideTimer();
+                  }} />
+                ))}
+              </div>
+
+              {/* DISCOVERY Section */}
+              <div className="flex items-center gap-2">
+                <span className="text-white/60 text-xs uppercase">DISCOVER</span>
+                {discoverTracks.slice(0, 3).map((track) => (
+                  <MiniCard key={track.id} track={track} onClick={() => {
+                    setCurrentTrack(track);
+                    setTimeout(() => togglePlay(), 100);
+                    startHideTimer();
+                  }} />
+                ))}
+              </div>
+
+              {/* Back to Portrait Button */}
+              <motion.button
+                className="absolute right-3 bottom-3 px-3 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center gap-2 text-white text-xs"
+                whileTap={{ scale: 0.95 }}
+                onClick={handleBackToPortrait}
+              >
+                <Smartphone className="w-4 h-4" />
+                Portrait
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* LAYER 4: OYO DJ Overlay - Double-tap activated */}
+      <AnimatePresence>
+        {isDJOpen && (
+          <motion.div
+            className="absolute inset-0 z-30 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Semi-transparent backdrop */}
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setIsDJOpen(false); startHideTimer(); }} />
+
+            {/* DJ Input */}
+            <DJTextInput
+              isOpen={isDJOpen}
+              onClose={() => { setIsDJOpen(false); startHideTimer(); }}
+              onSubmit={handleDJCommand}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Track info - always visible at top left */}
+      {currentTrack && !showOverlay && !isDJOpen && (
+        <motion.div
+          className="absolute top-3 left-3 z-20 bg-black/40 backdrop-blur-sm rounded-lg px-3 py-2"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+        >
+          <p className="text-white text-sm font-medium truncate max-w-[200px]">{currentTrack.title}</p>
+          <p className="text-white/60 text-xs truncate">{currentTrack.artist}</p>
+        </motion.div>
+      )}
     </div>
   );
 };

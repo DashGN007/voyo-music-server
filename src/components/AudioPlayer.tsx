@@ -159,6 +159,7 @@ export const AudioPlayer = () => {
   const {
     currentTrack,
     isPlaying,
+    isVideoMode,
     volume,
     seekPosition,
     playbackRate,
@@ -268,6 +269,43 @@ export const AudioPlayer = () => {
       }
     };
   }, [isPlaying]);
+
+  // === VIDEO MODE: Pause hidden iframe when video overlay is showing ===
+  // The visible video iframe in VoyoPortraitPlayer handles playback
+  // We pause AudioPlayer's hidden iframe to avoid double audio
+  const videoModePositionRef = useRef<number>(0);
+  useEffect(() => {
+    if (isVideoMode) {
+      // Entering video mode - pause our hidden iframe
+      if (playbackMode === 'iframe' && playerRef.current) {
+        try {
+          videoModePositionRef.current = playerRef.current.getCurrentTime?.() || 0;
+          playerRef.current.pauseVideo();
+          console.log('[VOYO] Video mode ON - paused hidden iframe');
+        } catch (e) {
+          // Ignore
+        }
+      } else if (playbackMode === 'cached' && audioRef.current) {
+        videoModePositionRef.current = audioRef.current.currentTime;
+        audioRef.current.pause();
+        console.log('[VOYO] Video mode ON - paused cached audio');
+      }
+    } else {
+      // Exiting video mode - resume from saved position
+      // Note: Position sync from video iframe would need postMessage, keeping it simple for now
+      if (playbackMode === 'iframe' && playerRef.current && isPlaying) {
+        try {
+          playerRef.current.playVideo();
+          console.log('[VOYO] Video mode OFF - resumed hidden iframe');
+        } catch (e) {
+          // Ignore
+        }
+      } else if (playbackMode === 'cached' && audioRef.current && isPlaying) {
+        audioRef.current.play().catch(() => {});
+        console.log('[VOYO] Video mode OFF - resumed cached audio');
+      }
+    }
+  }, [isVideoMode, playbackMode, isPlaying]);
 
   // Load YouTube IFrame API
   useEffect(() => {
