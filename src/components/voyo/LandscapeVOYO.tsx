@@ -300,6 +300,21 @@ const YouTubeInterceptor = ({ onVideoExtracted }: InterceptorProps) => {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [successAnimation, setSuccessAnimation] = useState(false);
 
+  // Get playback state to know when to show interceptor
+  const currentTime = usePlayerStore(state => state.currentTime);
+  const duration = usePlayerStore(state => state.duration);
+
+  // FORMULA: YouTube shows suggestions in the last ~15 seconds
+  // We appear at the EXACT same moment
+  const SUGGESTION_ZONE_SECONDS = 15;
+  const isInSuggestionZone = duration > 0 && currentTime > (duration - SUGGESTION_ZONE_SECONDS);
+
+  // Also show briefly at the start (first 5 seconds) for discovery
+  const isInStartZone = currentTime < 5 && currentTime > 0;
+
+  // Show interceptor when in either zone
+  const showInterceptor = isInSuggestionZone || isInStartZone;
+
   // Handle click on interceptor zone
   const handleInterceptClick = async (zone: 'top' | 'bottom') => {
     if (isProcessing) return;
@@ -334,82 +349,100 @@ const YouTubeInterceptor = ({ onVideoExtracted }: InterceptorProps) => {
 
   return (
     <>
-      {/* INTERCEPTOR ZONES - INTENTIONAL & BEAUTIFUL */}
-      {/* Not hiding - INVITING. Users WANT to tap these. */}
-      <div className="absolute right-0 top-0 bottom-0 w-[300px] z-15 pointer-events-none flex flex-col items-end justify-center gap-4 pr-4">
-
-        {/* ADD TO QUEUE - Bouncing & Glowing */}
-        <motion.button
-          className="pointer-events-auto relative overflow-hidden"
-          onClick={() => handleInterceptClick('top')}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          animate={isProcessing ? {} : {
-            y: [0, -8, 0],
-          }}
-          transition={{
-            y: { duration: 2, repeat: Infinity, ease: "easeInOut" }
-          }}
-        >
-          {/* Glow Effect */}
+      {/* INTERCEPTOR ZONES - Appear EXACTLY when YouTube shows suggestions */}
+      {/* Formula: Last 15 seconds OR first 5 seconds */}
+      <AnimatePresence>
+        {showInterceptor && (
           <motion.div
-            className="absolute inset-0 rounded-2xl"
-            animate={{
-              boxShadow: [
-                '0 0 20px rgba(147, 51, 234, 0.3)',
-                '0 0 40px rgba(147, 51, 234, 0.6)',
-                '0 0 20px rgba(147, 51, 234, 0.3)',
-              ]
-            }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
+            className="absolute right-0 top-0 bottom-0 w-[300px] z-15 pointer-events-none flex flex-col items-end justify-center gap-4 pr-4"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 50 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+          >
 
-          {/* Button Content */}
-          <div className="relative bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 rounded-2xl border-2 border-white/20">
-            {isProcessing ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-5 h-5 text-white animate-spin" />
-                <span className="text-white font-bold text-sm">Adding...</span>
-              </div>
-            ) : successAnimation ? (
+            {/* ADD TO QUEUE - BOLD rectangle over YouTube's suggestion */}
+            <motion.button
+              className="pointer-events-auto relative overflow-hidden"
+              onClick={() => handleInterceptClick('top')}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              animate={isProcessing ? {} : {
+                y: [0, -6, 0],
+              }}
+              transition={{
+                y: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+              }}
+            >
+              {/* BOLD Border Rectangle - matches YouTube suggestion position */}
               <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="flex items-center gap-2"
-              >
-                <span className="text-white font-bold text-sm">Added! 🔥</span>
-              </motion.div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Plus className="w-5 h-5 text-white" />
-                <span className="text-white font-bold text-sm">Add to Queue</span>
+                className="absolute -inset-2 rounded-2xl"
+                animate={{
+                  boxShadow: [
+                    '0 0 0 3px rgba(147, 51, 234, 0.8), 0 0 30px rgba(147, 51, 234, 0.4)',
+                    '0 0 0 4px rgba(236, 72, 153, 0.8), 0 0 50px rgba(236, 72, 153, 0.5)',
+                    '0 0 0 3px rgba(147, 51, 234, 0.8), 0 0 30px rgba(147, 51, 234, 0.4)',
+                  ]
+                }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              />
+
+              {/* Button Content */}
+              <div className="relative bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-4 rounded-xl border-4 border-white/30">
+                {isProcessing ? (
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="w-6 h-6 text-white animate-spin" />
+                    <span className="text-white font-black text-base">Adding...</span>
+                  </div>
+                ) : successAnimation ? (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="flex items-center gap-2"
+                  >
+                    <span className="text-white font-black text-base">Added! 🔥</span>
+                  </motion.div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <Plus className="w-6 h-6 text-white stroke-[3]" />
+                    <span className="text-white font-black text-base tracking-wide">ADD TO QUEUE</span>
+                  </div>
+                )}
               </div>
+            </motion.button>
+
+            {/* UP NEXT - Secondary rectangle */}
+            <motion.button
+              className="pointer-events-auto relative"
+              onClick={() => handleInterceptClick('bottom')}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              {/* Bold border */}
+              <div className="absolute -inset-1 rounded-xl border-2 border-purple-500/60" />
+
+              <div className="relative bg-black/60 backdrop-blur-md px-6 py-3 rounded-lg border-2 border-purple-400/40">
+                <div className="flex items-center gap-3">
+                  <SkipForward className="w-5 h-5 text-purple-300" />
+                  <span className="text-purple-200 font-bold text-sm tracking-wide">UP NEXT</span>
+                </div>
+              </div>
+            </motion.button>
+
+            {/* Countdown indicator */}
+            {isInSuggestionZone && duration > 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-purple-400/60 text-xs font-mono mt-2"
+              >
+                {Math.ceil(duration - currentTime)}s left
+              </motion.div>
             )}
-          </div>
-        </motion.button>
 
-        {/* UP NEXT - Subtle pulse */}
-        <motion.button
-          className="pointer-events-auto relative"
-          onClick={() => handleInterceptClick('bottom')}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          animate={{
-            opacity: [0.7, 1, 0.7],
-          }}
-          transition={{
-            opacity: { duration: 3, repeat: Infinity, ease: "easeInOut" }
-          }}
-        >
-          <div className="bg-black/40 backdrop-blur-sm px-5 py-2.5 rounded-xl border border-purple-500/50">
-            <div className="flex items-center gap-2">
-              <SkipForward className="w-4 h-4 text-purple-400" />
-              <span className="text-purple-300 font-medium text-sm">Up Next</span>
-            </div>
-          </div>
-        </motion.button>
-
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Success Feedback Toast */}
       <AnimatePresence>
