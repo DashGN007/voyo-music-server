@@ -204,31 +204,33 @@ export const AudioPlayer = () => {
   // Keep audio alive when app goes to background
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        // App went to background - ensure audio keeps playing
-        if (playbackMode === 'cached' && audioRef.current && !audioRef.current.paused) {
-          // Force audio context to stay active
-          audioRef.current.play().catch(() => {});
+      const { isPlaying: shouldBePlaying } = usePlayerStore.getState();
 
-          // Resume audio context if suspended (browser policy)
+      if (document.visibilityState === 'hidden') {
+        // App went to background - FORCE audio to keep playing
+        // Browser may have already paused it, so always try to resume
+        if (playbackMode === 'cached' && audioRef.current && shouldBePlaying) {
+          // Resume audio context first (browser suspends this in background)
           if (audioContextRef.current?.state === 'suspended') {
             audioContextRef.current.resume();
           }
+
+          // Force play - don't check if paused, browser may have paused it
+          audioRef.current.play().catch(() => {});
+
+          console.log('[VOYO] Background: Forcing audio to continue');
         }
-        // Note: IFrame playback will stop in background due to YouTube policy
-        // This is expected behavior - only CDN/cached tracks support background
       } else if (document.visibilityState === 'visible') {
         // App came back to foreground - AUTO-RESUME if we were playing
-        if (audioRef.current) {
+        if (audioRef.current && shouldBePlaying) {
           // Resume audio context first (may be suspended by browser)
           if (audioContextRef.current?.state === 'suspended') {
             audioContextRef.current.resume();
           }
 
-          // If store says we should be playing but audio is paused, resume
-          const { isPlaying: shouldBePlaying } = usePlayerStore.getState();
-          if (shouldBePlaying && audioRef.current.paused) {
-            console.log('[VOYO] Auto-resuming playback after returning from background');
+          // Resume audio if paused
+          if (audioRef.current.paused) {
+            console.log('[VOYO] Foreground: Auto-resuming playback');
             audioRef.current.play().catch((err) => {
               console.warn('[VOYO] Auto-resume failed:', err.message);
             });
@@ -1502,12 +1504,27 @@ export const AudioPlayer = () => {
       <audio
         ref={audioRef}
         preload="auto"
+        playsInline
         onTimeUpdate={handleTimeUpdate}
         onDurationChange={handleDurationChange}
         onEnded={handleEnded}
         onProgress={handleProgress}
         onPlaying={handlePlaying}
         onWaiting={handleWaiting}
+        onPause={() => {
+          // BACKGROUND PLAYBACK FIX: Intercept browser-initiated pauses
+          // If store says we should be playing but browser paused, resume immediately
+          const { isPlaying: shouldBePlaying } = usePlayerStore.getState();
+          if (shouldBePlaying && audioRef.current) {
+            console.log('[VOYO] Intercepted unexpected pause, resuming...');
+            // Small delay to avoid infinite loop with browser
+            setTimeout(() => {
+              if (audioRef.current && usePlayerStore.getState().isPlaying) {
+                audioRef.current.play().catch(() => {});
+              }
+            }, 100);
+          }
+        }}
         style={{ display: 'none' }}
       />
 
