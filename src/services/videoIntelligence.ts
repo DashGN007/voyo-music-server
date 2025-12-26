@@ -395,6 +395,41 @@ export async function searchYouTube(query: string): Promise<VideoIntelligence | 
 }
 
 // ============================================
+// RELATED VIDEOS - For Interceptor
+// ============================================
+
+export interface RelatedVideo {
+  id: string;
+  title: string;
+  artist: string;
+  duration: number;
+  thumbnail: string;
+}
+
+/**
+ * Get related videos for a YouTube video ID
+ * Uses our backend which calls YouTube's Innertube API
+ */
+export async function getRelatedVideos(videoId: string, limit = 5): Promise<RelatedVideo[]> {
+  try {
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const response = await fetch(`${API_BASE}/related?v=${videoId}&limit=${limit}`);
+
+    if (!response.ok) {
+      console.warn('[VOYO Intelligence] Related videos failed');
+      return [];
+    }
+
+    const data = await response.json();
+    console.log(`[VOYO Intelligence] Got ${data.videos?.length || 0} related videos`);
+    return data.videos || [];
+  } catch (err) {
+    console.error('[VOYO Intelligence] Related videos error:', err);
+    return [];
+  }
+}
+
+// ============================================
 // MAIN FLOW: Extract → Search → Cache
 // ============================================
 

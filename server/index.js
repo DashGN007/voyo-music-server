@@ -479,6 +479,107 @@ async function getThumbnail(videoId, quality = 'high') {
 }
 
 /**
+ * Get related videos for a YouTube video using Innertube
+ * Returns videos similar to the given video ID
+ */
+async function getRelatedVideos(videoId, limit = 5) {
+  try {
+    const yt = await getInnertube();
+
+    // Use getInfo which returns VideoInfo with related videos
+    const info = await yt.getInfo(videoId);
+
+    // Try multiple possible locations for related videos
+    let related = [];
+
+    // Method 1: watch_next_feed
+    if (info.watch_next_feed?.length) {
+      related = info.watch_next_feed;
+      console.log(`[Innertube] Found ${related.length} in watch_next_feed`);
+    }
+    // Method 2: autoplay_video
+    else if (info.autoplay_video) {
+      related = [info.autoplay_video];
+      console.log(`[Innertube] Found autoplay_video`);
+    }
+    // Method 3: related_videos
+    else if (info.related_videos?.length) {
+      related = info.related_videos;
+      console.log(`[Innertube] Found ${related.length} in related_videos`);
+    }
+    // Method 4: Try secondary_results from page
+    else if (info.page?.secondary_results?.length) {
+      related = info.page.secondary_results;
+      console.log(`[Innertube] Found ${related.length} in secondary_results`);
+    }
+
+    const results = [];
+
+    for (const item of related) {
+      if (results.length >= limit) break;
+
+      try {
+        // Handle CompactVideo type from youtubei.js
+        if (item.type === 'CompactVideo') {
+          results.push({
+            id: item.id,
+            title: item.title?.text || item.title?.toString() || 'Unknown',
+            artist: item.short_byline?.text || item.author?.name || 'Unknown',
+            duration: parseDuration(item.duration?.text || '0:00'),
+            thumbnail: `https://img.youtube.com/vi/${item.id}/hqdefault.jpg`,
+          });
+          continue;
+        }
+
+        // Handle Video type
+        if (item.type === 'Video') {
+          results.push({
+            id: item.id,
+            title: item.title?.text || item.title?.toString() || 'Unknown',
+            artist: item.author?.name || 'Unknown',
+            duration: parseDuration(item.duration?.text || '0:00'),
+            thumbnail: `https://img.youtube.com/vi/${item.id}/hqdefault.jpg`,
+          });
+          continue;
+        }
+
+        // Generic fallback - try various property paths
+        const video = item?.content || item?.video || item;
+        const id = video?.id || video?.video_id || video?.videoId;
+        const title = video?.title?.text || video?.title?.toString() || video?.title;
+
+        if (id && title && typeof id === 'string' && id.length === 11) {
+          results.push({
+            id: id,
+            title: typeof title === 'object' ? title.text : title,
+            artist: video.author?.name || video.short_byline?.text || video.owner?.name || 'Unknown',
+            duration: parseDuration(video.duration?.text || video.length_text?.text || '0:00'),
+            thumbnail: `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
+          });
+        }
+      } catch (parseErr) {
+        // Skip items that fail to parse
+        continue;
+      }
+    }
+
+    console.log(`[Innertube] Parsed ${results.length} related videos for ${videoId}`);
+
+    // Fallback: If no related found, search for similar content
+    if (results.length === 0) {
+      console.log(`[Innertube] No related found, trying search fallback`);
+      const searchResults = await searchInnerTube(`${info.basic_info?.title || videoId} music`, limit);
+      return searchResults;
+    }
+
+    return results;
+  } catch (err) {
+    console.error('[Innertube] Related videos error:', err.message);
+    return [];
+  }
+}
+
+/**
  * Search YouTube using yt-dlp
  */
 /**
@@ -1056,6 +1157,27 @@ const server = http.createServer(async (req, res) => {
       const results = await searchYouTube(query.q, limit);
       res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ results }));
+    } catch (err) {
+      res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  // Related videos - for interceptor
+  if (pathname === '/related' && query.v) {
+    // SECURITY: Validate video ID before processing
+    if (!isValidYouTubeId(query.v)) {
+      console.warn(`[Related] REJECTED invalid video ID: ${query.v}`);
+      res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: getVoyoError('INVALID_ID') }));
+      return;
+    }
+    try {
+      const limit = parseInt(query.limit) || 5;
+      const results = await getRelatedVideos(query.v, limit);
+      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ videos: results }));
     } catch (err) {
       res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: err.message }));

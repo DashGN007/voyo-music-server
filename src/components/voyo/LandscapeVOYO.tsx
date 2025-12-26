@@ -28,7 +28,8 @@ import {
   searchLocalCache,
   searchYouTube,
   cacheVideo,
-  registerTrackPlay
+  registerTrackPlay,
+  getRelatedVideos
 } from '../../services/videoIntelligence';
 
 // Timeline Card (horizontal scroll)
@@ -291,7 +292,7 @@ const DJ_RESPONSES: Record<string, string[]> = {
 // INTERCEPTOR - Capture YouTube Suggestions
 // ============================================
 interface InterceptorProps {
-  onVideoExtracted: (videoId: string, title: string) => void;
+  onVideoExtracted: (videoId: string, title: string, artist: string) => void;
   iframeRef?: React.RefObject<HTMLIFrameElement>;
 }
 
@@ -309,6 +310,7 @@ const YouTubeInterceptor = ({ onVideoExtracted }: InterceptorProps) => {
   // Get playback state to know when to show interceptor
   const currentTime = usePlayerStore(state => state.currentTime);
   const duration = usePlayerStore(state => state.duration);
+  const currentTrack = usePlayerStore(state => state.currentTrack);
 
   // FORMULA: YouTube shows suggestions ~10-15 seconds before end
   // We arrive 5 SECONDS EARLIER. Already glowing when YouTube's appear.
@@ -332,24 +334,42 @@ const YouTubeInterceptor = ({ onVideoExtracted }: InterceptorProps) => {
     }
   }, [isInSuggestionZone]); // Only change when entering suggestion zone
 
-  // Handle click on interceptor zone
+  // Handle click on interceptor zone - REAL FLOW
   const handleInterceptClick = async (zone: 'top' | 'bottom') => {
-    if (isProcessing) return;
+    if (isProcessing || !currentTrack) return;
 
     setIsProcessing(true);
 
     try {
-      // Simulated flow - In production: OCR → Video Intelligence → Real video
-      await new Promise(r => setTimeout(r, 600));
+      // Get related videos from YouTube via our backend
+      const relatedVideos = await getRelatedVideos(currentTrack.trackId, 3);
 
-      // For demo: search for a related track from our catalog
-      const randomTrack = TRACKS[Math.floor(Math.random() * TRACKS.length)];
+      if (relatedVideos.length === 0) {
+        // Fallback: pick from our catalog
+        const randomTrack = TRACKS[Math.floor(Math.random() * TRACKS.length)];
+        onVideoExtracted(randomTrack.trackId, randomTrack.title, randomTrack.artist);
+        setFeedback(`${randomTrack.title.slice(0, 20)}...`);
+      } else {
+        // Pick the first related video (or random from top 3 for variety)
+        const videoIndex = zone === 'top' ? 0 : Math.min(1, relatedVideos.length - 1);
+        const relatedVideo = relatedVideos[videoIndex];
 
-      onVideoExtracted(randomTrack.trackId, randomTrack.title);
+        onVideoExtracted(relatedVideo.id, relatedVideo.title, relatedVideo.artist);
+        setFeedback(`${relatedVideo.title.slice(0, 20)}...`);
+
+        // Cache this discovery for collective brain
+        cacheVideo({
+          youtubeId: relatedVideo.id,
+          title: relatedVideo.title,
+          artist: relatedVideo.artist,
+          durationSeconds: relatedVideo.duration,
+          thumbnailUrl: relatedVideo.thumbnail,
+          discoveryMethod: 'related_crawl'
+        });
+      }
 
       // Success animation
       setSuccessAnimation(true);
-      setFeedback(`${randomTrack.title.slice(0, 25)}...`);
       setTimeout(() => {
         setSuccessAnimation(false);
         setFeedback(null);
@@ -519,6 +539,7 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
     nextTrack,
     prevTrack,
     setCurrentTrack,
+    addToQueue,
     addReaction,
     volume,
     refreshRecommendations,
@@ -659,18 +680,19 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
       {/* LAYER 2.5: YouTube Suggestion Interceptor */}
       {/* Purple-bordered zones over YouTube's "Up Next" suggestions */}
       <YouTubeInterceptor
-        onVideoExtracted={(videoId, title) => {
+        onVideoExtracted={(videoId, title, artist) => {
           // Find track in our catalog or create a new one
           const existingTrack = TRACKS.find(t => t.trackId === videoId);
           if (existingTrack) {
             addToQueue(existingTrack);
           } else {
             // Create ad-hoc track for videos not in our catalog
+            // This is a REAL video from YouTube's related feed!
             const newTrack: Track = {
               id: `intercepted-${videoId}`,
               trackId: videoId,
               title: title,
-              artist: 'YouTube',
+              artist: artist || 'YouTube',
               thumbnail: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
               duration: 0,
               genres: ['afrobeats'],
