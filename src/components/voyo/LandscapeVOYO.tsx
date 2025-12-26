@@ -295,25 +295,42 @@ interface InterceptorProps {
   iframeRef?: React.RefObject<HTMLIFrameElement>;
 }
 
+// Two interceptor styles that alternate randomly
+type InterceptorStyle = 'floaty' | 'bold';
+
 const YouTubeInterceptor = ({ onVideoExtracted }: InterceptorProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [successAnimation, setSuccessAnimation] = useState(false);
 
+  // Random style - changes each time interceptor appears
+  const [style, setStyle] = useState<InterceptorStyle>('floaty');
+
   // Get playback state to know when to show interceptor
   const currentTime = usePlayerStore(state => state.currentTime);
   const duration = usePlayerStore(state => state.duration);
 
-  // FORMULA: YouTube shows suggestions in the last ~15 seconds
-  // We appear at the EXACT same moment
-  const SUGGESTION_ZONE_SECONDS = 15;
-  const isInSuggestionZone = duration > 0 && currentTime > (duration - SUGGESTION_ZONE_SECONDS);
+  // FORMULA: YouTube shows suggestions ~10-15 seconds before end
+  // We arrive 5 SECONDS EARLIER. Already glowing when YouTube's appear.
+  // Our layer is on TOP. User sees VOYO, not YouTube.
+  const VOYO_ARRIVES_EARLY = 20;  // We show up at -20s
+  const YOUTUBE_SHOWS_AT = 15;    // YouTube shows at -15s (5s after us)
+
+  const isInSuggestionZone = duration > 0 && currentTime > (duration - VOYO_ARRIVES_EARLY);
+  const secondsUntilEnd = duration > 0 ? Math.ceil(duration - currentTime) : 0;
 
   // Also show briefly at the start (first 5 seconds) for discovery
-  const isInStartZone = currentTime < 5 && currentTime > 0;
+  const isInStartZone = currentTime < 5 && currentTime > 0.5;
 
   // Show interceptor when in either zone
   const showInterceptor = isInSuggestionZone || isInStartZone;
+
+  // Randomize style when interceptor appears
+  useEffect(() => {
+    if (showInterceptor) {
+      setStyle(Math.random() > 0.5 ? 'floaty' : 'bold');
+    }
+  }, [isInSuggestionZone]); // Only change when entering suggestion zone
 
   // Handle click on interceptor zone
   const handleInterceptClick = async (zone: 'top' | 'bottom') => {
@@ -361,55 +378,82 @@ const YouTubeInterceptor = ({ onVideoExtracted }: InterceptorProps) => {
             transition={{ duration: 0.4, ease: "easeOut" }}
           >
 
-            {/* ADD TO QUEUE - BOLD rectangle over YouTube's suggestion */}
-            <motion.button
-              className="pointer-events-auto relative overflow-hidden"
-              onClick={() => handleInterceptClick('top')}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              animate={isProcessing ? {} : {
-                y: [0, -6, 0],
-              }}
-              transition={{
-                y: { duration: 2, repeat: Infinity, ease: "easeInOut" }
-              }}
-            >
-              {/* BOLD Border Rectangle - matches YouTube suggestion position */}
-              <motion.div
-                className="absolute -inset-2 rounded-2xl"
-                animate={{
-                  boxShadow: [
-                    '0 0 0 3px rgba(147, 51, 234, 0.8), 0 0 30px rgba(147, 51, 234, 0.4)',
-                    '0 0 0 4px rgba(236, 72, 153, 0.8), 0 0 50px rgba(236, 72, 153, 0.5)',
-                    '0 0 0 3px rgba(147, 51, 234, 0.8), 0 0 30px rgba(147, 51, 234, 0.4)',
-                  ]
-                }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-              />
-
-              {/* Button Content */}
-              <div className="relative bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-4 rounded-xl border-4 border-white/30">
-                {isProcessing ? (
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="w-6 h-6 text-white animate-spin" />
-                    <span className="text-white font-black text-base">Adding...</span>
-                  </div>
-                ) : successAnimation ? (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="flex items-center gap-2"
-                  >
-                    <span className="text-white font-black text-base">Added! 🔥</span>
-                  </motion.div>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <Plus className="w-6 h-6 text-white stroke-[3]" />
-                    <span className="text-white font-black text-base tracking-wide">ADD TO QUEUE</span>
-                  </div>
-                )}
-              </div>
-            </motion.button>
+            {/* ADD TO QUEUE - Two random styles */}
+            {style === 'floaty' ? (
+              /* STYLE A: Floaty bouncing with glow */
+              <motion.button
+                className="pointer-events-auto relative overflow-hidden"
+                onClick={() => handleInterceptClick('top')}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                animate={isProcessing ? {} : { y: [0, -8, 0] }}
+                transition={{ y: { duration: 2, repeat: Infinity, ease: "easeInOut" } }}
+              >
+                <motion.div
+                  className="absolute -inset-2 rounded-2xl"
+                  animate={{
+                    boxShadow: [
+                      '0 0 0 3px rgba(147, 51, 234, 0.8), 0 0 30px rgba(147, 51, 234, 0.4)',
+                      '0 0 0 4px rgba(236, 72, 153, 0.8), 0 0 50px rgba(236, 72, 153, 0.5)',
+                      '0 0 0 3px rgba(147, 51, 234, 0.8), 0 0 30px rgba(147, 51, 234, 0.4)',
+                    ]
+                  }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                />
+                <div className="relative bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-4 rounded-xl border-4 border-white/30">
+                  {isProcessing ? (
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="w-6 h-6 text-white animate-spin" />
+                      <span className="text-white font-black text-base">Adding...</span>
+                    </div>
+                  ) : successAnimation ? (
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex items-center gap-2">
+                      <span className="text-white font-black text-base">Added! 🔥</span>
+                    </motion.div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <Plus className="w-6 h-6 text-white stroke-[3]" />
+                      <span className="text-white font-black text-base tracking-wide">ADD TO QUEUE</span>
+                    </div>
+                  )}
+                </div>
+              </motion.button>
+            ) : (
+              /* STYLE B: Bold rectangle with pulse scale */
+              <motion.button
+                className="pointer-events-auto relative"
+                onClick={() => handleInterceptClick('top')}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                animate={isProcessing ? {} : { scale: [1, 1.02, 1] }}
+                transition={{ scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" } }}
+              >
+                {/* Rotating border effect */}
+                <motion.div
+                  className="absolute -inset-1 rounded-lg bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500"
+                  animate={{ backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                  style={{ backgroundSize: '200% 200%' }}
+                />
+                <div className="relative bg-black px-8 py-4 rounded-lg m-[3px]">
+                  {isProcessing ? (
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+                      <span className="text-purple-300 font-black text-base">ADDING...</span>
+                    </div>
+                  ) : successAnimation ? (
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex items-center gap-2">
+                      <span className="text-green-400 font-black text-base">ADDED! 🔥</span>
+                    </motion.div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <Plus className="w-6 h-6 text-purple-400 stroke-[3]" />
+                      <span className="text-white font-black text-base tracking-widest">+ QUEUE</span>
+                    </div>
+                  )}
+                </div>
+              </motion.button>
+            )}
 
             {/* UP NEXT - Secondary rectangle */}
             <motion.button
@@ -429,14 +473,15 @@ const YouTubeInterceptor = ({ onVideoExtracted }: InterceptorProps) => {
               </div>
             </motion.button>
 
-            {/* Countdown indicator */}
-            {isInSuggestionZone && duration > 0 && (
+            {/* Countdown indicator - shows we arrived first */}
+            {isInSuggestionZone && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-purple-400/60 text-xs font-mono mt-2"
+                className="text-purple-400/80 text-xs font-mono mt-2 flex items-center gap-2"
               >
-                {Math.ceil(duration - currentTime)}s left
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                <span>{secondsUntilEnd}s</span>
               </motion.div>
             )}
 
