@@ -171,20 +171,24 @@ export function useMiniPiP() {
     }
   }, [currentTrack?.trackId, drawAlbumArt]);
 
-  // Auto-enter PiP when app goes to background (optional - can be enabled)
-  // Disabled by default - user can trigger manually or we can enable later
-  /*
+  // Auto-enter PiP when app goes to background (SAFETY NET)
+  // Shows floating album art when user switches away while music is playing
+  // This ensures visibility of playback controls even if iframe background playback struggles
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && isPlaying && currentTrack) {
-        enterPiP();
+        // Small delay to avoid triggering on quick tab switches
+        setTimeout(() => {
+          if (document.visibilityState === 'hidden') {
+            enterPiP();
+          }
+        }, 500);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [isPlaying, currentTrack, enterPiP]);
-  */
 
   // Cleanup
   useEffect(() => {

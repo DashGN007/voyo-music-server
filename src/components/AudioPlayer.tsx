@@ -30,6 +30,7 @@ import { recordPoolEngagement } from '../services/personalization';
 import { recordTrackInSession } from '../services/poolCurator';
 import { recordPlay as djRecordPlay } from '../services/intelligentDJ';
 import { onTrackPlay as oyoOnTrackPlay, onTrackSkip as oyoOnTrackSkip, onTrackComplete as oyoOnTrackComplete } from '../services/oyoDJ';
+import { useMiniPiP } from '../hooks/useMiniPiP';
 
 type PlaybackMode = 'cached' | 'iframe';
 export type BoostPreset = 'boosted' | 'calm' | 'voyex' | 'xtreme';
@@ -195,6 +196,11 @@ export const AudioPlayer = () => {
   const isInitialLoadRef = useRef<boolean>(true); // Track first load for resume position
   const hasRecordedPlayRef = useRef<boolean>(false); // Track if we've recorded 'play' engagement
   const trackProgressRef = useRef<number>(0); // Track current progress for skip detection
+
+  // === MINI-PIP: Safety net for background playback ===
+  // Shows floating album art when app goes to background during playback
+  // Uses MediaSession for controls (already wired elsewhere)
+  useMiniPiP();
 
   // Initialize download system (IndexedDB)
   useEffect(() => {

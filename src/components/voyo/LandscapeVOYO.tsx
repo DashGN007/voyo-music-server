@@ -297,8 +297,35 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTapRef = useRef<number>(0);
 
-  const pastTracks = history.slice(-3).map(h => h.track).reverse();
-  const queueTracks = queue.slice(0, 2).map(q => q.track);
+  // Build timeline with deduplication
+  const seenIds = new Set<string>();
+  if (currentTrack) seenIds.add(currentTrack.id);
+
+  const pastTracks = history
+    .slice(-5) // Look at more history to fill 3 unique slots
+    .map(h => h.track)
+    .reverse()
+    .filter(t => {
+      if (seenIds.has(t.id)) return false;
+      seenIds.add(t.id);
+      return true;
+    })
+    .slice(0, 3);
+
+  const queueTracks = queue
+    .slice(0, 4) // Look at more queue to fill 2 unique slots
+    .map(q => q.track)
+    .filter(t => {
+      if (seenIds.has(t.id)) return false;
+      seenIds.add(t.id);
+      return true;
+    })
+    .slice(0, 2);
+
+  // Fallback suggestions when no history (also deduplicated)
+  const suggestTracks = hotTracks
+    .filter(t => !seenIds.has(t.id))
+    .slice(0, 2);
 
   // Auto-hide overlay after 3 seconds
   const startHideTimer = useCallback(() => {
@@ -416,7 +443,7 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
                   startHideTimer();
                 }} />
               ))}
-              {pastTracks.length === 0 && hotTracks.slice(0, 2).map((track, i) => (
+              {pastTracks.length === 0 && suggestTracks.map((track, i) => (
                 <TimelineCard key={`suggest-${i}`} track={track} onClick={() => {
                   setCurrentTrack(track);
                   setTimeout(() => togglePlay(), 100);
