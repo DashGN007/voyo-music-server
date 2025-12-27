@@ -400,17 +400,17 @@ const WestAfricanCard = ({ hit, onClick }: { hit: typeof WEST_AFRICAN_HITS[0]; o
   );
 };
 
-// Section Header
+// Section Header - Consistent hierarchy with breathing room
 const SectionHeader = ({ icon: Icon, title, color, onSeeAll }: { icon: React.ElementType; title: string; color: string; onSeeAll?: () => void }) => (
-  <div className="flex items-center justify-between mb-3 px-4">
-    <div className="flex items-center gap-2">
+  <div className="flex items-center justify-between mb-5 px-4">
+    <div className="flex items-center gap-2.5">
       <div className="p-1.5 rounded-lg" style={{ background: color }}>
         <Icon className="w-3.5 h-3.5 text-white" />
       </div>
-      <span className="text-sm font-bold text-white">{title}</span>
+      <span className="text-sm font-semibold text-white">{title}</span>
     </div>
     {onSeeAll && (
-      <button onClick={onSeeAll} className="flex items-center gap-1 text-[9px] text-white/40 hover:text-white/70 transition-colors">
+      <button onClick={onSeeAll} className="flex items-center gap-1 text-[10px] text-white/50 hover:text-white/70 transition-colors">
         <span>Open TIVI+</span>
         <ExternalLink className="w-2.5 h-2.5" />
       </button>
@@ -460,11 +460,11 @@ export const TiviPlusCrossPromo = () => {
   };
 
   return (
-    <div className="mt-4">
+    <div className="mt-12 pt-8 pb-4">
       {/* ========== TIVI+ SECTION ========== */}
 
       {/* Section Divider - Take a Break */}
-      <div className="flex items-center gap-3 mb-4 px-4">
+      <div className="flex items-center gap-3 mb-10 px-4">
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent" />
         <motion.div
           className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20"
@@ -479,7 +479,7 @@ export const TiviPlusCrossPromo = () => {
 
       {/* Featured Banner */}
       <motion.button
-        className="relative w-[calc(100%-32px)] mx-4 h-36 rounded-2xl overflow-hidden mb-5 group"
+        className="relative w-[calc(100%-32px)] mx-4 h-36 rounded-2xl overflow-hidden mb-10 group"
         onClick={() => handleMovieClick(FEATURED_BANNER.streamId)}
         whileHover={{ scale: 1.01 }}
         whileTap={{ scale: 0.99 }}
@@ -505,9 +505,9 @@ export const TiviPlusCrossPromo = () => {
       </motion.button>
 
       {/* Trending on TIVI+ */}
-      <div className="mb-5">
+      <div className="mb-10">
         <SectionHeader icon={Sparkles} title="Trending on TIVI+" color="linear-gradient(135deg, #f59e0b, #ea580c)" onSeeAll={() => window.open(TIVI_PLUS_BASE, '_blank')} />
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide" style={{ paddingLeft: 16, paddingRight: 16 }}>
+        <div className="flex gap-4 overflow-x-auto scrollbar-hide px-4">
           {TRENDING_TIVI.map(movie => (
             <MoviePosterCard key={movie.id} movie={movie} onClick={() => handleMovieClick(movie.id)} />
           ))}
@@ -515,21 +515,21 @@ export const TiviPlusCrossPromo = () => {
       </div>
 
       {/* Live TV - Billboard Cards */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-3 px-4">
+      <div className="mb-12">
+        <div className="flex items-center justify-between mb-5 px-4">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg" style={{ background: 'linear-gradient(135deg, #8b5cf6, #a855f7)' }}>
               <Radio className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="text-sm font-bold text-white">Live TV</span>
-            <span className="text-[10px] text-cyan-400 font-semibold ml-1">+{TOTAL_LIVE_CHANNELS} channels</span>
+            <span className="text-sm font-semibold text-white">Live TV</span>
+            <span className="text-[10px] text-cyan-400 font-medium ml-1">+{TOTAL_LIVE_CHANNELS} channels</span>
           </div>
-          <button onClick={() => window.open(`${TIVI_PLUS_BASE}/live`, '_blank')} className="flex items-center gap-1 text-[9px] text-white/40 hover:text-white/70 transition-colors">
+          <button onClick={() => window.open(`${TIVI_PLUS_BASE}/live`, '_blank')} className="flex items-center gap-1 text-[10px] text-white/50 hover:text-white/70 transition-colors">
             <span>Open TIVI+</span>
             <ExternalLink className="w-2.5 h-2.5" />
           </button>
         </div>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide" style={{ paddingLeft: 16, paddingRight: 16 }}>
+        <div className="flex gap-4 overflow-x-auto scrollbar-hide px-4">
           {LIVE_TV_CATEGORIES.map(category => (
             <LiveTVBox key={category.id} category={category} onClick={() => handleLiveTVClick(category.id)} />
           ))}
@@ -539,7 +539,7 @@ export const TiviPlusCrossPromo = () => {
       {/* ========== BACK TO MUSIC SECTION ========== */}
 
       {/* Section Divider - Back to Music */}
-      <div className="flex items-center gap-3 mb-4 px-4">
+      <div className="flex items-center gap-3 mb-10 px-4">
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-purple-500/30 to-transparent" />
         <motion.div
           className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20"
@@ -553,27 +553,27 @@ export const TiviPlusCrossPromo = () => {
       </div>
 
       {/* All Time Classics - Time Tunnel (scroll through time) */}
-      <div className="mb-5">
-        <div className="flex items-center gap-2 mb-3 px-4">
+      <div className="mb-12">
+        <div className="flex items-center gap-2 mb-5 px-4">
           <span className="text-lg">💿</span>
-          <span className="text-sm font-bold text-white">All Time Classics</span>
-          <span className="text-[8px] text-white/40 ml-auto">← past | present →</span>
+          <span className="text-sm font-semibold text-white">All Time Classics</span>
+          <span className="text-[10px] text-white/50 ml-auto">← past | present →</span>
         </div>
         <TimeTunnelCarousel
           initialTracks={initialClassicsTracks}
           allTracks={allClassicsTracks}
           onPlay={handleMusicClick}
         />
-        <p className="text-[8px] text-white/30 mt-2 px-4 italic">Scroll through time — timeless African hits</p>
+        <p className="text-[10px] text-white/30 mt-4 px-4 italic">Scroll through time — timeless African hits</p>
       </div>
 
       {/* West African Hits - Cards with static curated data (OG style) */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-3 px-4">
+      <div className="mb-12">
+        <div className="flex items-center gap-2 mb-5 px-4">
           <span className="text-lg">🌍</span>
-          <span className="text-sm font-bold text-white">West African Hits</span>
+          <span className="text-sm font-semibold text-white">West African Hits</span>
         </div>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide" style={{ paddingLeft: 16, paddingRight: 16 }}>
+        <div className="flex gap-4 overflow-x-auto scrollbar-hide px-4">
           {WEST_AFRICAN_HITS.map((hit) => (
             <WestAfricanCard
               key={hit.id}
@@ -591,8 +591,11 @@ export const TiviPlusCrossPromo = () => {
             />
           ))}
         </div>
-        <p className="text-[8px] text-white/30 mt-2 px-4 italic">From Guinea to Senegal - your local favorites</p>
+        <p className="text-[10px] text-white/30 mt-4 px-4 italic">From Guinea to Senegal — your local favorites</p>
       </div>
+
+      {/* Bottom spacer for visual breathing */}
+      <div className="h-8" />
     </div>
   );
 };

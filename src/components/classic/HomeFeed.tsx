@@ -96,9 +96,9 @@ interface ShelfProps {
 }
 
 const Shelf = ({ title, onSeeAll, children }: ShelfProps) => (
-  <div className="mb-6">
-    <div className="flex justify-between items-center px-4 mb-3">
-      <h2 className="text-white font-bold text-lg">{title}</h2>
+  <div className="mb-10">
+    <div className="flex justify-between items-center px-4 mb-5">
+      <h2 className="text-white font-semibold text-base">{title}</h2>
       {onSeeAll && (
         <motion.button
           className="text-purple-400 text-sm font-medium"
@@ -111,7 +111,7 @@ const Shelf = ({ title, onSeeAll, children }: ShelfProps) => (
       )}
     </div>
     <div
-      className="flex gap-3 px-4 overflow-x-auto scrollbar-hide"
+      className="flex gap-4 px-4 overflow-x-auto scrollbar-hide"
       style={{ scrollSnapType: 'x proximity', WebkitOverflowScrolling: 'touch' }}
     >
       {children}
@@ -274,7 +274,7 @@ const TrackCard = ({ track, onPlay }: TrackCardProps) => {
         )}
       </div>
       <p className="text-white text-sm font-medium truncate">{track.title}</p>
-      <p className="text-white/50 text-xs truncate">{track.artist}</p>
+      <p className="text-white/50 text-[11px] truncate">{track.artist}</p>
     </motion.button>
   );
 };
@@ -740,7 +740,7 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
       </header>
 
       {/* Greeting */}
-      <div className="px-4 py-4">
+      <div className="px-4 pt-4 pb-6">
         <h1 className="text-2xl font-bold text-white">{greeting}, Dash</h1>
       </div>
 
@@ -763,11 +763,11 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
       )}
 
       {/* 🌍 African Vibes */}
-      <div className="mb-6">
-        <div className="px-4 mb-3 flex items-center gap-2">
+      <div className="mb-12">
+        <div className="px-4 mb-5 flex items-center gap-2">
           <span className="text-xl">🌍</span>
           <div className="flex-1">
-            <h2 className="text-white font-bold text-lg">African Vibes</h2>
+            <h2 className="text-white font-semibold text-base">African Vibes</h2>
             <p
               className="text-[9px] font-medium tracking-wider uppercase"
               style={{
@@ -811,9 +811,9 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
       </div>
 
       {/* Made For You */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center px-4 mb-3">
-          <h2 className="text-white font-bold text-lg">Made For You</h2>
+      <div className="mb-10">
+        <div className="flex justify-between items-center px-4 mb-5">
+          <h2 className="text-white font-semibold text-base">Made For You</h2>
           <motion.button
             className="p-2 rounded-full bg-white/10 hover:bg-white/20"
             onClick={handleRefresh}
@@ -825,7 +825,7 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
             <RefreshCw className={`w-4 h-4 text-purple-400 ${isRefreshing ? 'animate-spin' : ''}`} />
           </motion.button>
         </div>
-        <div className="flex gap-3 px-4 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-4 px-4 overflow-x-auto scrollbar-hide">
           {madeForYou.map((track) => (
             <TrackCard key={track.id} track={track} onPlay={() => onTrackPlay(track)} />
           ))}
@@ -852,10 +852,10 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
 
       {/* Top 10 on VOYO */}
       {hasTrending && (
-        <div className="mb-8 py-6" style={{ background: 'linear-gradient(180deg, rgba(157,78,221,0.12) 0%, rgba(157,78,221,0.03) 50%, transparent 100%)' }}>
-          <div className="px-4 mb-5 flex items-center gap-2">
+        <div className="mb-12 py-8" style={{ background: 'linear-gradient(180deg, rgba(157,78,221,0.12) 0%, rgba(157,78,221,0.03) 50%, transparent 100%)' }}>
+          <div className="px-4 mb-6 flex items-center gap-2">
             <span className="text-yellow-400 text-xl">⭐</span>
-            <h2 className="text-white font-bold text-lg">Top 10 on VOYO</h2>
+            <h2 className="text-white font-semibold text-base">Top 10 on VOYO</h2>
           </div>
           <style>{`
             @keyframes top10-marquee {
@@ -867,7 +867,7 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
               animation: top10-marquee 6s linear infinite;
             }
           `}</style>
-          <div className="flex gap-5 px-4 overflow-x-auto scrollbar-hide" style={{ scrollSnapType: 'x proximity', paddingBottom: '60px' }}>
+          <div className="flex gap-6 px-4 overflow-x-auto scrollbar-hide" style={{ scrollSnapType: 'x proximity', paddingBottom: '60px' }}>
             {trending.slice(0, 10).map((track, index) => {
               const maxChars = 12;
               const titleNeedsScroll = track.title.length > maxChars;
@@ -950,11 +950,11 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
       )}
 
       {/* Browse by Vibes */}
-      <div className="mb-6">
-        <div className="px-4 mb-4">
-          <h2 className="text-white font-bold text-lg">Browse by Vibes</h2>
+      <div className="mb-12">
+        <div className="px-4 mb-5">
+          <h2 className="text-white font-semibold text-base">Browse by Vibes</h2>
         </div>
-        <div className="flex gap-5 px-4 overflow-x-auto scrollbar-hide py-4">
+        <div className="flex gap-4 px-4 overflow-x-auto scrollbar-hide py-4">
           {vibes.map((vibe, index) => (
             <VibeCard key={vibe.id} vibe={vibe} index={index} onSelect={() => handleVibeSelect(vibe)} />
           ))}
@@ -965,9 +965,9 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
       <TiviPlusCrossPromo />
 
       {/* New Releases - Center-focused carousel */}
-      <div className="mb-6">
-        <div className="px-4 mb-3">
-          <h2 className="text-white font-bold text-lg">New Releases</h2>
+      <div className="mb-12">
+        <div className="px-4 mb-5">
+          <h2 className="text-white font-semibold text-base">New Releases</h2>
         </div>
         <CenterFocusedCarousel tracks={newReleases} onPlay={onTrackPlay} />
       </div>
