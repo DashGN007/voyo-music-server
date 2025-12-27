@@ -10,12 +10,12 @@
  * 3. Big Teaser Video - Full-width preview
  */
 
-import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, ExternalLink, Popcorn, Film, Tv, Sparkles } from 'lucide-react';
+import { Play, ExternalLink, Popcorn, Sparkles, Star, Tv, Music, Flame, Globe, Heart } from 'lucide-react';
 
 // ============================================
-// MOCK DATA - Replace with real TIVI+ API
+// REAL CONTENT FROM DASH WEBTV (TIVI+)
+// TMDB posters - Unique content not on YouTube
 // ============================================
 
 interface TiviContent {
@@ -27,109 +27,338 @@ interface TiviContent {
   year?: number;
   rating?: string;
   isExclusive?: boolean;
-  tiviPlusUrl?: string;
+  streamId?: number | string;
 }
 
-const AFRICAN_STORIES: TiviContent[] = [
+// French Cinema = Unique content YouTube doesn't have
+const FRENCH_EXCLUSIVES: TiviContent[] = [
   {
-    id: 'as-1',
-    title: 'Sakho et Mangane',
-    subtitle: 'Senegalese Detective Thriller',
-    poster: 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?w=300&h=450&fit=crop',
-    type: 'series',
-    year: 2023,
-    rating: 'TV-MA',
-    isExclusive: true,
-  },
-  {
-    id: 'as-2',
-    title: 'The Milkmaid',
-    subtitle: 'Nigerian Drama',
-    poster: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=300&h=450&fit=crop',
+    id: 'french_77338',
+    title: 'The Intouchables',
+    subtitle: 'French Comedy-Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/i97FM40bOMKvKIo3hjQviETE5yf.jpg',
     type: 'movie',
-    year: 2020,
-    rating: 'PG-13',
+    year: 2011,
+    rating: '8.3',
     isExclusive: true,
+    streamId: 'french_77338',
   },
   {
-    id: 'as-3',
-    title: 'Eyimofe',
-    subtitle: 'Lagos Dreams',
-    poster: 'https://images.unsplash.com/photo-1489424731084-a5d8b219a064?w=300&h=450&fit=crop',
+    id: 'french_101',
+    title: 'Léon: The Professional',
+    subtitle: 'French Action Thriller',
+    poster: 'https://image.tmdb.org/t/p/w500/bxB2q91nKYp8JNzqE7t7TWBVupB.jpg',
     type: 'movie',
-    year: 2020,
-    rating: 'R',
+    year: 1994,
+    rating: '8.3',
     isExclusive: true,
+    streamId: 'french_101',
   },
   {
-    id: 'as-4',
-    title: 'Atlantics',
-    subtitle: 'Senegalese Supernatural',
-    poster: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&h=450&fit=crop',
+    id: 'french_531428',
+    title: 'Portrait of a Lady on Fire',
+    subtitle: 'French Romance',
+    poster: 'https://image.tmdb.org/t/p/w500/2LquGwEhbg3soxSCs9VNyh5VJd9.jpg',
     type: 'movie',
     year: 2019,
-    rating: 'PG-13',
+    rating: '8.1',
     isExclusive: true,
+    streamId: 'french_531428',
   },
   {
-    id: 'as-5',
-    title: 'Omo Ghetto: The Saga',
-    subtitle: 'Nollywood Comedy',
-    poster: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=300&h=450&fit=crop',
+    id: 'french_46738',
+    title: 'Incendies',
+    subtitle: 'Canadian-French Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/yH6DAQVgbyj72S66gN4WWVoTjuf.jpg',
     type: 'movie',
-    year: 2020,
+    year: 2010,
+    rating: '8.1',
     isExclusive: true,
+    streamId: 'french_46738',
+  },
+  {
+    id: 'french_265177',
+    title: 'Mommy',
+    subtitle: 'Quebec Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/uPDP0cHGOpkr47rdCdHWo4CyiPj.jpg',
+    type: 'movie',
+    year: 2014,
+    rating: '8.2',
+    isExclusive: true,
+    streamId: 'french_265177',
+  },
+  {
+    id: 'french_29259',
+    title: 'Le Trou',
+    subtitle: 'French Prison Drama',
+    poster: 'https://image.tmdb.org/t/p/w500/xyZhiOz5NHVBUKlpioxjwajy7pm.jpg',
+    type: 'movie',
+    year: 1960,
+    rating: '8.3',
+    isExclusive: true,
+    streamId: 'french_29259',
   },
 ];
 
+// Blockbuster & Family content
 const TRENDING_TIVI: TiviContent[] = [
   {
-    id: 'tr-1',
-    title: 'Blood & Water',
-    subtitle: 'South African Mystery',
-    poster: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=300&h=450&fit=crop',
-    type: 'series',
-    year: 2024,
+    id: '139211',
+    title: 'Puss in Boots: The Last Wish',
+    subtitle: 'Animated Adventure',
+    poster: 'https://image.tmdb.org/t/p/w600_and_h900_bestv2/kuf6dutpsT0vSVehic3EZIqkOBt.jpg',
+    type: 'movie',
+    year: 2022,
+    rating: '8.6',
+    streamId: 139211,
   },
   {
-    id: 'tr-2',
-    title: 'Gangs of Lagos',
-    subtitle: 'Nigerian Action',
-    poster: 'https://images.unsplash.com/photo-1598899134739-24c46f58b8c0?w=300&h=450&fit=crop',
+    id: '134971',
+    title: 'The Dark Knight',
+    subtitle: 'Action Thriller',
+    poster: 'https://image.tmdb.org/t/p/w600_and_h900_bestv2/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
+    type: 'movie',
+    year: 2008,
+    rating: '8.5',
+    streamId: 134971,
+  },
+  {
+    id: '184534',
+    title: 'Spider-Man: Across the Spider-Verse',
+    subtitle: 'Animated Action',
+    poster: 'https://image.tmdb.org/t/p/w600_and_h900_bestv2/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg',
     type: 'movie',
     year: 2023,
+    rating: '8.5',
+    streamId: 184534,
   },
   {
-    id: 'tr-3',
-    title: 'Mami Wata',
-    subtitle: 'Mythological Drama',
-    poster: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&h=450&fit=crop',
+    id: '30005',
+    title: 'Life Is Beautiful',
+    subtitle: 'Italian Drama',
+    poster: 'https://image.tmdb.org/t/p/w600_and_h900_bestv2/74hLDKjD5aGYOotO6esUVaeISa2.jpg',
     type: 'movie',
-    year: 2023,
+    year: 1997,
+    rating: '8.5',
+    streamId: 30005,
   },
   {
-    id: 'tr-4',
-    title: 'Far from Home',
-    subtitle: 'Nigerian Teen Drama',
-    poster: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=300&h=450&fit=crop',
-    type: 'series',
-    year: 2024,
+    id: '134956',
+    title: 'LOTR: Return of the King',
+    subtitle: 'Epic Fantasy',
+    poster: 'https://image.tmdb.org/t/p/w600_and_h900_bestv2/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg',
+    type: 'movie',
+    year: 2003,
+    rating: '8.5',
+    streamId: 134956,
+  },
+  {
+    id: '23781',
+    title: 'Raya and the Last Dragon',
+    subtitle: 'Animated Adventure',
+    poster: 'https://image.tmdb.org/t/p/w600_and_h900_bestv2/lPsD10PP4rgUGiGR4CCXA6iY0QQ.jpg',
+    type: 'movie',
+    year: 2021,
+    rating: '8.7',
+    streamId: 23781,
   },
 ];
 
+// Featured teaser - Spider-Verse (Perfect for family break)
 const FEATURED_TEASER = {
-  id: 'featured-1',
-  title: 'The Legend of Sundiate Keita',
-  subtitle: 'The Greatest African Epic - Coming 2025',
-  description: 'The untold story of the founder of the Mali Empire. A tale of courage, destiny, and the rise of one of history\'s greatest leaders.',
-  poster: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200&h=600&fit=crop',
-  trailerUrl: 'https://tiviplus.com/watch/sundiate-trailer',
+  id: '184534',
+  title: 'Spider-Man: Across the Spider-Verse',
+  subtitle: 'The Multiverse Awaits - Stream Now on TIVI+',
+  description: 'Miles Morales returns for the next chapter of the Spider-Verse saga. An epic adventure across infinite dimensions with stunning animation.',
+  poster: 'https://image.tmdb.org/t/p/w1280/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg',
+  backdropUrl: 'https://image.tmdb.org/t/p/w1280/4HodYYKEIsGOdinkGi2Ucz6X9i0.jpg',
+  streamId: 184534,
   isExclusive: true,
 };
 
 // ============================================
+// MUSIC CONTENT - "Back to the Music" sections
+// ============================================
+
+interface MusicTrack {
+  id: string;
+  title: string;
+  artist: string;
+  thumbnail: string;
+  youtubeId: string;
+  duration?: string;
+  isNew?: boolean;
+}
+
+// New Releases - Hot tracks right now
+const NEW_RELEASES: MusicTrack[] = [
+  {
+    id: 'nr-1',
+    title: 'Jerusalema',
+    artist: 'Master KG ft Nomcebo',
+    thumbnail: 'https://i.ytimg.com/vi/fUjLXk3Gvqo/maxresdefault.jpg',
+    youtubeId: 'fUjLXk3Gvqo',
+    isNew: true,
+  },
+  {
+    id: 'nr-2',
+    title: 'Ameno Amapiano',
+    artist: 'Goya Menor',
+    thumbnail: 'https://i.ytimg.com/vi/OZOP4SmQzNU/maxresdefault.jpg',
+    youtubeId: 'OZOP4SmQzNU',
+    isNew: true,
+  },
+  {
+    id: 'nr-3',
+    title: 'Essence',
+    artist: 'Wizkid ft Tems',
+    thumbnail: 'https://i.ytimg.com/vi/zLspGFCf-f4/maxresdefault.jpg',
+    youtubeId: 'zLspGFCf-f4',
+    isNew: true,
+  },
+  {
+    id: 'nr-4',
+    title: 'Water',
+    artist: 'Tyla',
+    thumbnail: 'https://i.ytimg.com/vi/FBsD0LD8ohs/maxresdefault.jpg',
+    youtubeId: 'FBsD0LD8ohs',
+    isNew: true,
+  },
+  {
+    id: 'nr-5',
+    title: 'Unavailable',
+    artist: 'Davido ft Musa Keys',
+    thumbnail: 'https://i.ytimg.com/vi/1M9ApWbI8sE/maxresdefault.jpg',
+    youtubeId: '1M9ApWbI8sE',
+    isNew: true,
+  },
+];
+
+// All Time Classics - Timeless African hits
+const ALL_TIME_CLASSICS: MusicTrack[] = [
+  {
+    id: 'atc-1',
+    title: 'Yeke Yeke',
+    artist: 'Mory Kanté',
+    thumbnail: 'https://i.ytimg.com/vi/xKELnaxRjR4/maxresdefault.jpg',
+    youtubeId: 'xKELnaxRjR4',
+  },
+  {
+    id: 'atc-2',
+    title: 'Africa',
+    artist: 'Salif Keita',
+    thumbnail: 'https://i.ytimg.com/vi/7Swa3hXE6hs/maxresdefault.jpg',
+    youtubeId: '7Swa3hXE6hs',
+  },
+  {
+    id: 'atc-3',
+    title: '7 Seconds',
+    artist: 'Youssou N\'Dour ft Neneh Cherry',
+    thumbnail: 'https://i.ytimg.com/vi/wqCpjFMvz-k/maxresdefault.jpg',
+    youtubeId: 'wqCpjFMvz-k',
+  },
+  {
+    id: 'atc-4',
+    title: 'Pata Pata',
+    artist: 'Miriam Makeba',
+    thumbnail: 'https://i.ytimg.com/vi/lNeP3AXS4Ks/maxresdefault.jpg',
+    youtubeId: 'lNeP3AXS4Ks',
+  },
+  {
+    id: 'atc-5',
+    title: 'Sweet Mother',
+    artist: 'Prince Nico Mbarga',
+    thumbnail: 'https://i.ytimg.com/vi/1Yxd9cnH-8A/maxresdefault.jpg',
+    youtubeId: '1Yxd9cnH-8A',
+  },
+];
+
+// West African Hits - Local favorites from Guinea, Senegal, Mali
+const WEST_AFRICAN_HITS: MusicTrack[] = [
+  {
+    id: 'wah-1',
+    title: 'Nanfulen',
+    artist: 'Sékouba Bambino',
+    thumbnail: 'https://i.ytimg.com/vi/QF0QYXL7nnA/maxresdefault.jpg',
+    youtubeId: 'QF0QYXL7nnA',
+  },
+  {
+    id: 'wah-2',
+    title: 'Diaraby Nene',
+    artist: 'Oumou Sangaré',
+    thumbnail: 'https://i.ytimg.com/vi/kqST5Y39H7I/maxresdefault.jpg',
+    youtubeId: 'kqST5Y39H7I',
+  },
+  {
+    id: 'wah-3',
+    title: 'Djadja',
+    artist: 'Aya Nakamura',
+    thumbnail: 'https://i.ytimg.com/vi/iPGgnzc34tY/maxresdefault.jpg',
+    youtubeId: 'iPGgnzc34tY',
+  },
+  {
+    id: 'wah-4',
+    title: 'Fatou',
+    artist: 'Fatoumata Diawara',
+    thumbnail: 'https://i.ytimg.com/vi/SRG5-FvV4J4/maxresdefault.jpg',
+    youtubeId: 'SRG5-FvV4J4',
+  },
+  {
+    id: 'wah-5',
+    title: 'Kelen',
+    artist: 'Petit Poucet',
+    thumbnail: 'https://i.ytimg.com/vi/8QxIIz1yEsA/maxresdefault.jpg',
+    youtubeId: '8QxIIz1yEsA',
+  },
+];
+
+// ============================================
 // COMPONENTS
 // ============================================
+
+// Music Track Card - Square format for music
+const MusicCard = ({ track, onClick }: { track: MusicTrack; onClick?: () => void }) => (
+  <motion.button
+    className="flex-shrink-0 relative rounded-xl overflow-hidden group"
+    style={{ width: 130, height: 130 }}
+    whileHover={{ scale: 1.05, y: -3 }}
+    whileTap={{ scale: 0.98 }}
+    onClick={onClick}
+  >
+    {/* Thumbnail */}
+    <img
+      src={track.thumbnail}
+      alt={track.title}
+      className="w-full h-full object-cover"
+      loading="lazy"
+    />
+
+    {/* Gradient overlay */}
+    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+
+    {/* New badge */}
+    {track.isNew && (
+      <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded text-[7px] font-bold text-white">
+        NEW
+      </div>
+    )}
+
+    {/* Info */}
+    <div className="absolute bottom-0 left-0 right-0 p-2">
+      <p className="text-[10px] font-bold text-white truncate">{track.title}</p>
+      <p className="text-[8px] text-white/60 truncate">{track.artist}</p>
+    </div>
+
+    {/* Hover play button */}
+    <motion.div
+      className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity"
+    >
+      <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+        <Play className="w-5 h-5 text-white fill-white" />
+      </div>
+    </motion.div>
+  </motion.button>
+);
 
 const ContentCard = ({ content, onClick }: { content: TiviContent; onClick?: () => void }) => (
   <motion.button
@@ -150,28 +379,31 @@ const ContentCard = ({ content, onClick }: { content: TiviContent; onClick?: () 
     {/* Gradient overlay */}
     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
 
-    {/* Exclusive badge */}
-    {content.isExclusive && (
-      <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 rounded text-[8px] font-bold text-black">
-        TIVI+ EXCLUSIVE
+    {/* Rating badge */}
+    {content.rating && (
+      <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm rounded text-[9px] font-bold text-amber-400 flex items-center gap-0.5">
+        <span className="text-amber-500">★</span> {content.rating}
       </div>
     )}
 
-    {/* Type badge */}
-    <div className="absolute top-2 right-2 p-1 bg-black/50 rounded-full">
-      {content.type === 'series' ? (
-        <Tv className="w-3 h-3 text-white/80" />
-      ) : (
-        <Film className="w-3 h-3 text-white/80" />
-      )}
-    </div>
+    {/* Exclusive badge */}
+    {content.isExclusive && (
+      <div className="absolute top-2 right-2 px-1 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 rounded text-[7px] font-bold text-black">
+        TIVI+
+      </div>
+    )}
 
     {/* Info */}
     <div className="absolute bottom-0 left-0 right-0 p-2">
       <p className="text-[10px] font-bold text-white truncate">{content.title}</p>
-      {content.subtitle && (
-        <p className="text-[8px] text-white/60 truncate">{content.subtitle}</p>
-      )}
+      <div className="flex items-center gap-1 mt-0.5">
+        {content.year && (
+          <span className="text-[8px] text-white/50">{content.year}</span>
+        )}
+        {content.subtitle && (
+          <span className="text-[8px] text-white/40 truncate">• {content.subtitle}</span>
+        )}
+      </div>
     </div>
 
     {/* Hover play button */}
@@ -219,18 +451,35 @@ const SectionHeader = ({
 // MAIN COMPONENT
 // ============================================
 
-export const TiviPlusCrossPromo = () => {
-  const [isExpanded, setIsExpanded] = useState(true);
+// TIVI+ App deep link URL
+const TIVI_PLUS_BASE = 'https://dash-webtv.vercel.app';
 
+export const TiviPlusCrossPromo = () => {
   const handleContentClick = (content: TiviContent) => {
-    // If user has TIVI+ account, deep link
-    // Otherwise, show teaser/signup prompt
-    const tiviPlusUrl = `https://tiviplus.com/watch/${content.id}`;
+    // Deep link to TIVI+ with stream ID
+    const tiviPlusUrl = content.streamId
+      ? `${TIVI_PLUS_BASE}/watch/${content.streamId}`
+      : `${TIVI_PLUS_BASE}/browse`;
     window.open(tiviPlusUrl, '_blank');
   };
 
   const handleTeaserClick = () => {
-    window.open(FEATURED_TEASER.trailerUrl, '_blank');
+    // Deep link to featured movie
+    const tiviPlusUrl = `${TIVI_PLUS_BASE}/watch/${FEATURED_TEASER.streamId}`;
+    window.open(tiviPlusUrl, '_blank');
+  };
+
+  const handleMusicClick = (track: MusicTrack) => {
+    // Dispatch event to play this track in VOYO
+    // Uses the existing player system
+    window.dispatchEvent(new CustomEvent('voyo:playTrack', {
+      detail: {
+        youtubeId: track.youtubeId,
+        title: track.title,
+        artist: track.artist,
+        thumbnail: track.thumbnail,
+      }
+    }));
   };
 
   return (
@@ -256,16 +505,16 @@ export const TiviPlusCrossPromo = () => {
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       </div>
 
-      {/* African Stories Section */}
+      {/* French Cinema Exclusives */}
       <div className="mb-6">
         <SectionHeader
           icon={Sparkles}
-          title="African Stories"
+          title="French Cinema"
           accent="bg-gradient-to-br from-amber-500 to-orange-600"
-          onSeeAll={() => window.open('https://tiviplus.com/african-stories', '_blank')}
+          onSeeAll={() => window.open(`${TIVI_PLUS_BASE}/browse?category=french`, '_blank')}
         />
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
-          {AFRICAN_STORIES.map(content => (
+          {FRENCH_EXCLUSIVES.map(content => (
             <ContentCard
               key={content.id}
               content={content}
@@ -284,7 +533,7 @@ export const TiviPlusCrossPromo = () => {
           icon={Tv}
           title="Trending on TIVI+"
           accent="bg-gradient-to-br from-purple-500 to-pink-600"
-          onSeeAll={() => window.open('https://tiviplus.com/trending', '_blank')}
+          onSeeAll={() => window.open(`${TIVI_PLUS_BASE}/browse`, '_blank')}
         />
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
           {TRENDING_TIVI.map(content => (
@@ -297,52 +546,72 @@ export const TiviPlusCrossPromo = () => {
         </div>
       </div>
 
-      {/* Featured Teaser */}
+      {/* Featured Teaser - Widescreen Banner */}
       <motion.button
-        className="relative w-full h-40 rounded-2xl overflow-hidden mb-4 group"
+        className="relative w-full h-44 rounded-2xl overflow-hidden mb-4 group"
         onClick={handleTeaserClick}
         whileHover={{ scale: 1.01 }}
         whileTap={{ scale: 0.99 }}
       >
-        {/* Background image */}
+        {/* Background - Use backdrop for cinematic look */}
         <img
-          src={FEATURED_TEASER.poster}
+          src={FEATURED_TEASER.backdropUrl}
           alt={FEATURED_TEASER.title}
           className="absolute inset-0 w-full h-full object-cover"
+          loading="lazy"
         />
 
         {/* Gradient overlays */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30" />
 
-        {/* Exclusive badge */}
-        <div className="absolute top-3 left-3 px-2 py-1 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full text-[9px] font-bold text-black flex items-center gap-1">
-          <Sparkles className="w-3 h-3" />
-          TIVI+ EXCLUSIVE
+        {/* Top badges */}
+        <div className="absolute top-3 left-3 flex items-center gap-2">
+          <div className="px-2 py-1 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full text-[9px] font-bold text-black flex items-center gap-1">
+            <Sparkles className="w-3 h-3" />
+            TIVI+ EXCLUSIVE
+          </div>
+          <div className="px-2 py-1 bg-black/60 backdrop-blur-sm rounded-full text-[9px] font-bold text-amber-400 flex items-center gap-1">
+            <Star className="w-3 h-3 fill-amber-400" />
+            8.5
+          </div>
         </div>
 
         {/* Content */}
-        <div className="absolute bottom-0 left-0 right-0 p-4">
-          <h3 className="text-lg font-black text-white mb-1">{FEATURED_TEASER.title}</h3>
+        <div className="absolute bottom-0 left-0 right-16 p-4">
+          <h3 className="text-xl font-black text-white mb-1 drop-shadow-lg">{FEATURED_TEASER.title}</h3>
           <p className="text-xs text-amber-300 font-medium mb-2">{FEATURED_TEASER.subtitle}</p>
-          <p className="text-[10px] text-white/70 line-clamp-2">{FEATURED_TEASER.description}</p>
+          <p className="text-[10px] text-white/80 line-clamp-2 max-w-[80%]">{FEATURED_TEASER.description}</p>
         </div>
 
-        {/* Play button */}
+        {/* Play button - Bigger and more prominent */}
         <motion.div
-          className="absolute right-4 top-1/2 -translate-y-1/2"
+          className="absolute right-4 bottom-4"
           whileHover={{ scale: 1.1 }}
+          animate={{ scale: [1, 1.05, 1] }}
+          transition={{ duration: 2, repeat: Infinity }}
         >
-          <div className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center group-hover:bg-white/20 transition-colors">
-            <Play className="w-6 h-6 text-white fill-white ml-1" />
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/30 flex items-center justify-center">
+            <Play className="w-7 h-7 text-black fill-black ml-1" />
           </div>
         </motion.div>
 
-        {/* Animated border */}
+        {/* "Watch on TIVI+" CTA */}
+        <div className="absolute right-4 top-3 flex items-center gap-1 px-2 py-1 bg-black/50 backdrop-blur-sm rounded-full text-[8px] text-white/70">
+          <span>Watch on</span>
+          <span className="font-bold text-amber-400">TIVI+</span>
+          <ExternalLink className="w-2.5 h-2.5" />
+        </div>
+
+        {/* Subtle animated glow */}
         <motion.div
-          className="absolute inset-0 rounded-2xl border-2 border-amber-500/0 group-hover:border-amber-500/50 transition-colors"
+          className="absolute inset-0 rounded-2xl pointer-events-none"
           animate={{
-            boxShadow: ['0 0 0 rgba(245,158,11,0)', '0 0 20px rgba(245,158,11,0.3)', '0 0 0 rgba(245,158,11,0)'],
+            boxShadow: [
+              'inset 0 0 0 1px rgba(245,158,11,0)',
+              'inset 0 0 0 1px rgba(245,158,11,0.3)',
+              'inset 0 0 0 1px rgba(245,158,11,0)',
+            ],
           }}
           transition={{ duration: 3, repeat: Infinity }}
         />
@@ -351,10 +620,77 @@ export const TiviPlusCrossPromo = () => {
       {/* Back to Music divider */}
       <div className="flex items-center gap-3 mt-6 mb-4">
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-        <span className="text-[10px] font-bold text-white/30 tracking-wider">
-          BACK TO THE MUSIC
-        </span>
+        <motion.div
+          className="flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30"
+          animate={{ scale: [1, 1.02, 1] }}
+          transition={{ duration: 3, repeat: Infinity, delay: 1 }}
+        >
+          <Music className="w-4 h-4 text-purple-400" />
+          <span className="text-[10px] font-bold text-purple-300 tracking-wider">
+            BACK TO THE MUSIC
+          </span>
+        </motion.div>
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      </div>
+
+      {/* New Releases */}
+      <div className="mb-6">
+        <SectionHeader
+          icon={Flame}
+          title="New Releases"
+          accent="bg-gradient-to-br from-green-500 to-emerald-600"
+        />
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
+          {NEW_RELEASES.map(track => (
+            <MusicCard
+              key={track.id}
+              track={track}
+              onClick={() => handleMusicClick(track)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* All Time Classics */}
+      <div className="mb-6">
+        <SectionHeader
+          icon={Heart}
+          title="All Time Classics"
+          accent="bg-gradient-to-br from-rose-500 to-red-600"
+        />
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
+          {ALL_TIME_CLASSICS.map(track => (
+            <MusicCard
+              key={track.id}
+              track={track}
+              onClick={() => handleMusicClick(track)}
+            />
+          ))}
+        </div>
+        <p className="text-[9px] text-white/40 mt-2 italic">
+          Timeless African hits that defined generations
+        </p>
+      </div>
+
+      {/* West African Hits */}
+      <div className="mb-6">
+        <SectionHeader
+          icon={Globe}
+          title="West African Hits"
+          accent="bg-gradient-to-br from-yellow-500 to-orange-600"
+        />
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
+          {WEST_AFRICAN_HITS.map(track => (
+            <MusicCard
+              key={track.id}
+              track={track}
+              onClick={() => handleMusicClick(track)}
+            />
+          ))}
+        </div>
+        <p className="text-[9px] text-white/40 mt-2 italic">
+          From Guinea to Senegal - your local favorites
+        </p>
       </div>
     </motion.div>
   );
