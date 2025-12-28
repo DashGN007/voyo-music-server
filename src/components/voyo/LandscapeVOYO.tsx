@@ -549,7 +549,18 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
     togglePlay,
     playbackSource,
     setPlaybackSource,
+    currentTime,
   } = usePlayerStore();
+
+  // Capture start time once per track (prevents iframe reload on every currentTime change)
+  const lastTrackIdRef = useRef(currentTrack?.trackId);
+  const startTimeRef = useRef(Math.floor(currentTime || 0));
+
+  // Reset start time when track changes (new track starts at 0)
+  if (currentTrack?.trackId !== lastTrackIdRef.current) {
+    lastTrackIdRef.current = currentTrack?.trackId;
+    startTimeRef.current = 0;
+  }
 
   // UI visibility state - auto-hide after 3 seconds
   const [showOverlay, setShowOverlay] = useState(true);
@@ -662,7 +673,7 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
       {currentTrack && (
         <div className="absolute inset-0 z-0">
           <iframe
-            src={`https://www.youtube.com/embed/${currentTrack.trackId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${currentTrack.trackId}&showinfo=0&iv_load_policy=3&fs=0${playbackSource === 'cached' ? '&mute=1' : ''}`}
+            src={`https://www.youtube.com/embed/${currentTrack.trackId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${currentTrack.trackId}&showinfo=0&iv_load_policy=3&fs=0&start=${startTimeRef.current}${playbackSource === 'cached' ? '&mute=1' : ''}`}
             className="absolute inset-0 w-full h-full"
             style={{
               // Scale up to hide YouTube UI edges
