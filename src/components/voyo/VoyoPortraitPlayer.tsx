@@ -1867,6 +1867,18 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = 
           title={track.title}
           lazy={false}
         />
+        {/* Light purple fade - always visible */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `linear-gradient(
+              to top,
+              rgba(139, 92, 246, 0.4) 0%,
+              rgba(139, 92, 246, 0.15) 30%,
+              transparent 60%
+            )`,
+          }}
+        />
         {/* Lyrics hint icon */}
         {onShowLyrics && (
           <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
