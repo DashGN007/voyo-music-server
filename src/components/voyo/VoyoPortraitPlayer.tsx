@@ -1792,7 +1792,7 @@ StreamCard.displayName = 'StreamCard';
 // BIG CENTER CARD (NOW PLAYING - Canva-style purple fade with premium typography)
 // TAP ALBUM ART FOR LYRICS VIEW
 // ============================================
-const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = false, isVideoMode = false, onCloseVideo }: { track: Track; onExpandVideo?: () => void; onShowLyrics?: () => void; showOverlay?: boolean; isVideoMode?: boolean; onCloseVideo?: () => void }) => (
+const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = false, isVideoModeEnabled = false, showVideo = false, onCloseVideo }: { track: Track; onExpandVideo?: () => void; onShowLyrics?: () => void; showOverlay?: boolean; isVideoModeEnabled?: boolean; showVideo?: boolean; onCloseVideo?: () => void }) => (
   <motion.div
     className="relative w-52 h-52 md:w-60 md:h-60 rounded-[2rem] overflow-hidden z-20 group"
     style={{
@@ -1805,7 +1805,7 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = 
     key={track.id}
   >
     {/* VIDEO MODE: YouTube iframe replaces artwork - muted, AudioPlayer handles audio */}
-    {isVideoMode ? (
+    {showVideo ? (
       <div className="absolute inset-0 z-10 bg-black overflow-hidden">
         <iframe
           src={`https://www.youtube.com/embed/${track.trackId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&showinfo=0&iv_load_policy=3&fs=0&mute=1`}
@@ -1895,8 +1895,8 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = 
       }}
     />
 
-    {/* Expand Video Button - hidden when video is playing */}
-    {onExpandVideo && !isVideoMode && (
+    {/* Expand Video Button - hidden when video mode is enabled */}
+    {onExpandVideo && !isVideoModeEnabled && (
       <ExpandVideoButton onClick={onExpandVideo} />
     )}
 
@@ -4667,7 +4667,8 @@ export const VoyoPortraitPlayer = ({
               track={currentTrack}
               onExpandVideo={() => toggleVideoMode()}
               onCloseVideo={() => toggleVideoMode()}
-              isVideoMode={isVideoMode && isPlaying}
+              isVideoModeEnabled={isVideoMode}
+              showVideo={isVideoMode && isPlaying}
               onShowLyrics={() => setShowLyricsOverlay(true)}
               showOverlay={!(isVideoMode && isPlaying)}
             />
