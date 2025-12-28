@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Bell, Play, RefreshCw } from 'lucide-react';
 import { getThumb } from '../../utils/thumbnail';
 import { SmartImage } from '../ui/SmartImage';
-import { TRACKS, VIBES, getHotTracks, Vibe } from '../../data/tracks';
+import { VIBES, Vibe } from '../../data/tracks';
 import { LottieIcon } from '../ui/LottieIcon';
 import { getUserTopTracks, getPoolAwareHotTracks } from '../../services/personalization';
 import { usePlayerStore } from '../../store/playerStore';
@@ -32,8 +32,9 @@ const getGreeting = (): string => {
   return 'Good evening';
 };
 
-const getNewReleases = (limit: number = 15): Track[] => {
-  return [...TRACKS]
+// Pool-based: Get new releases from pool (sorted by when added)
+const getNewReleases = (pool: Track[], limit: number = 15): Track[] => {
+  return [...pool]
     .sort((a, b) => {
       const dateA = new Date(a.createdAt || '2024-01-01').getTime();
       const dateB = new Date(b.createdAt || '2024-01-01').getTime();
@@ -42,7 +43,8 @@ const getNewReleases = (limit: number = 15): Track[] => {
     .slice(0, limit);
 };
 
-const getArtistsYouLove = (history: any[], limit: number = 8): { name: string; tracks: Track[]; playCount: number }[] => {
+// Pool-based: Get artists you love from pool + history
+const getArtistsYouLove = (history: any[], pool: Track[], limit: number = 8): { name: string; tracks: Track[]; playCount: number }[] => {
   const artistPlays: Record<string, { tracks: Set<string>; count: number }> = {};
   history.forEach(item => {
     if (item.track?.artist) {
@@ -58,7 +60,8 @@ const getArtistsYouLove = (history: any[], limit: number = 8): { name: string; t
     .map(([name, data]) => ({
       name,
       playCount: data.count,
-      tracks: TRACKS.filter(t => t.artist === name).slice(0, 5),
+      // Get tracks from pool instead of static TRACKS
+      tracks: pool.filter(t => t.artist.toLowerCase().includes(name.toLowerCase())).slice(0, 5),
     }))
     .filter(a => a.tracks.length > 0)
     .sort((a, b) => b.playCount - a.playCount)
@@ -819,14 +822,14 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub, onNavVisibilityChange
   // Data from existing DJ/Curator systems (pool-based)
   const recentlyPlayed = useMemo(() => getRecentlyPlayed(history, 15), [history]);
   const heavyRotation = useMemo(() => getUserTopTracks(15), [history]);
-  const artistsYouLove = useMemo(() => getArtistsYouLove(history, 8), [history]);
+  const artistsYouLove = useMemo(() => getArtistsYouLove(history, hotPool, 8), [history, hotPool]);
   const vibes = VIBES;
 
   // Pool-fed sections (DJ/Curator fills pool → refreshRecommendations → these update)
   const madeForYou = hotTracks.length > 0 ? hotTracks : getPoolAwareHotTracks(15);
   const discoverMoreTracks = discoverTracks.length > 0 ? discoverTracks : getPoolAwareHotTracks(15);
   const africanVibes = getPoolAwareHotTracks(15);
-  const newReleases = useMemo(() => getNewReleases(15), []);
+  const newReleases = useMemo(() => getNewReleases(hotPool, 15), [hotPool]);
   const trending = getTrendingTracks(hotPool, 15);
 
   const greeting = getGreeting();
