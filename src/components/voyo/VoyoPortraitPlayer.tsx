@@ -4672,9 +4672,9 @@ export const VoyoPortraitPlayer = ({
               track={currentTrack}
               onExpandVideo={() => toggleVideoMode()}
               onCloseVideo={() => toggleVideoMode()}
-              isVideoMode={isVideoMode}
+              isVideoMode={isVideoMode && isPlaying}
               onShowLyrics={() => setShowLyricsOverlay(true)}
-              showOverlay={!isVideoMode}
+              showOverlay={!(isVideoMode && isPlaying)}
             />
           ) : (
             <div className="w-48 h-48 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center">
