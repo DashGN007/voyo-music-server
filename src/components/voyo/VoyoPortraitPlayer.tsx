@@ -1813,7 +1813,7 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = 
     {isVideoMode ? (
       <div className="absolute inset-0 z-10 bg-black overflow-hidden">
         <iframe
-          src={`https://www.youtube.com/embed/${track.trackId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&enablejsapi=1&mute=1`}
+          src={`https://www.youtube.com/embed/${track.trackId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&showinfo=0&iv_load_policy=3&fs=0&mute=1`}
           className="w-full h-full"
           style={{
             transform: 'scale(1.5)',

@@ -677,7 +677,7 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
             className="absolute inset-0 w-full h-full"
             style={{
               // Scale up to hide YouTube UI edges
-              transform: 'scale(1.5)',
+              transform: 'scale(1.2)',
               transformOrigin: 'center center',
             }}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
