@@ -31,7 +31,7 @@ interface ClassicModeProps {
 // Mini Player (shown at bottom when a track is playing)
 // Tap = floating bubble controls, Swipe = next/prev
 // VOYO = Music Experience App, not just a player!
-const MiniPlayer = () => {
+const MiniPlayer = ({ onVOYOClick }: { onVOYOClick: () => void }) => {
   const {
     currentTrack, isPlaying, togglePlay, progress, nextTrack, prevTrack,
     shuffleMode, repeatMode, toggleShuffle, cycleRepeat
@@ -91,7 +91,7 @@ const MiniPlayer = () => {
             exit={{ opacity: 0, y: 10, scale: 0.9 }}
             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
           >
-            {/* Shuffle Bubble */}
+            {/* Shuffle Bubble - exits after VOYO */}
             <motion.button
               className={`w-12 h-12 rounded-full backdrop-blur-xl flex items-center justify-center shadow-lg ${
                 shuffleMode
@@ -102,13 +102,16 @@ const MiniPlayer = () => {
                 e.stopPropagation();
                 toggleShuffle();
               }}
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5, transition: { delay: 0.2 } }}
               whileHover={{ scale: 1.15 }}
               whileTap={{ scale: 0.9 }}
             >
               <Shuffle className={`w-5 h-5 ${shuffleMode ? 'text-white' : 'text-white/70'}`} />
             </motion.button>
 
-            {/* Repeat/Loop Bubble */}
+            {/* Repeat/Loop Bubble - exits after VOYO */}
             <motion.button
               className={`w-12 h-12 rounded-full backdrop-blur-xl flex items-center justify-center shadow-lg ${
                 repeatMode !== 'off'
@@ -119,6 +122,9 @@ const MiniPlayer = () => {
                 e.stopPropagation();
                 cycleRepeat();
               }}
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5, transition: { delay: 0.15 } }}
               whileHover={{ scale: 1.15 }}
               whileTap={{ scale: 0.9 }}
             >
@@ -136,6 +142,23 @@ const MiniPlayer = () => {
                   {repeatMode === 'one' ? '1' : '∞'}
                 </motion.div>
               )}
+            </motion.button>
+
+            {/* VOYO Player Bubble - Video Experience - disappears first so user notices */}
+            <motion.button
+              className="w-12 h-12 rounded-full backdrop-blur-xl flex items-center justify-center shadow-lg bg-gradient-to-br from-purple-500/80 to-pink-500/80 border-2 border-purple-400"
+              onClick={(e) => {
+                e.stopPropagation();
+                onVOYOClick();
+              }}
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5, transition: { delay: 0, duration: 0.15 } }}
+              transition={{ delay: 0.1 }}
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <Radio className="w-5 h-5 text-white" />
             </motion.button>
           </motion.div>
         )}
@@ -399,8 +422,7 @@ export const ClassicMode = ({ onSwitchToVOYO, onSearch }: ClassicModeProps) => {
   const handleTrackClick = async (track: Track) => {
     const { setCurrentTrack } = usePlayerStore.getState();
     setCurrentTrack(track);
-    setShowNowPlaying(true);
-    // FIX: Use forcePlay directly in user gesture context - no setTimeout!
+    // Mini player only - let user discover VOYO player via bubble or nav
     // Small delay to let AudioPlayer set the source, then force play
     setTimeout(async () => {
       await forcePlay();
@@ -444,7 +466,7 @@ export const ClassicMode = ({ onSwitchToVOYO, onSearch }: ClassicModeProps) => {
       {/* Mini Player */}
       <AnimatePresence>
         {currentTrack && !showNowPlaying && (
-          <MiniPlayer />
+          <MiniPlayer onVOYOClick={onSwitchToVOYO} />
         )}
       </AnimatePresence>
 

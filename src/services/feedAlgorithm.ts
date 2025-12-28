@@ -107,8 +107,8 @@ export function estimateTreatment(track: Track, hotspots?: TrackHotspot[]): Feed
  * Detect energy level from track metadata
  */
 function detectEnergyLevel(track: Track): EnergyLevel {
-  const title = track.title.toLowerCase();
-  const tags = track.tags.map(t => t.toLowerCase());
+  const title = (track.title || '').toLowerCase();
+  const tags = (track.tags || []).filter(t => typeof t === 'string').map(t => t.toLowerCase());
 
   // High energy indicators
   const highEnergyKeywords = ['drill', 'amapiano', 'party', 'turn up', 'hype', 'fire'];
