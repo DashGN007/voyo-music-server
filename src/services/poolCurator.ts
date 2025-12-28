@@ -56,7 +56,8 @@ let isBootstrapped = false;
 // BOOTSTRAP - Fresh start with working tracks
 // ============================================
 
-const BOOTSTRAP_QUERIES = [
+// General trending queries
+const TRENDING_QUERIES = [
   'Burna Boy 2024',
   'Asake latest',
   'Wizkid hits',
@@ -65,8 +66,46 @@ const BOOTSTRAP_QUERIES = [
   'Davido songs',
   'Amapiano 2024 hits',
   'Tyla water',
-  'Afrobeats mix 2024',
-  'Nigerian music trending',
+];
+
+// SECTION: West African Hits - Regional artists
+const WEST_AFRICAN_QUERIES = [
+  'Nigerian afrobeats hits',
+  'Ghana highlife music',
+  'Senegalese mbalax music',
+  'Wizkid Essence',
+  'Burna Boy Last Last',
+  'Davido Fall',
+  'Fireboy DML Peru',
+  'Rema Calm Down',
+  'Omah Lay songs',
+  'CKay Love Nwantiti',
+  'Aya Nakamura Djadja',
+  'Master KG Jerusalema',
+];
+
+// SECTION: All Time Classics - Timeless African hits
+const CLASSICS_QUERIES = [
+  'Fela Kuti best songs',
+  'Youssou N\'Dour classics',
+  'Angelique Kidjo songs',
+  'King Sunny Ade music',
+  'Miriam Makeba songs',
+  'Oliver De Coque',
+  'Ebenezer Obey',
+  'Salif Keita music',
+  'Franco TPOK Jazz',
+  'Brenda Fassie hits',
+  '90s African music',
+  '2000s Naija throwback',
+  'African legends music',
+];
+
+// Combined for bootstrap - mix of all sections
+const BOOTSTRAP_QUERIES = [
+  ...TRENDING_QUERIES.slice(0, 4),
+  ...WEST_AFRICAN_QUERIES.slice(0, 4),
+  ...CLASSICS_QUERIES.slice(0, 4),
 ];
 
 /**
@@ -76,6 +115,47 @@ export function clearStalePool(): void {
   // Clear the persisted pool in localStorage
   localStorage.removeItem('voyo-track-pool');
   console.log('[Pool Curator] 🗑️ Cleared stale pool data');
+}
+
+/**
+ * SEED POOL - Instant, no API calls
+ * Seeds pool from static TRACKS data so app has content immediately
+ * DJ then expands with searches as user plays
+ */
+export async function seedPool(): Promise<number> {
+  const { TRACKS } = await import('../data/tracks');
+  const poolStore = useTrackPoolStore.getState();
+
+  console.log('[Pool Curator] 🌱 Seeding pool from static data...');
+
+  let added = 0;
+  for (const track of TRACKS) {
+    // Tag tracks for sections
+    const tags = [...(track.tags || [])];
+
+    // Auto-tag for sections based on content
+    const lower = ((track.title || '') + ' ' + (track.artist || '')).toLowerCase();
+    if (lower.includes('classic') || track.oyeScore > 50000) {
+      tags.push('classic');
+    }
+    if (['burna', 'wizkid', 'davido', 'asake', 'rema', 'ayra', 'tems', 'ckay', 'fireboy', 'omah'].some(a => lower.includes(a))) {
+      tags.push('west-african');
+    }
+
+    const seededTrack = {
+      ...track,
+      tags,
+      detectedMode: track.detectedMode || 'afro-heat',
+    };
+
+    poolStore.addToPool(seededTrack, 'seed');
+    added++;
+  }
+
+  console.log(`[Pool Curator] 🌱 Seeded ${added} tracks from static data`);
+  triggerRecommendationRefresh();
+
+  return added;
 }
 
 /**
@@ -143,7 +223,10 @@ export async function forceBootstrap(): Promise<number> {
 // SEARCH RESULT → TRACK CONVERSION
 // ============================================
 
-function searchResultToTrack(result: SearchResult): Track {
+function searchResultToTrack(result: SearchResult, sectionTag?: string): Track {
+  const tags = inferTags(result.title, result.artist);
+  if (sectionTag) tags.push(sectionTag);
+
   return {
     id: result.voyoId,
     title: result.title,
@@ -152,7 +235,7 @@ function searchResultToTrack(result: SearchResult): Track {
     trackId: result.voyoId,
     coverUrl: result.thumbnail || getThumb(result.voyoId),
     duration: result.duration,
-    tags: inferTags(result.title, result.artist),
+    tags,
     mood: inferMood(result.title),
     region: inferRegion(result.artist),
     oyeScore: result.views || 0,
@@ -162,7 +245,7 @@ function searchResultToTrack(result: SearchResult): Track {
 
 function inferTags(title: string, artist: string): string[] {
   const tags: string[] = [];
-  const lower = (title + ' ' + artist).toLowerCase();
+  const lower = ((title || '') + ' ' + (artist || '')).toLowerCase();
 
   if (lower.includes('amapiano') || lower.includes('piano')) tags.push('amapiano');
   if (lower.includes('afrobeat')) tags.push('afrobeats');
@@ -178,7 +261,7 @@ function inferTags(title: string, artist: string): string[] {
 }
 
 function inferMood(title: string): 'afro' | 'hype' | 'chill' | 'rnb' {
-  const lower = title.toLowerCase();
+  const lower = (title || '').toLowerCase();
   if (lower.includes('party') || lower.includes('dance')) return 'hype';
   if (lower.includes('love') || lower.includes('heart')) return 'rnb';
   if (lower.includes('chill') || lower.includes('relax')) return 'chill';
@@ -186,7 +269,7 @@ function inferMood(title: string): 'afro' | 'hype' | 'chill' | 'rnb' {
 }
 
 function inferRegion(artist: string): string {
-  const lower = artist.toLowerCase();
+  const lower = (artist || '').toLowerCase();
   if (lower.includes('burna') || lower.includes('wizkid') || lower.includes('davido') || lower.includes('asake')) return 'NG';
   if (lower.includes('tyla') || lower.includes('kabza') || lower.includes('maphorisa')) return 'ZA';
   if (lower.includes('stonebwoy') || lower.includes('sarkodie')) return 'GH';
@@ -336,6 +419,62 @@ function triggerRecommendationRefresh(): void {
 }
 
 /**
+ * SECTION-AWARE CURATION
+ * DJ actively fills specific sections with fresh content
+ */
+export async function curateSection(section: 'west-african' | 'classics' | 'trending'): Promise<number> {
+  const queries = section === 'west-african' ? WEST_AFRICAN_QUERIES
+    : section === 'classics' ? CLASSICS_QUERIES
+    : TRENDING_QUERIES;
+
+  const sectionTag = section === 'west-african' ? 'west-african'
+    : section === 'classics' ? 'classic'
+    : 'trending';
+
+  console.log(`[Pool Curator] 🎯 Curating "${section}" section...`);
+
+  let totalAdded = 0;
+
+  // Pick 5 random queries from the section
+  const shuffled = [...queries].sort(() => Math.random() - 0.5).slice(0, 5);
+
+  for (const query of shuffled) {
+    try {
+      const results = await searchMusic(query, TRACKS_PER_SEARCH);
+      const tracks = results.map(r => searchResultToTrack(r, sectionTag));
+
+      for (const track of tracks) {
+        const added = await safeAddToPool(track, 'curated');
+        if (added) totalAdded++;
+      }
+
+      console.log(`[Pool Curator] ✅ "${query}" → added tracks`);
+      await new Promise(r => setTimeout(r, 300));
+    } catch (error) {
+      console.warn(`[Pool Curator] Section query failed: "${query}"`);
+    }
+  }
+
+  console.log(`[Pool Curator] 🎉 "${section}" section: ${totalAdded} fresh tracks`);
+  triggerRecommendationRefresh();
+
+  return totalAdded;
+}
+
+/**
+ * Curate ALL sections (called on app load for fresh content)
+ */
+export async function curateAllSections(): Promise<void> {
+  console.log('[Pool Curator] 🚀 Curating all sections...');
+
+  await curateSection('west-african');
+  await curateSection('classics');
+  await curateSection('trending');
+
+  console.log('[Pool Curator] ✅ All sections curated');
+}
+
+/**
  * Reset session
  */
 export function resetSession(): void {
@@ -364,20 +503,27 @@ export function getSessionStats() {
 // AUTO-BOOTSTRAP ON IMPORT
 // ============================================
 
-// Check pool size and bootstrap if needed
-setTimeout(() => {
+// On load: Seed pool first (instant), then expand with searches
+setTimeout(async () => {
   const poolStore = useTrackPoolStore.getState();
   const stats = poolStore.getPoolStats();
 
-  // If pool has fewer than 20 tracks, bootstrap
-  if (stats.hot < 20) {
-    console.log(`[Pool Curator] Pool only has ${stats.hot} tracks, bootstrapping...`);
-    bootstrapPool();
+  // If pool is empty or very small, seed it first
+  if (stats.hot < 10) {
+    console.log(`[Pool Curator] Pool empty/small (${stats.hot}), seeding...`);
+    await seedPool();
+  }
+
+  // Check again after seed
+  const newStats = poolStore.getPoolStats();
+  if (newStats.hot < 30) {
+    console.log(`[Pool Curator] Pool has ${newStats.hot} tracks, expanding with searches...`);
+    bootstrapPool(); // This does API searches to add more variety
   } else {
-    console.log(`[Pool Curator] Pool has ${stats.hot} tracks, ready`);
+    console.log(`[Pool Curator] Pool has ${newStats.hot} tracks, ready`);
     isBootstrapped = true;
   }
-}, 2000);
+}, 1500);
 
 // ============================================
 // DEBUG HELPERS (available in browser console)
@@ -385,17 +531,24 @@ setTimeout(() => {
 
 if (typeof window !== 'undefined') {
   (window as any).voyoPool = {
+    seed: seedPool,
     bootstrap: () => bootstrapPool(false),
     forceBootstrap: () => bootstrapPool(true),
     clearStale: clearStalePool,
     expand: expandPool,
     stats: getSessionStats,
     reset: resetSession,
+    // Section-aware curation
+    curateWestAfrican: () => curateSection('west-african'),
+    curateClassics: () => curateSection('classics'),
+    curateTrending: () => curateSection('trending'),
+    curateAll: curateAllSections,
   };
-  console.log('🎵 [Pool Curator] Debug tools: window.voyoPool.bootstrap() / .forceBootstrap() / .clearStale()');
+  console.log('🎵 [Pool Curator] Debug: voyoPool.seed() / .curateAll() / .curateClassics()');
 }
 
 export default {
+  seedPool,
   bootstrapPool,
   forceBootstrap,
   clearStalePool,
@@ -403,4 +556,6 @@ export default {
   recordTrackInSession,
   resetSession,
   getSessionStats,
+  curateSection,
+  curateAllSections,
 };

@@ -61,7 +61,7 @@ const getArtistsYouLove = (history: any[], pool: Track[], limit: number = 8): { 
       name,
       playCount: data.count,
       // Get tracks from pool instead of static TRACKS
-      tracks: pool.filter(t => t.artist.toLowerCase().includes(name.toLowerCase())).slice(0, 5),
+      tracks: pool.filter(t => typeof t.artist === 'string' && t.artist.toLowerCase().includes(name.toLowerCase())).slice(0, 5),
     }))
     .filter(a => a.tracks.length > 0)
     .sort((a, b) => b.playCount - a.playCount)
@@ -691,7 +691,7 @@ const AfricanVibesCarousel = ({ tracks, onTrackPlay }: { tracks: Track[]; onTrac
       style={{ paddingLeft: '28px' }}
       onMouseLeave={() => setActiveIdx(0)}
     >
-      {tracks.slice(0, 6).map((track, idx) => (
+      {tracks.slice(0, 12).map((track, idx) => (
         <div key={track.id} onMouseEnter={() => setActiveIdx(idx)}>
           <AfricanVibesVideoCard
             track={track}
@@ -980,7 +980,7 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub, onNavVisibilityChange
               TRENDING
             </span>
           </div>
-          <AfricanVibesCarousel tracks={africanVibes.slice(0, 8)} onTrackPlay={onTrackPlay} />
+          <AfricanVibesCarousel tracks={africanVibes.slice(0, 15)} onTrackPlay={onTrackPlay} />
         </div>
       </div>
 
@@ -1158,8 +1158,8 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub, onNavVisibilityChange
           <motion.button
             className="px-6 py-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold"
             onClick={() => {
-              // Pool-aware: Use dynamic pool if available, fallback to static
-              const poolTracks = hotPool.length > 0 ? hotPool : getHotTracks();
+              // Pool-aware: Use dynamic pool
+              const poolTracks = hotPool.length > 0 ? hotPool : getPoolAwareHotTracks(15);
               const randomTrack = poolTracks[0];
               if (randomTrack) onTrackPlay(randomTrack);
             }}

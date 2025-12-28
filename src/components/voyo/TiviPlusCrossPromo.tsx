@@ -21,6 +21,7 @@ import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { Play, ExternalLink, Tv, Radio, Sparkles, Star, Music, Globe, Wifi } from 'lucide-react';
 import { TRACKS } from '../../data/tracks';
 import { Track } from '../../types';
+import { useTrackPoolStore } from '../../store/trackPoolStore';
 
 // ============================================
 // TIVI+ CONTENT DATA
@@ -125,15 +126,7 @@ const FEATURED_BANNER = {
   streamId: '184534',
 };
 
-// West African Hits - Static curated data (OG style)
-const WEST_AFRICAN_HITS = [
-  { id: 'wa-1', title: 'Djadja', artist: 'Aya Nakamura', trackId: 'iPGgnzc34tY' },
-  { id: 'wa-2', title: 'Jerusalema', artist: 'Master KG ft. Nomcebo', trackId: 'fCZVL_8D048' },
-  { id: 'wa-3', title: 'Essence', artist: 'Wizkid ft. Tems', trackId: 'AjOwMYaXjLY' },
-  { id: 'wa-4', title: 'Love Nwantiti', artist: 'CKay', trackId: 'ioNng23DkIM' },
-  { id: 'wa-5', title: 'Peru', artist: 'Fireboy DML', trackId: 'RscdJXjBkTQ' },
-  { id: 'wa-6', title: 'Soso', artist: 'Omah Lay', trackId: 'hfm8S8yYSjo' },
-];
+// West African Hits - Now pulled from pool (DJ fills this)
 
 // ============================================
 // COMPONENTS
@@ -425,9 +418,9 @@ const VinylCard = ({ track, progress, onClick }: { track: Track; progress: numbe
   );
 };
 
-// West African Hit Card - OG style: square card, song name only, shadow behind text
-const WestAfricanCard = ({ hit, onClick }: { hit: typeof WEST_AFRICAN_HITS[0]; onClick: () => void }) => {
-  const thumbnailUrl = `https://i.ytimg.com/vi/${hit.trackId}/hqdefault.jpg`;
+// West African Hit Card - Pool-fed: uses Track from DJ
+const WestAfricanCard = ({ track, onClick }: { track: Track; onClick: () => void }) => {
+  const thumbnailUrl = `https://i.ytimg.com/vi/${track.trackId}/hqdefault.jpg`;
 
   return (
     <motion.button
@@ -439,7 +432,7 @@ const WestAfricanCard = ({ hit, onClick }: { hit: typeof WEST_AFRICAN_HITS[0]; o
       <div className="relative w-28 h-28 rounded-xl overflow-hidden bg-white/5">
         <img
           src={thumbnailUrl}
-          alt={hit.title}
+          alt={track.title}
           className="w-full h-full object-cover"
           loading="lazy"
         />
@@ -451,7 +444,7 @@ const WestAfricanCard = ({ hit, onClick }: { hit: typeof WEST_AFRICAN_HITS[0]; o
             className="text-[11px] font-bold text-white truncate"
             style={{ textShadow: '0 2px 8px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.7)' }}
           >
-            {hit.title}
+            {track.title}
           </p>
         </div>
       </div>
@@ -494,22 +487,45 @@ export const TiviPlusCrossPromo = ({ immersiveRef }: TiviPlusCrossPromoProps) =>
   const [bannerPrompt, setBannerPrompt] = useState<'idle' | 'watch' | 'open'>('idle');
   const [ctaState, setCtaState] = useState<'default' | 'watch' | 'open'>('default');
 
-  // hotPool removed - West African Hits now uses static curated data
+  // Pool-fed: DJ fills sections from the pool
+  const { hotPool } = useTrackPoolStore();
 
-  // ALL classics for infinite scroll - sorted by timelessness
+  // West African Hits - from pool (all tracks are African by default)
+  const westAfricanHits = useMemo(() => {
+    // First try tagged tracks
+    const tagged = hotPool.filter(t =>
+      t.tags?.includes('west-african') ||
+      t.detectedMode === 'afro-heat' ||
+      t.tags?.some(tag => typeof tag === 'string' && ['afrobeats', 'naija', 'nigerian', 'ghana'].includes(tag.toLowerCase()))
+    );
+    // Fallback: just use pool tracks (VOYO is African music focused)
+    return (tagged.length >= 6 ? tagged : hotPool).slice(0, 12);
+  }, [hotPool]);
+
+  // All Time Classics - high oyeScore tracks from pool
+  const classicsTracks = useMemo(() => {
+    // First try tagged tracks
+    const tagged = hotPool.filter(t =>
+      t.tags?.includes('classic') ||
+      t.tags?.some(tag => typeof tag === 'string' && ['classic', 'legend', 'throwback', '90s', '2000s'].includes(tag.toLowerCase()))
+    );
+    // Fallback: use highest oyeScore tracks as "classics"
+    const fallback = [...hotPool].sort((a, b) => (b.oyeScore || 0) - (a.oyeScore || 0));
+    return (tagged.length >= 6 ? tagged : fallback).slice(0, 20);
+  }, [hotPool]);
+
+  // ALL classics for infinite scroll - from pool
   const allClassicsTracks = useMemo(() => {
-    // All tracks sorted by oyeScore (most timeless first = oldest classics)
-    return [...TRACKS]
-      .filter(t => !t.tags?.includes('mix'))
-      .sort((a, b) => b.oyeScore - a.oyeScore); // Highest score = most timeless
-  }, []);
+    // Use classicsTracks which already has fallback logic
+    if (classicsTracks.length > 0) return classicsTracks;
+    // Final fallback to static
+    return TRACKS.filter(t => !t.tags?.includes('mix')).sort((a, b) => b.oyeScore - a.oyeScore);
+  }, [classicsTracks]);
 
   // Initial tracks to show (first 8)
   const initialClassicsTracks = useMemo(() => {
     return allClassicsTracks.slice(0, 8);
   }, [allClassicsTracks]);
-
-  // West African Hits now uses static WEST_AFRICAN_HITS data (OG style)
 
   // Banner click handler - show prompts then redirect
   const handleBannerClick = () => {
@@ -785,32 +801,25 @@ export const TiviPlusCrossPromo = ({ immersiveRef }: TiviPlusCrossPromoProps) =>
         <p className="text-[10px] text-white/30 mt-4 px-4 italic">Scroll through time — timeless African hits</p>
       </div>
 
-      {/* West African Hits - Cards with static curated data (OG style) */}
-      <div className="mb-12">
-        <div className="flex items-center gap-2 mb-5 px-4">
-          <span className="text-lg">🌍</span>
-          <span className="text-sm font-semibold text-white">West African Hits</span>
+      {/* West African Hits - Pool-fed by DJ */}
+      {westAfricanHits.length > 0 && (
+        <div className="mb-12">
+          <div className="flex items-center gap-2 mb-5 px-4">
+            <span className="text-lg">🌍</span>
+            <span className="text-sm font-semibold text-white">West African Hits</span>
+          </div>
+          <div className="flex gap-4 overflow-x-auto scrollbar-hide px-4">
+            {westAfricanHits.map((track) => (
+              <WestAfricanCard
+                key={track.id}
+                track={track}
+                onClick={() => handleMusicClick(track)}
+              />
+            ))}
+          </div>
+          <p className="text-[10px] text-white/30 mt-4 px-4 italic">From Guinea to Senegal — your local favorites</p>
         </div>
-        <div className="flex gap-4 overflow-x-auto scrollbar-hide px-4">
-          {WEST_AFRICAN_HITS.map((hit) => (
-            <WestAfricanCard
-              key={hit.id}
-              hit={hit}
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('voyo:playTrack', {
-                  detail: {
-                    youtubeId: hit.trackId,
-                    title: hit.title,
-                    artist: hit.artist,
-                    thumbnail: `https://i.ytimg.com/vi/${hit.trackId}/hqdefault.jpg`,
-                  }
-                }));
-              }}
-            />
-          ))}
-        </div>
-        <p className="text-[10px] text-white/30 mt-4 px-4 italic">From Guinea to Senegal — your local favorites</p>
-      </div>
+      )}
 
       {/* Bottom spacer for visual breathing */}
       <div className="h-8" />
