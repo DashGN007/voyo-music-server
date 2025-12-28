@@ -547,55 +547,56 @@ export const TiviPlusCrossPromo = () => {
   };
 
   return (
-    <div ref={sectionRef} className="relative mt-12 pt-8 pb-4 overflow-hidden">
-      {/* ========== GOLDEN CORNER FADES ========== */}
-      <div
-        className="absolute top-0 left-0 w-48 h-48 pointer-events-none"
-        style={{
-          background: 'radial-gradient(ellipse at top left, rgba(251, 191, 36, 0.08) 0%, transparent 70%)',
-        }}
-      />
-      <div
-        className="absolute top-0 right-0 w-48 h-48 pointer-events-none"
-        style={{
-          background: 'radial-gradient(ellipse at top right, rgba(251, 191, 36, 0.08) 0%, transparent 70%)',
-        }}
-      />
+    <div ref={sectionRef} className="relative mt-12 pt-8 pb-4">
+      {/* ========== SHIMMER OVERLAY CONTAINER (overflow-hidden for animation) ========== */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* Golden corner fades */}
+        <div
+          className="absolute top-0 left-0 w-48 h-48"
+          style={{
+            background: 'radial-gradient(ellipse at top left, rgba(251, 191, 36, 0.08) 0%, transparent 70%)',
+          }}
+        />
+        <div
+          className="absolute top-0 right-0 w-48 h-48"
+          style={{
+            background: 'radial-gradient(ellipse at top right, rgba(251, 191, 36, 0.08) 0%, transparent 70%)',
+          }}
+        />
 
-      {/* ========== CINEMATIC GOLDEN SHIMMER ON REVEAL ========== */}
-      <AnimatePresence>
-        {isInView && (
-          <motion.div
-            className="absolute inset-0 pointer-events-none z-10"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            {/* Golden shimmer sweep - right to left */}
+        {/* Cinematic golden shimmer on reveal */}
+        <AnimatePresence>
+          {isInView && (
             <motion.div
-              className="absolute inset-0"
-              style={{
-                background: 'linear-gradient(90deg, transparent 0%, rgba(251, 191, 36, 0.15) 20%, rgba(255, 215, 0, 0.25) 50%, rgba(251, 191, 36, 0.15) 80%, transparent 100%)',
-              }}
-              initial={{ x: '100%' }}
-              animate={{ x: '-100%' }}
-              transition={{ duration: 1.2, ease: [0.25, 0.1, 0.25, 1] }}
-            />
-            {/* Secondary shimmer for depth */}
-            <motion.div
-              className="absolute inset-0"
-              style={{
-                background: 'linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 40%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.08) 60%, transparent 100%)',
-              }}
-              initial={{ x: '100%' }}
-              animate={{ x: '-100%' }}
-              transition={{ duration: 1.2, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+              className="absolute inset-0 z-10"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                className="absolute inset-0"
+                style={{
+                  background: 'linear-gradient(90deg, transparent 0%, rgba(251, 191, 36, 0.15) 20%, rgba(255, 215, 0, 0.25) 50%, rgba(251, 191, 36, 0.15) 80%, transparent 100%)',
+                }}
+                initial={{ x: '100%' }}
+                animate={{ x: '-100%' }}
+                transition={{ duration: 1.2, ease: [0.25, 0.1, 0.25, 1] }}
+              />
+              <motion.div
+                className="absolute inset-0"
+                style={{
+                  background: 'linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 40%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.08) 60%, transparent 100%)',
+                }}
+                initial={{ x: '100%' }}
+                animate={{ x: '-100%' }}
+                transition={{ duration: 1.2, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
-      {/* ========== TIVI+ SECTION ========== */}
+      {/* ========== TIVI+ SECTION CONTENT ========== */}
 
       {/* Section Divider - Take a Break */}
       <div className="relative z-20 flex items-center gap-3 mb-10 px-4">
