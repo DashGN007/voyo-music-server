@@ -17,8 +17,8 @@
  */
 
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
-import { Play, ExternalLink, Tv, Radio, Sparkles, Star, Music } from 'lucide-react';
+import { motion, AnimatePresence, useInView } from 'framer-motion';
+import { Play, ExternalLink, Tv, Radio, Sparkles, Star, Music, Globe, Wifi } from 'lucide-react';
 import { TRACKS } from '../../data/tracks';
 import { Track } from '../../types';
 
@@ -39,32 +39,80 @@ const TRENDING_TIVI = [
 ];
 
 // Live TV Categories - Billboard style with channel offerings
+// Icons: 'emoji' for simple, 'broadcast' for News (animated), 'tv' for Series
 const LIVE_TV_CATEGORIES = [
   {
-    id: 'sports', name: 'SPORTS', icon: '⚽', color: '#22c55e',
+    id: 'sports', name: 'SPORTS', icon: '⚽', iconType: 'emoji', color: '#22c55e',
     channels: ['BeIN Sports', 'TNT Sports', 'NFL Network', 'La Liga TV', 'ESPN', 'Sky Sports', 'DAZN', 'Eurosport', 'Fox Sports', 'NBA TV'],
   },
   {
-    id: 'movies', name: 'MOVIES', icon: '🎬', color: '#a855f7',
+    id: 'movies', name: 'MOVIES', icon: '🎬', iconType: 'emoji', color: '#a855f7',
     channels: ['HBO', 'Cinemax', 'Showtime', 'Starz', 'AMC', 'TCM', 'Canal+', 'Sky Cinema', '57K+ titles'],
   },
   {
-    id: 'series', name: 'SERIES', icon: '📺', color: '#ec4899',
+    id: 'series', name: 'SERIES', icon: 'tv', iconType: 'lucide', color: '#ec4899',
     channels: ['Netflix Originals', 'HBO Max', 'Apple TV+', 'Prime Video', 'Hulu', 'Disney+', '14K+ shows'],
   },
   {
-    id: 'news', name: 'NEWS', icon: '🗞️', color: '#3b82f6',
+    id: 'news', name: 'NEWS', icon: 'broadcast', iconType: 'broadcast', color: '#3b82f6',
     channels: ['CNN', 'BBC World', 'Al Jazeera', 'France 24', 'Sky News', 'Euronews', 'DW', 'CNBC', 'Bloomberg'],
   },
   {
-    id: 'kids', name: 'KIDS', icon: '🎈', color: '#f472b6',
+    id: 'kids', name: 'KIDS', icon: '🎈', iconType: 'emoji', color: '#f472b6',
     channels: ['Cartoon Network', 'Nickelodeon', 'Disney', 'Boomerang', 'Nick Jr', 'PBS Kids', 'Baby TV'],
   },
   {
-    id: 'docs', name: 'DOCS', icon: '🎥', color: '#06b6d4',
+    id: 'docs', name: 'DOCS', icon: '🎥', iconType: 'emoji', color: '#06b6d4',
     channels: ['Discovery', 'Nat Geo', 'History', 'Animal Planet', 'BBC Earth', 'Vice', 'Smithsonian'],
   },
 ];
+
+// Broadcast Icon Component - Animated signal waves
+const BroadcastIcon = ({ color }: { color: string }) => (
+  <div className="relative w-6 h-6 flex items-center justify-center">
+    {/* Globe/Africa base */}
+    <Globe className="w-4 h-4" style={{ color }} />
+    {/* Animated broadcast waves */}
+    <motion.div
+      className="absolute inset-0 flex items-center justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+    >
+      {[0, 1, 2].map((i) => (
+        <motion.div
+          key={i}
+          className="absolute rounded-full border"
+          style={{ borderColor: `${color}60` }}
+          initial={{ width: 16, height: 16, opacity: 0.8 }}
+          animate={{
+            width: [16, 28],
+            height: [16, 28],
+            opacity: [0.6, 0],
+          }}
+          transition={{
+            duration: 1.5,
+            repeat: Infinity,
+            delay: i * 0.5,
+            ease: 'easeOut',
+          }}
+        />
+      ))}
+    </motion.div>
+  </div>
+);
+
+// Premium TV Icon for Series
+const SeriesIcon = ({ color }: { color: string }) => (
+  <div className="relative">
+    <Tv className="w-5 h-5" style={{ color }} />
+    <motion.div
+      className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
+      style={{ backgroundColor: color }}
+      animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
+      transition={{ duration: 2, repeat: Infinity }}
+    />
+  </div>
+);
 
 // Total channel count for header
 const TOTAL_LIVE_CHANNELS = '32,000+';
@@ -118,6 +166,17 @@ const LiveTVBox = ({ category, onClick }: { category: typeof LIVE_TV_CATEGORIES[
   const channelText = category.channels.join(' • ');
   const animationDuration = Math.max(8, 20 - category.channels.length); // More channels = faster
 
+  // Render the appropriate icon based on type
+  const renderIcon = () => {
+    if (category.iconType === 'broadcast') {
+      return <BroadcastIcon color={category.color} />;
+    } else if (category.iconType === 'lucide') {
+      return <SeriesIcon color={category.color} />;
+    } else {
+      return <span className="text-xl">{category.icon}</span>;
+    }
+  };
+
   return (
     <motion.button
       className="flex-shrink-0 relative rounded-xl overflow-hidden"
@@ -155,7 +214,7 @@ const LiveTVBox = ({ category, onClick }: { category: typeof LIVE_TV_CATEGORIES[
 
       {/* Icon + Name - left aligned like DASH WebTV */}
       <div className="absolute top-2.5 left-3 flex items-center gap-2">
-        <span className="text-xl">{category.icon}</span>
+        {renderIcon()}
         <span className="text-xs font-bold text-white">{category.name}</span>
       </div>
 
@@ -423,6 +482,14 @@ const SectionHeader = ({ icon: Icon, title, color, onSeeAll }: { icon: React.Ele
 // ============================================
 
 export const TiviPlusCrossPromo = () => {
+  // Section reveal ref for shimmer animation
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const isInView = useInView(sectionRef, { once: true, margin: '-100px' });
+
+  // Banner interaction state
+  const [bannerPrompt, setBannerPrompt] = useState<'idle' | 'watch' | 'open'>('idle');
+  const [ctaState, setCtaState] = useState<'default' | 'watch' | 'open'>('default');
+
   // hotPool removed - West African Hits now uses static curated data
 
   // ALL classics for infinite scroll - sorted by timelessness
@@ -439,6 +506,26 @@ export const TiviPlusCrossPromo = () => {
   }, [allClassicsTracks]);
 
   // West African Hits now uses static WEST_AFRICAN_HITS data (OG style)
+
+  // Banner click handler - show prompts then redirect
+  const handleBannerClick = () => {
+    if (bannerPrompt === 'idle') {
+      setBannerPrompt('watch');
+      setCtaState('watch');
+      // After 2s, show "Open TIVI+"
+      setTimeout(() => {
+        setBannerPrompt('open');
+        setCtaState('open');
+        // After another 1.5s, actually open
+        setTimeout(() => {
+          window.open(`${TIVI_PLUS_BASE}/watch/${FEATURED_BANNER.streamId}`, '_blank');
+          // Reset states
+          setBannerPrompt('idle');
+          setCtaState('default');
+        }, 1500);
+      }, 2000);
+    }
+  };
 
   const handleMovieClick = (movieId: string) => {
     window.open(`${TIVI_PLUS_BASE}/watch/${movieId}`, '_blank');
@@ -460,11 +547,58 @@ export const TiviPlusCrossPromo = () => {
   };
 
   return (
-    <div className="mt-12 pt-8 pb-4">
+    <div ref={sectionRef} className="relative mt-12 pt-8 pb-4 overflow-hidden">
+      {/* ========== GOLDEN CORNER FADES ========== */}
+      <div
+        className="absolute top-0 left-0 w-48 h-48 pointer-events-none"
+        style={{
+          background: 'radial-gradient(ellipse at top left, rgba(251, 191, 36, 0.08) 0%, transparent 70%)',
+        }}
+      />
+      <div
+        className="absolute top-0 right-0 w-48 h-48 pointer-events-none"
+        style={{
+          background: 'radial-gradient(ellipse at top right, rgba(251, 191, 36, 0.08) 0%, transparent 70%)',
+        }}
+      />
+
+      {/* ========== CINEMATIC GOLDEN SHIMMER ON REVEAL ========== */}
+      <AnimatePresence>
+        {isInView && (
+          <motion.div
+            className="absolute inset-0 pointer-events-none z-10"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Golden shimmer sweep - right to left */}
+            <motion.div
+              className="absolute inset-0"
+              style={{
+                background: 'linear-gradient(90deg, transparent 0%, rgba(251, 191, 36, 0.15) 20%, rgba(255, 215, 0, 0.25) 50%, rgba(251, 191, 36, 0.15) 80%, transparent 100%)',
+              }}
+              initial={{ x: '100%' }}
+              animate={{ x: '-100%' }}
+              transition={{ duration: 1.2, ease: [0.25, 0.1, 0.25, 1] }}
+            />
+            {/* Secondary shimmer for depth */}
+            <motion.div
+              className="absolute inset-0"
+              style={{
+                background: 'linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 40%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.08) 60%, transparent 100%)',
+              }}
+              initial={{ x: '100%' }}
+              animate={{ x: '-100%' }}
+              transition={{ duration: 1.2, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ========== TIVI+ SECTION ========== */}
 
       {/* Section Divider - Take a Break */}
-      <div className="flex items-center gap-3 mb-10 px-4">
+      <div className="relative z-20 flex items-center gap-3 mb-10 px-4">
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent" />
         <motion.div
           className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20"
@@ -477,10 +611,10 @@ export const TiviPlusCrossPromo = () => {
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent" />
       </div>
 
-      {/* Featured Banner */}
+      {/* Featured Banner - Interactive with prompts */}
       <motion.button
-        className="relative w-[calc(100%-32px)] mx-4 h-36 rounded-2xl overflow-hidden mb-10 group"
-        onClick={() => handleMovieClick(FEATURED_BANNER.streamId)}
+        className="relative z-20 w-[calc(100%-32px)] mx-4 h-36 rounded-2xl overflow-hidden mb-10 group"
+        onClick={handleBannerClick}
         whileHover={{ scale: 1.01 }}
         whileTap={{ scale: 0.99 }}
       >
@@ -495,13 +629,89 @@ export const TiviPlusCrossPromo = () => {
           <h3 className="text-lg font-black text-white mb-0.5">{FEATURED_BANNER.title}</h3>
           <p className="text-[10px] text-amber-300 font-medium">{FEATURED_BANNER.subtitle}</p>
         </div>
+
+        {/* Orange Play Button with CTA state */}
         <motion.div
-          className="absolute right-3 bottom-3 w-11 h-11 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg"
-          animate={{ scale: [1, 1.08, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
+          className="absolute right-3 bottom-3 flex items-center gap-2"
+          layout
         >
-          <Play className="w-5 h-5 text-black fill-black ml-0.5" />
+          {/* CTA Text - appears on interaction */}
+          <AnimatePresence mode="wait">
+            {ctaState !== 'default' && (
+              <motion.div
+                key={ctaState}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="px-3 py-1.5 rounded-full backdrop-blur-sm"
+                style={{
+                  background: ctaState === 'watch'
+                    ? 'linear-gradient(135deg, rgba(251, 146, 60, 0.9), rgba(234, 88, 12, 0.9))'
+                    : 'rgba(0, 0, 0, 0.6)',
+                  boxShadow: ctaState === 'watch' ? '0 0 20px rgba(251, 146, 60, 0.5)' : 'none',
+                }}
+              >
+                <span className="text-[10px] font-bold text-white whitespace-nowrap">
+                  {ctaState === 'watch' ? 'Watch on TIVI+' : 'Open TIVI+'}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Play Button */}
+          <motion.div
+            className="w-11 h-11 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg"
+            animate={{
+              scale: bannerPrompt === 'idle' ? [1, 1.08, 1] : 1,
+              boxShadow: bannerPrompt !== 'idle'
+                ? '0 0 25px rgba(251, 146, 60, 0.6)'
+                : '0 4px 12px rgba(0, 0, 0, 0.3)',
+            }}
+            transition={{ duration: bannerPrompt === 'idle' ? 2 : 0.3, repeat: bannerPrompt === 'idle' ? Infinity : 0 }}
+          >
+            <Play className="w-5 h-5 text-black fill-black ml-0.5" />
+          </motion.div>
         </motion.div>
+
+        {/* Center Prompt Overlay */}
+        <AnimatePresence>
+          {bannerPrompt !== 'idle' && (
+            <motion.div
+              className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                key={bannerPrompt}
+                initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                transition={{ type: 'spring', damping: 20 }}
+                className="px-6 py-3 rounded-xl"
+                style={{
+                  background: bannerPrompt === 'watch'
+                    ? 'linear-gradient(135deg, rgba(251, 146, 60, 0.95), rgba(234, 88, 12, 0.95))'
+                    : 'linear-gradient(135deg, rgba(168, 85, 247, 0.95), rgba(139, 92, 246, 0.95))',
+                  boxShadow: bannerPrompt === 'watch'
+                    ? '0 0 40px rgba(251, 146, 60, 0.5)'
+                    : '0 0 40px rgba(168, 85, 247, 0.5)',
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  {bannerPrompt === 'watch' ? (
+                    <Play className="w-5 h-5 text-white fill-white" />
+                  ) : (
+                    <ExternalLink className="w-5 h-5 text-white" />
+                  )}
+                  <span className="text-white font-bold text-sm">
+                    {bannerPrompt === 'watch' ? 'Watch on TIVI+' : 'Open TIVI+'}
+                  </span>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.button>
 
       {/* Trending on TIVI+ */}
