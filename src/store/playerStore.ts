@@ -109,7 +109,7 @@ interface PlayerStore {
   duration: number;
   volume: number;
   viewMode: ViewMode;
-  isVideoMode: boolean;
+  videoTarget: 'hidden' | 'portrait' | 'landscape'; // Where to show the video iframe (replaces isVideoMode)
   seekPosition: number | null; // When set, AudioPlayer should seek to this position
 
   // SKEEP (Fast-forward) State
@@ -122,7 +122,7 @@ interface PlayerStore {
   bufferHealth: number; // 0-100 percentage
   bufferStatus: BufferStatus;  // 'healthy' | 'warning' | 'emergency'
   prefetchStatus: Map<string, PrefetchStatus>; // trackId -> status
-  playbackSource: 'cached' | 'direct' | 'iframe' | 'cdn' | null; // VOYO Boost indicator (cdn = background-capable streaming)
+  playbackSource: 'cached' | 'iframe' | 'direct' | 'cdn' | null; // cached = boosted, iframe = streaming
 
   // Boost Audio Preset - African Bass with speaker protection
   // 🟡 boosted (Yellow) - Standard warm boost (default)
@@ -187,7 +187,7 @@ interface PlayerStore {
   // Actions - View Mode
   cycleViewMode: () => void;
   setViewMode: (mode: ViewMode) => void;
-  toggleVideoMode: () => void;
+  setVideoTarget: (target: 'hidden' | 'portrait' | 'landscape') => void;
 
   // Actions - Queue
   addToQueue: (track: Track, position?: number) => void;
@@ -220,7 +220,7 @@ interface PlayerStore {
   setNetworkQuality: (quality: NetworkQuality) => void;
   setStreamQuality: (quality: BitrateLevel) => void;
   setBufferHealth: (health: number, status: BufferStatus) => void;
-  setPlaybackSource: (source: 'cached' | 'direct' | 'iframe' | 'cdn' | null) => void;
+  setPlaybackSource: (source: 'cached' | 'iframe' | 'direct' | 'cdn' | null) => void;
   setPrefetchStatus: (trackId: string, status: PrefetchStatus) => void;
   detectNetworkQuality: () => void;
   setBoostProfile: (profile: 'boosted' | 'calm' | 'voyex' | 'xtreme') => void;
@@ -240,7 +240,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   volume: parseInt(localStorage.getItem('voyo-volume') || '100', 10),
   seekPosition: null,
   viewMode: 'card',
-  isVideoMode: false,
+  videoTarget: 'hidden',
   shuffleMode: false,
   repeatMode: 'off',
 
@@ -568,7 +568,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
 
   setViewMode: (mode) => set({ viewMode: mode }),
 
-  toggleVideoMode: () => set((state) => ({ isVideoMode: !state.isVideoMode })),
+  setVideoTarget: (target: 'hidden' | 'portrait' | 'landscape') => set({ videoTarget: target }),
 
   // Queue Actions
   addToQueue: (track, position) => {

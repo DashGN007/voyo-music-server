@@ -386,22 +386,9 @@ export const BoostButton = ({ variant = 'toolbar', className = '' }: BoostButton
   const handleBoost = async () => {
     if (isDownloading || isQueued) return;
 
-    // If already boosted, toggle between boosted and original
+    // If already boosted, nothing to do (iframe mode removed)
     if (isBoosted) {
-      if (usingBoosted) {
-        // Switch to original (iframe)
-        console.log('🎵 BOOST: Switching to original audio');
-        setPlaybackSource('iframe');
-        setUsingBoosted(false);
-      } else {
-        // Switch back to boosted (cached)
-        console.log('🎵 BOOST: Switching to boosted audio');
-        const cachedUrl = await checkCache(currentTrack.trackId);
-        if (cachedUrl) {
-          setPlaybackSource('cached');
-          setUsingBoosted(true);
-        }
-      }
+      console.log('🎵 BOOST: Track already boosted');
       return;
     }
 

@@ -28,7 +28,7 @@ function getVideoElement(): HTMLVideoElement | null {
 }
 
 export function useMobilePlay() {
-  const { isPlaying, isVideoMode, togglePlay } = usePlayerStore();
+  const { isPlaying, togglePlay } = usePlayerStore();
 
   /**
    * Handle play/pause with mobile-compatible direct audio control.
@@ -38,7 +38,8 @@ export function useMobilePlay() {
     // Prevent event bubbling if needed
     e?.stopPropagation?.();
 
-    const element = isVideoMode ? getVideoElement() : getAudioElement();
+    // Always use audio element (for cached mode) - iframe mode controlled via YT API
+    const element = getAudioElement();
 
     // If no audio element yet, just toggle state and let AudioPlayer handle it
     if (!element) {
@@ -94,13 +95,13 @@ export function useMobilePlay() {
         togglePlay();
       }
     }
-  }, [isVideoMode, togglePlay]);
+  }, [togglePlay]);
 
   /**
    * Force play (use when you're certain there's a valid source)
    */
   const forcePlay = useCallback(async () => {
-    const element = isVideoMode ? getVideoElement() : getAudioElement();
+    const element = getAudioElement();
     if (!element) return false;
 
     if (!isAudioUnlocked()) {
@@ -113,15 +114,15 @@ export function useMobilePlay() {
     } catch (err) {
       return false;
     }
-  }, [isVideoMode]);
+  }, []);
 
   /**
    * Check if we can play (has source and ready)
    */
   const canPlay = useCallback(() => {
-    const element = isVideoMode ? getVideoElement() : getAudioElement();
+    const element = getAudioElement();
     return element && element.src && element.readyState >= 2;
-  }, [isVideoMode]);
+  }, []);
 
   return {
     handlePlayPause,

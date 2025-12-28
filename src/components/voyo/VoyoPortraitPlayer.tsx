@@ -48,6 +48,9 @@ import {
 // OYO Island - DJ Voice Search & Chat
 import { OyoIsland } from './OyoIsland';
 
+// YouTube Iframe - Unified streaming + video display
+import { YouTubeIframe } from '../YouTubeIframe';
+
 // ============================================
 // ISOLATED TIME COMPONENTS - Prevents full re-renders
 // These subscribe directly to currentTime/duration without
@@ -757,7 +760,7 @@ const NeonBillboardCard = memo(({
 // FULLSCREEN BACKGROUND LAYER - Album art with dark overlay
 // Creates the "floating in space" atmosphere
 // ============================================
-const FullscreenBackground = memo(({ trackId, isVideoMode }: { trackId?: string; isVideoMode: boolean }) => {
+const FullscreenBackground = memo(({ trackId }: { trackId?: string }) => {
   if (!trackId) return null;
 
   return (
@@ -1790,28 +1793,17 @@ StreamCard.displayName = 'StreamCard';
 
 // ============================================
 // BIG CENTER CARD (NOW PLAYING - Canva-style purple fade with premium typography)
-// TAP ALBUM ART FOR LYRICS VIEW
+// TAP ALBUM ART FOR LYRICS VIEW | TAP VIDEO TO GO BACK TO ALBUM ART
 // ============================================
-const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = false, isVideoModeEnabled = false, showVideo = false, onCloseVideo, currentTime = 0 }: { track: Track; onExpandVideo?: () => void; onShowLyrics?: () => void; showOverlay?: boolean; isVideoModeEnabled?: boolean; showVideo?: boolean; onCloseVideo?: () => void; currentTime?: number }) => {
-  // Capture start time ONCE when video first shows (like LandscapeVOYO)
-  const startTimeRef = useRef<number>(0);
-  const lastTrackRef = useRef<string | undefined>(undefined);
-  const wasShowingVideo = useRef<boolean>(false);
-
-  // Update start time only when:
-  // 1. Track changes (reset to 0)
-  // 2. Video mode activates (capture current audio position)
-  if (track.trackId !== lastTrackRef.current) {
-    lastTrackRef.current = track.trackId;
-    startTimeRef.current = 0; // New track starts at 0
-  } else if (showVideo && !wasShowingVideo.current) {
-    // Video just activated - sync to current audio position
-    startTimeRef.current = Math.floor(currentTime);
-  }
-  wasShowingVideo.current = showVideo;
-
-  // Build iframe URL with captured start time (doesn't change every second)
-  const iframeSrc = `https://www.youtube.com/embed/${track.trackId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&showinfo=0&iv_load_policy=3&fs=0&mute=1&start=${startTimeRef.current}`;
+const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showVideo = false, onCloseVideo }: {
+  track: Track;
+  onExpandVideo?: () => void;
+  onShowLyrics?: () => void;
+  showVideo?: boolean;
+  onCloseVideo?: () => void;
+}) => {
+  // Video target is now set by caller via setVideoTarget()
+  // showVideo = true means video is visible (videoTarget === 'portrait' && isPlaying)
 
   return (
   <motion.div
@@ -1825,21 +1817,19 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = 
     whileHover={{ scale: 1.02 }}
     key={track.id}
   >
-    {/* VIDEO MODE: YouTube iframe replaces artwork - muted, AudioPlayer handles audio */}
-    {showVideo ? (
-      <div className="absolute inset-0 z-10 bg-black overflow-hidden">
-        <iframe
-          src={iframeSrc}
-          className="w-full h-full"
-          style={{
-            transform: 'scale(2)',
-            transformOrigin: 'center center',
-          }}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          title={track.title}
-        />
-        {/* Purple fade overlay - matching non-video style */}
+    {/* YouTubeIframe - ALWAYS MOUNTED for audio streaming */}
+    {/* When portrait mode: visible. When hidden: offscreen. When landscape: fullscreen */}
+    <YouTubeIframe />
+
+    {/* VIDEO MODE OVERLAY - tap to close */}
+    {showVideo && (
+      <div
+        className="absolute inset-0 z-20 cursor-pointer"
+        onClick={onCloseVideo}
+        role="button"
+        aria-label="Tap to show album art"
+      >
+        {/* Purple fade overlay */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
@@ -1862,17 +1852,11 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = 
             {track.artist}
           </p>
         </div>
-        {/* Close video button */}
-        <motion.button
-          onClick={onCloseVideo}
-          className="absolute top-2 left-2 z-30 p-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 text-white"
-          whileTap={{ scale: 0.9 }}
-        >
-          <X size={14} />
-        </motion.button>
       </div>
-    ) : (
-      /* Original artwork - crisp and clean - TAP FOR LYRICS */
+    )}
+
+    {/* THUMBNAIL - visible when NOT showing video */}
+    {!showVideo && (
       <div
         onClick={onShowLyrics}
         className="absolute inset-0 cursor-pointer z-10"
@@ -1902,29 +1886,6 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = 
       </div>
     )}
 
-    {/* CANVA-STYLE PURPLE FADE - Only shows on tap */}
-    <AnimatePresence>
-      {showOverlay && (
-        <motion.div
-          className="absolute inset-0 pointer-events-none z-20"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          style={{
-            background: `linear-gradient(
-              to top,
-              rgba(88, 28, 135, 0.95) 0%,
-              rgba(139, 92, 246, 0.7) 15%,
-              rgba(139, 92, 246, 0.4) 30%,
-              rgba(139, 92, 246, 0.1) 50%,
-              transparent 70%
-            )`,
-          }}
-        />
-      )}
-    </AnimatePresence>
-
     {/* Subtle vignette for depth - always visible */}
     <div
       className="absolute inset-0 pointer-events-none opacity-40"
@@ -1933,49 +1894,10 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = 
       }}
     />
 
-    {/* Expand Video Button - hidden when video mode is enabled */}
-    {onExpandVideo && !isVideoModeEnabled && (
+    {/* Expand Video Button - hidden when video is showing */}
+    {onExpandVideo && !showVideo && (
       <ExpandVideoButton onClick={onExpandVideo} />
     )}
-
-    {/* PREMIUM TITLE SECTION - Only shows on tap */}
-    <AnimatePresence>
-      {showOverlay && (
-        <motion.div
-          className="absolute bottom-0 left-0 right-0 p-5 z-30"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 10 }}
-          transition={{ duration: 0.3 }}
-        >
-          {/* Track Title - Bold and prominent */}
-          <h1
-            className="text-xl font-black text-white mb-1.5 line-clamp-2 leading-tight tracking-tight"
-            style={{
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              textShadow: '0 2px 20px rgba(0,0,0,0.8)',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            {track.title?.replace(/[<>]/g, '').slice(0, 80) || 'Unknown Title'}
-          </h1>
-
-          {/* Artist Name - Elegant and subtle */}
-          <div className="flex items-center gap-2">
-            <div className="w-1 h-1 rounded-full bg-purple-400" />
-            <p
-              className="text-purple-200/90 text-sm font-medium tracking-wide truncate"
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                textShadow: '0 1px 10px rgba(0,0,0,0.6)',
-              }}
-            >
-              {track.artist?.replace(/[<>]/g, '').slice(0, 60) || 'Unknown Artist'}
-            </p>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
 
     {/* Glowing border accent */}
     <div
@@ -1986,7 +1908,8 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = 
       }}
     />
   </motion.div>
-));
+  );
+});
 
 // ============================================
 // PLAY CONTROLS - SPINNING VINYL DISK PLAY BUTTON
@@ -3655,8 +3578,8 @@ export const VoyoPortraitPlayer = ({
   const {
     currentTrack,
     isPlaying,
-    isVideoMode,
-    toggleVideoMode,
+    videoTarget,
+    setVideoTarget,
     queue,
     history,
     hotTracks,
@@ -4509,10 +4432,7 @@ export const VoyoPortraitPlayer = ({
 
       {/* FULLSCREEN BACKGROUND - Album art with dark overlay for floating effect */}
       {backdropEnabled && (
-        <FullscreenBackground
-          trackId={currentTrack?.trackId}
-          isVideoMode={false}
-        />
+        <FullscreenBackground trackId={currentTrack?.trackId} />
       )}
 
       {/* BACKDROP TOGGLE - Sleek vertical toggle on left side */}
@@ -4703,13 +4623,10 @@ export const VoyoPortraitPlayer = ({
           {currentTrack ? (
             <BigCenterCard
               track={currentTrack}
-              onExpandVideo={() => toggleVideoMode()}
-              onCloseVideo={() => toggleVideoMode()}
-              isVideoModeEnabled={isVideoMode}
-              showVideo={isVideoMode && isPlaying}
+              onExpandVideo={() => setVideoTarget('portrait')}
+              onCloseVideo={() => setVideoTarget('hidden')}
+              showVideo={videoTarget === 'portrait' && isPlaying}
               onShowLyrics={() => setShowLyricsOverlay(true)}
-              showOverlay={!(isVideoMode && isPlaying)}
-              currentTime={usePlayerStore.getState().currentTime}
             />
           ) : (
             <div className="w-48 h-48 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center">

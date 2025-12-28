@@ -1145,14 +1145,7 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
       const trackDuration = track.duration || 180;
       const hottestPosition = hottestSpot?.position || (startSeconds / trackDuration) * 100;
 
-      // Debug: Log treatment decision
-      if (treatedTrack.feedMetadata) {
-        console.log(
-          `[Feed Treatment] ${track.title} by ${track.artist}:`,
-          `${treatedTrack.feedMetadata.treatment} @ ${Math.floor(startSeconds)}s for ${durationSeconds}s`,
-          `- ${treatedTrack.feedMetadata.reason}`
-        );
-      }
+      // Debug logging disabled - was causing spam
 
       items.push({
         trackId,
@@ -1205,8 +1198,8 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
 
       if (bScore !== aScore) return bScore - aScore;
 
-      // Quaternary: Random shuffle for equal scores (variety)
-      return Math.random() - 0.5;
+      // Quaternary: Stable sort by trackId for equal scores
+      return a.trackId.localeCompare(b.trackId);
     });
   }, [recentReactions, getCategoryScore, hotPool, feedMode, followingList, getHotspots]);
 

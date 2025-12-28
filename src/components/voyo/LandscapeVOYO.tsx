@@ -550,17 +550,16 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
     playbackSource,
     setPlaybackSource,
     currentTime,
+    setVideoTarget,
   } = usePlayerStore();
 
-  // Capture start time once per track (prevents iframe reload on every currentTime change)
-  const lastTrackIdRef = useRef(currentTrack?.trackId);
-  const startTimeRef = useRef(Math.floor(currentTime || 0));
-
-  // Reset start time when track changes (new track starts at 0)
-  if (currentTrack?.trackId !== lastTrackIdRef.current) {
-    lastTrackIdRef.current = currentTrack?.trackId;
-    startTimeRef.current = 0;
-  }
+  // Set video target to landscape on mount, hidden on unmount
+  useEffect(() => {
+    setVideoTarget('landscape');
+    return () => {
+      setVideoTarget('hidden');
+    };
+  }, [setVideoTarget]);
 
   // UI visibility state - auto-hide after 3 seconds
   const [showOverlay, setShowOverlay] = useState(true);
@@ -669,22 +668,9 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
-      {/* LAYER 1: YouTube Video Fullscreen Background */}
-      {currentTrack && (
-        <div className="absolute inset-0 z-0">
-          <iframe
-            src={`https://www.youtube.com/embed/${currentTrack.trackId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${currentTrack.trackId}&showinfo=0&iv_load_policy=3&fs=0&start=${startTimeRef.current}&mute=1`}
-            className="absolute inset-0 w-full h-full"
-            style={{
-              // Scale up to hide YouTube UI edges
-              transform: 'scale(1.2)',
-              transformOrigin: 'center center',
-            }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            title={currentTrack.title}
-          />
-        </div>
-      )}
+      {/* LAYER 1: Video plays via AudioPlayer iframe (positioned by setVideoTarget) */}
+      {/* The AudioPlayer's iframe is set to 'landscape' mode and appears fullscreen here */}
+      <div className="absolute inset-0 z-0 bg-black" />
 
       {/* LAYER 2: Tap Detection Area (invisible) */}
       <div

@@ -2,12 +2,12 @@
  * VOYO Boost Indicator - Shows playback source quality
  *
  * Cached = Boosted (highest quality, offline-ready)
+ * Iframe = Streaming (playing now, boost in background)
  * Direct = High quality stream
- * IFrame = Standard quality (being boosted in background)
  */
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Download, Wifi } from 'lucide-react';
+import { Zap, Download, Wifi, Radio } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import { useDownloadStore } from '../../store/downloadStore';
 
@@ -16,7 +16,7 @@ export const BoostIndicator = () => {
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const downloads = useDownloadStore((state) => state.downloads);
 
-  if (!playbackSource || !currentTrack) return null;
+  if (!currentTrack) return null;
 
   // Check if current track is being downloaded
   const downloadStatus = downloads.get(currentTrack.trackId);
@@ -26,7 +26,7 @@ export const BoostIndicator = () => {
   return (
     <AnimatePresence mode="wait">
       <motion.div
-        key={playbackSource}
+        key={playbackSource || 'loading'}
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.8 }}
@@ -37,15 +37,6 @@ export const BoostIndicator = () => {
             <Zap size={12} className="text-purple-400" />
             <span className="text-[10px] font-medium text-purple-300 uppercase tracking-wider">
               Boosted
-            </span>
-          </div>
-        )}
-
-        {playbackSource === 'direct' && (
-          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20">
-            <Wifi size={12} className="text-green-400" />
-            <span className="text-[10px] font-medium text-green-300 uppercase tracking-wider">
-              HQ Stream
             </span>
           </div>
         )}
@@ -61,12 +52,30 @@ export const BoostIndicator = () => {
               </>
             ) : (
               <>
-                <Download size={12} className="text-amber-400" />
+                <Radio size={12} className="text-amber-400" />
                 <span className="text-[10px] font-medium text-amber-300 uppercase tracking-wider">
-                  Standard
+                  Streaming
                 </span>
               </>
             )}
+          </div>
+        )}
+
+        {playbackSource === 'direct' && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20">
+            <Wifi size={12} className="text-green-400" />
+            <span className="text-[10px] font-medium text-green-300 uppercase tracking-wider">
+              HQ Stream
+            </span>
+          </div>
+        )}
+
+        {playbackSource === 'cdn' && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20">
+            <Wifi size={12} className="text-blue-400" />
+            <span className="text-[10px] font-medium text-blue-300 uppercase tracking-wider">
+              CDN
+            </span>
           </div>
         )}
       </motion.div>
@@ -79,8 +88,12 @@ export const BoostIndicator = () => {
  */
 export const BoostIndicatorCompact = () => {
   const playbackSource = usePlayerStore((state) => state.playbackSource);
+  const currentTrack = usePlayerStore((state) => state.currentTrack);
+  const downloads = useDownloadStore((state) => state.downloads);
 
-  if (!playbackSource) return null;
+  if (!currentTrack) return null;
+
+  const isDownloading = downloads.get(currentTrack.trackId)?.status === 'downloading';
 
   return (
     <motion.div
@@ -93,14 +106,23 @@ export const BoostIndicatorCompact = () => {
           <Zap size={14} className="text-purple-400" />
         </span>
       )}
+      {playbackSource === 'iframe' && (
+        <span title={isDownloading ? "Streaming + Boosting" : "Streaming"}>
+          {isDownloading ? (
+            <Download size={14} className="text-amber-400 animate-pulse" />
+          ) : (
+            <Radio size={14} className="text-amber-400" />
+          )}
+        </span>
+      )}
       {playbackSource === 'direct' && (
         <span title="High quality stream">
           <Wifi size={14} className="text-green-400" />
         </span>
       )}
-      {playbackSource === 'iframe' && (
-        <span title="Standard quality - Boost pending">
-          <Download size={14} className="text-amber-400" />
+      {playbackSource === 'cdn' && (
+        <span title="CDN streaming">
+          <Wifi size={14} className="text-blue-400" />
         </span>
       )}
     </motion.div>

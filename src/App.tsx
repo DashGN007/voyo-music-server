@@ -1241,8 +1241,10 @@ function App() {
       </AnimatePresence>
 
 
-      {/* Audio Player - Piped API direct streams (handles actual playback) */}
+      {/* Audio Player - Boost (cached audio) handles playback */}
       <AudioPlayer />
+
+      {/* YouTube Iframe - Now rendered inside VoyoPortraitPlayer for simpler positioning */}
 
       {/* Search Overlay - Powered by Piped API */}
       <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />

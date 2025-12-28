@@ -73,7 +73,6 @@ export interface PlayerState {
   currentTime: number;
   volume: number;
   viewMode: ViewMode;
-  isVideoMode: boolean;
 }
 
 // Queue Item
