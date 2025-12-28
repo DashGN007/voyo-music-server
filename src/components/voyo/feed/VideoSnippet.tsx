@@ -68,12 +68,12 @@ export const VideoSnippet = ({
   const teaserConfig = TEASER_CONFIGS[teaserFormat];
 
   // Build YouTube embed URL with optimal params
-  // SIMPLE & CLEAN: YouTube provides BOTH video AND audio (native sync)
+  // VIDEO ONLY: YouTube provides visuals, AudioPlayer handles all sound
   // NOTE: autoplay=0 because we control playback via postMessage (prevents preloaded cards from playing)
   const embedUrl = useMemo(() => {
     const params: Record<string, string> = {
       autoplay: '0', // NO autoplay - we control via postMessage when card becomes active
-      mute: '0', // NOT muted - audio comes from YouTube
+      mute: '1', // ALWAYS muted - audio comes from AudioPlayer (single source)
       controls: '0',
       disablekb: '1',
       fs: '0',
