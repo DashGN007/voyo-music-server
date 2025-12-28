@@ -753,13 +753,18 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
         </Shelf>
       )}
 
-      {/* Heavy Rotation */}
+      {/* Heavy Rotation - tighter spacing for identity shelf */}
       {hasPreferences && (
-        <Shelf title="Your Heavy Rotation">
-          {heavyRotation.map((track) => (
-            <TrackCard key={track.id} track={track} onPlay={() => onTrackPlay(track)} />
-          ))}
-        </Shelf>
+        <div className="mb-10">
+          <div className="px-4 mb-3">
+            <h2 className="text-white font-semibold text-base">Your Heavy Rotation</h2>
+          </div>
+          <div className="flex gap-3 px-4 overflow-x-auto scrollbar-hide">
+            {heavyRotation.map((track) => (
+              <TrackCard key={track.id} track={track} onPlay={() => onTrackPlay(track)} />
+            ))}
+          </div>
+        </div>
       )}
 
       {/* 🌍 African Vibes */}
@@ -810,9 +815,9 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
         </div>
       </div>
 
-      {/* Made For You */}
+      {/* Made For You - tighter spacing for identity shelf */}
       <div className="mb-10">
-        <div className="flex justify-between items-center px-4 mb-5">
+        <div className="flex justify-between items-center px-4 mb-3">
           <h2 className="text-white font-semibold text-base">Made For You</h2>
           <motion.button
             className="p-2 rounded-full bg-white/10 hover:bg-white/20"
@@ -825,7 +830,7 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
             <RefreshCw className={`w-4 h-4 text-purple-400 ${isRefreshing ? 'animate-spin' : ''}`} />
           </motion.button>
         </div>
-        <div className="flex gap-4 px-4 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-3 px-4 overflow-x-auto scrollbar-hide">
           {madeForYou.map((track) => (
             <TrackCard key={track.id} track={track} onPlay={() => onTrackPlay(track)} />
           ))}
@@ -852,7 +857,7 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
 
       {/* Top 10 on VOYO */}
       {hasTrending && (
-        <div className="mb-12 py-8" style={{ background: 'linear-gradient(180deg, rgba(157,78,221,0.12) 0%, rgba(157,78,221,0.03) 50%, transparent 100%)' }}>
+        <div className="mb-8 py-8" style={{ background: 'linear-gradient(180deg, rgba(157,78,221,0.12) 0%, rgba(157,78,221,0.03) 50%, transparent 100%)' }}>
           <div className="px-4 mb-6 flex items-center gap-2">
             <span className="text-yellow-400 text-xl">⭐</span>
             <h2 className="text-white font-semibold text-base">Top 10 on VOYO</h2>
@@ -949,12 +954,12 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
         </div>
       )}
 
-      {/* Browse by Vibes */}
+      {/* Browse by Vibes - tighter spacing for identity shelf */}
       <div className="mb-12">
-        <div className="px-4 mb-5">
+        <div className="px-4 mb-3">
           <h2 className="text-white font-semibold text-base">Browse by Vibes</h2>
         </div>
-        <div className="flex gap-4 px-4 overflow-x-auto scrollbar-hide py-4">
+        <div className="flex gap-3 px-4 overflow-x-auto scrollbar-hide py-4">
           {vibes.map((vibe, index) => (
             <VibeCard key={vibe.id} vibe={vibe} index={index} onSelect={() => handleVibeSelect(vibe)} />
           ))}
