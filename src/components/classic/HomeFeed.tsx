@@ -9,7 +9,7 @@
  */
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Bell, Play, RefreshCw } from 'lucide-react';
 import { getThumb } from '../../utils/thumbnail';
 import { SmartImage } from '../ui/SmartImage';
@@ -129,21 +129,168 @@ interface CenterCarouselProps {
   onPlay: (track: Track) => void;
 }
 
+// Full VOYO Drop Animation - pure Framer Motion, no useEffect
+const FullDropAnimation = () => (
+  <div className="flex flex-col items-center gap-1">
+    {/* Drop + Ripple container */}
+    <div className="relative h-14 w-14 flex items-center justify-center">
+      {/* Falling drop - loops with keyframes */}
+      <motion.div
+        className="absolute"
+        animate={{
+          y: [-15, 15, -15],
+          scale: [0.8, 1, 0.8],
+          opacity: [0.5, 1, 0.5],
+        }}
+        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <div
+          className="w-4 h-6"
+          style={{
+            background: 'linear-gradient(180deg, rgba(168, 85, 247, 0.9) 0%, rgba(236, 72, 153, 0.8) 60%, rgba(147, 51, 234, 0.9) 100%)',
+            borderRadius: '50% 50% 50% 50% / 60% 60% 40% 40%',
+            boxShadow: '0 0 15px rgba(168, 85, 247, 0.6)',
+          }}
+        />
+      </motion.div>
+
+      {/* Ripple rings - continuous pulse */}
+      {[0, 1].map((i) => (
+        <motion.div
+          key={i}
+          className="absolute rounded-full"
+          style={{
+            border: '1.5px solid rgba(168, 85, 247, 0.5)',
+          }}
+          animate={{
+            width: [10, 50],
+            height: [10, 25],
+            opacity: [0.6, 0],
+          }}
+          transition={{
+            duration: 1.2,
+            repeat: Infinity,
+            delay: i * 0.4,
+            ease: 'easeOut',
+          }}
+        />
+      ))}
+    </div>
+
+    {/* VOYO branding */}
+    <motion.span
+      className="text-[10px] font-bold tracking-wider"
+      style={{
+        background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+        backgroundClip: 'text',
+        WebkitBackgroundClip: 'text',
+        color: 'transparent',
+      }}
+      animate={{ opacity: [0.5, 1, 0.5] }}
+      transition={{ duration: 2, repeat: Infinity }}
+    >
+      VOYO
+    </motion.span>
+  </div>
+);
+
+// Pulsing circle while scrolling (not teardrop - that looks like sperm)
+const PulsingDrop = () => (
+  <motion.div
+    className="w-5 h-5 rounded-full"
+    style={{
+      background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.9), rgba(236, 72, 153, 0.8))',
+      boxShadow: '0 0 15px rgba(168, 85, 247, 0.5)',
+    }}
+    animate={{
+      scale: [1, 1.3, 1],
+      opacity: [0.7, 1, 0.7],
+      boxShadow: [
+        '0 0 15px rgba(168, 85, 247, 0.5)',
+        '0 0 25px rgba(168, 85, 247, 0.8)',
+        '0 0 15px rgba(168, 85, 247, 0.5)',
+      ],
+    }}
+    transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+  />
+);
+
 const CenterFocusedCarousel = ({ tracks, onPlay }: CenterCarouselProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [centerIndex, setCenterIndex] = useState(1); // Start with second item centered
+  const [centerIndex, setCenterIndex] = useState(1);
+  const [scrollState, setScrollState] = useState<'left-end' | 'scrolling' | 'right-end'>('scrolling');
 
   const handleScroll = () => {
     if (!scrollRef.current) return;
     const container = scrollRef.current;
-    const scrollLeft = container.scrollLeft;
-    const cardWidth = 140; // Approximate card width + gap
+    const { scrollLeft, scrollWidth, clientWidth } = container;
+    const cardWidth = 140;
     const newIndex = Math.round(scrollLeft / cardWidth);
     setCenterIndex(Math.min(Math.max(newIndex + 1, 0), tracks.length - 1));
+
+    // Determine scroll position state
+    const maxScroll = scrollWidth - clientWidth;
+    if (scrollLeft < 50) {
+      setScrollState('left-end');
+    } else if (scrollLeft > maxScroll - 50) {
+      setScrollState('right-end');
+    } else {
+      setScrollState('scrolling');
+    }
   };
 
   return (
     <div className="relative">
+      {/* LEFT END: Full VOYO drop animation */}
+      <AnimatePresence>
+        {scrollState === 'left-end' && (
+          <motion.div
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-10 pointer-events-none"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.3 }}
+          >
+            <FullDropAnimation />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* WHILE SCROLLING: Pulsing circle */}
+      <AnimatePresence>
+        {scrollState === 'scrolling' && (
+          <motion.div
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-10 pointer-events-none"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            <PulsingDrop />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* RIGHT END: "New drops coming soon" */}
+      <AnimatePresence>
+        {scrollState === 'right-end' && (
+          <motion.div
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 pointer-events-none"
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            transition={{ duration: 0.3 }}
+          >
+            <motion.p
+              className="text-[10px] text-purple-400/70 font-medium whitespace-nowrap"
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
+              New drops coming soon 💧
+            </motion.p>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div
         ref={scrollRef}
         className="flex gap-3 overflow-x-auto scrollbar-hide py-2"
