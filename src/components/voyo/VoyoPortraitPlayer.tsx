@@ -1816,7 +1816,7 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = 
           src={`https://www.youtube.com/embed/${track.trackId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&enablejsapi=1&mute=1`}
           className="w-full h-full"
           style={{
-            transform: 'scale(1.2)',
+            transform: 'scale(1.5)',
             transformOrigin: 'center center',
           }}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
