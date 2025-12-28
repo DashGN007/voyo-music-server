@@ -954,10 +954,10 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub }: HomeFeedProps) => {
         </div>
       )}
 
-      {/* Browse by Vibes - tighter spacing for identity shelf */}
+      {/* Vibes - clean, confident */}
       <div className="mb-12">
         <div className="px-4 mb-3">
-          <h2 className="text-white font-semibold text-base">Browse by Vibes</h2>
+          <h2 className="text-white font-semibold text-base">Vibes</h2>
         </div>
         <div className="flex gap-3 px-4 overflow-x-auto scrollbar-hide py-4">
           {vibes.map((vibe, index) => (
