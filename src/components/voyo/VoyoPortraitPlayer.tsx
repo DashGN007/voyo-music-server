@@ -1792,7 +1792,28 @@ StreamCard.displayName = 'StreamCard';
 // BIG CENTER CARD (NOW PLAYING - Canva-style purple fade with premium typography)
 // TAP ALBUM ART FOR LYRICS VIEW
 // ============================================
-const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = false, isVideoModeEnabled = false, showVideo = false, onCloseVideo }: { track: Track; onExpandVideo?: () => void; onShowLyrics?: () => void; showOverlay?: boolean; isVideoModeEnabled?: boolean; showVideo?: boolean; onCloseVideo?: () => void }) => (
+const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = false, isVideoModeEnabled = false, showVideo = false, onCloseVideo, currentTime = 0 }: { track: Track; onExpandVideo?: () => void; onShowLyrics?: () => void; showOverlay?: boolean; isVideoModeEnabled?: boolean; showVideo?: boolean; onCloseVideo?: () => void; currentTime?: number }) => {
+  // Capture start time ONCE when video first shows (like LandscapeVOYO)
+  const startTimeRef = useRef<number>(0);
+  const lastTrackRef = useRef<string | undefined>(undefined);
+  const wasShowingVideo = useRef<boolean>(false);
+
+  // Update start time only when:
+  // 1. Track changes (reset to 0)
+  // 2. Video mode activates (capture current audio position)
+  if (track.trackId !== lastTrackRef.current) {
+    lastTrackRef.current = track.trackId;
+    startTimeRef.current = 0; // New track starts at 0
+  } else if (showVideo && !wasShowingVideo.current) {
+    // Video just activated - sync to current audio position
+    startTimeRef.current = Math.floor(currentTime);
+  }
+  wasShowingVideo.current = showVideo;
+
+  // Build iframe URL with captured start time (doesn't change every second)
+  const iframeSrc = `https://www.youtube.com/embed/${track.trackId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&showinfo=0&iv_load_policy=3&fs=0&mute=1&start=${startTimeRef.current}`;
+
+  return (
   <motion.div
     className="relative w-52 h-52 md:w-60 md:h-60 rounded-[2rem] overflow-hidden z-20 group"
     style={{
@@ -1808,7 +1829,7 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showOverlay = 
     {showVideo ? (
       <div className="absolute inset-0 z-10 bg-black overflow-hidden">
         <iframe
-          src={`https://www.youtube.com/embed/${track.trackId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&showinfo=0&iv_load_policy=3&fs=0&mute=1`}
+          src={iframeSrc}
           className="w-full h-full"
           style={{
             transform: 'scale(2)',
@@ -4688,6 +4709,7 @@ export const VoyoPortraitPlayer = ({
               showVideo={isVideoMode && isPlaying}
               onShowLyrics={() => setShowLyricsOverlay(true)}
               showOverlay={!(isVideoMode && isPlaying)}
+              currentTime={usePlayerStore.getState().currentTime}
             />
           ) : (
             <div className="w-48 h-48 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center">
