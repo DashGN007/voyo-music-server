@@ -13,7 +13,7 @@
  * - videoTarget === 'landscape' → Fullscreen fixed position
  */
 
-import { useEffect, useRef, useCallback, memo } from 'react';
+import { useEffect, useRef, useCallback, memo, useMemo } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 
 const YT_STATES = {
@@ -30,6 +30,56 @@ function getYouTubeId(trackId: string): string {
   if (trackId.startsWith('VOYO_')) return trackId.replace('VOYO_', '');
   return trackId;
 }
+
+// Isolated component for portrait mode - handles dynamic zoom based on overlay state
+const PortraitVideoContainer = memo(({ iframeContent }: { iframeContent: React.ReactNode }) => {
+  const currentTime = usePlayerStore((s) => s.currentTime);
+  const duration = usePlayerStore((s) => s.duration);
+  const queue = usePlayerStore((s) => s.queue);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+
+  // Calculate overlay visibility (same logic as VideoOverlays)
+  const timeRemaining = duration - currentTime;
+  const showingNowPlaying = currentTime < 5;
+  const showingNextUpMid = currentTime > 30 && duration > 60 &&
+                            currentTime >= duration * 0.45 && currentTime < duration * 0.55;
+  const showingNextUpEnd = timeRemaining > 0 && timeRemaining < 20;
+  const showingOverlay = showingNowPlaying || ((showingNextUpMid || showingNextUpEnd) && queue.length > 0);
+
+  // Dynamic zoom:
+  // - Full zoom (220%) during pure playback
+  // - Pull back (190%) when overlay appears (give text breathing room)
+  // - Slight pull back when paused
+  const getZoomLevel = () => {
+    if (!isPlaying) return { width: '200%', height: '130%' }; // Paused
+    if (showingOverlay) return { width: '190%', height: '120%' }; // Overlay visible
+    return { width: '220%', height: '140%' }; // Full immersion
+  };
+
+  const { width, height } = getZoomLevel();
+
+  return (
+    <div
+      id="voyo-iframe-container"
+      className="absolute inset-0 z-10 overflow-hidden rounded-[2rem]"
+      style={{ background: '#000' }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          width,
+          height,
+          transform: 'translate(-50%, -50%)',
+          transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1), height 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+      >
+        {iframeContent}
+      </div>
+    </div>
+  );
+});
 
 export const YouTubeIframe = memo(() => {
   const playerRef = useRef<YT.Player | null>(null);
@@ -250,31 +300,10 @@ export const YouTubeIframe = memo(() => {
     );
   }
 
-  // Portrait mode: render in-place, filling parent container
-  // Scale 16:9 video to COVER square (crop edges, no black bars)
+  // Portrait mode: DYNAMIC ZOOM based on playback state
+  // Full zoom during playback, pull back when showing overlays
   if (videoTarget === 'portrait') {
-    return (
-      <div
-        id="voyo-iframe-container"
-        className="absolute inset-0 z-10 overflow-hidden rounded-[2rem]"
-        style={{
-          background: '#000',
-        }}
-      >
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            width: '177.78%', // 16:9 ratio = 1.7778
-            height: '100%',
-            transform: 'translate(-50%, -50%)',
-          }}
-        >
-          {iframeContent}
-        </div>
-      </div>
-    );
+    return <PortraitVideoContainer iframeContent={iframeContent} />;
   }
 
   // Hidden mode: offscreen but active for audio
