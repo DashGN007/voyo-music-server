@@ -145,7 +145,6 @@ export async function seedPool(): Promise<number> {
     const seededTrack = {
       ...track,
       tags,
-      detectedMode: track.detectedMode || 'afro-heat',
     };
 
     poolStore.addToPool(seededTrack, 'seed');
@@ -183,7 +182,7 @@ export async function bootstrapPool(forceFresh: boolean = false): Promise<number
   for (const query of shuffledQueries) {
     try {
       const results = await searchMusic(query, TRACKS_PER_SEARCH);
-      const tracks = results.map(searchResultToTrack);
+      const tracks = results.map(r => searchResultToTrack(r));
 
       // GATE: Validate each track BEFORE adding to pool
       let addedFromQuery = 0;
@@ -344,7 +343,7 @@ export async function expandPool(): Promise<number> {
   for (const query of queries) {
     try {
       const results = await searchMusic(query, TRACKS_PER_SEARCH);
-      const tracks = results.map(searchResultToTrack);
+      const tracks = results.map(r => searchResultToTrack(r));
 
       // GATE: Validate each track BEFORE adding to pool
       for (const track of tracks) {
@@ -444,7 +443,7 @@ export async function curateSection(section: 'west-african' | 'classics' | 'tren
       const tracks = results.map(r => searchResultToTrack(r, sectionTag));
 
       for (const track of tracks) {
-        const added = await safeAddToPool(track, 'curated');
+        const added = await safeAddToPool(track, 'trending');
         if (added) totalAdded++;
       }
 

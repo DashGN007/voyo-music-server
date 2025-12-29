@@ -475,7 +475,7 @@ const SectionHeader = ({ icon: Icon, title, color, onSeeAll }: { icon: React.Ele
 // ============================================
 
 interface TiviPlusCrossPromoProps {
-  immersiveRef?: React.RefObject<HTMLDivElement>;
+  immersiveRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export const TiviPlusCrossPromo = ({ immersiveRef }: TiviPlusCrossPromoProps) => {

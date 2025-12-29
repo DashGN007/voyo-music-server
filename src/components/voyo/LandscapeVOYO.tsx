@@ -694,12 +694,12 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
               trackId: videoId,
               title: title,
               artist: artist || 'YouTube',
-              thumbnail: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+              coverUrl: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
               duration: 0,
-              genres: ['afrobeats'],
-              mood: ['party'],
-              energy: 0.7,
-              releaseYear: new Date().getFullYear(),
+              tags: ['afrobeats'],
+              mood: 'party',
+              oyeScore: 0,
+              createdAt: new Date().toISOString(),
             };
             addToQueue(newTrack);
           }
