@@ -236,7 +236,37 @@ export async function generateLyrics(
 
     if (lrcResult.found && lrcResult.lines) {
       updateProgress('complete', 100, `Found in LRCLIB! ${lrcResult.lines.length} synced lines`);
-      return lrcResultToEnriched(lrcResult, track);
+
+      const enriched = lrcResultToEnriched(lrcResult, track);
+
+      // Cache LRCLIB result to Supabase for future lookups
+      if (isSupabaseConfigured) {
+        const segments: LyricSegmentRow[] = enriched.translated.map(seg => ({
+          start: seg.startTime,
+          end: seg.endTime,
+          text: seg.original,
+          phonetic: seg.phonetic,
+        }));
+
+        lyricsAPI.save({
+          track_id: track.id,
+          title: track.title,
+          artist: track.artist,
+          phonetic_raw: lrcResult.plain || '',
+          phonetic_clean: lrcResult.plain || '',
+          language: 'en',
+          confidence: 1.0,
+          segments,
+          translations: {},
+          status: 'verified',  // LRCLIB is community-verified
+          polished_by: ['lrclib'],
+          verified_by: 'lrclib',
+        }).then(saved => {
+          if (saved) console.log(`[LyricsEngine] ✅ Cached LRCLIB lyrics to Supabase: ${track.title}`);
+        }).catch(() => {});  // Don't block on cache save
+      }
+
+      return enriched;
     }
 
     // =====================================
