@@ -27,11 +27,13 @@ import { useReactionStore, Reaction, ReactionCategory, ReactionType, TrackHotspo
 import { usePlayerStore } from '../../../store/playerStore';
 import { useUniverseStore } from '../../../store/universeStore';
 import { useTrackPoolStore } from '../../../store/trackPoolStore';
+import { useDownloadStore } from '../../../store/downloadStore';
 import { safeAddManyToPool } from '../../../services/trackVerifier';
 import { followsAPI } from '../../../lib/supabase';
 import { TRACKS, pipedTrackToVoyoTrack } from '../../../data/tracks';
 import { searchAlbums, getAlbumTracks } from '../../../services/piped';
 import { mediaCache } from '../../../services/mediaCache';
+import { feedContentService, cacheFeedContent, updateAccessTime } from '../../../services/feedContentService';
 import { AudioVisualizer, WaveformVisualizer } from './AudioVisualizer';
 import { VideoSnippet } from './VideoSnippet';
 import { ContentMixer, ContentType } from './ContentMixer';
@@ -826,6 +828,62 @@ const FeedCard = ({
           }`}>OYÉ</span>
         </motion.button>
 
+        {/* Like Button (Heart) */}
+        <motion.button
+          className="flex flex-col items-center"
+          onClick={() => {
+            handleReaction('like');
+            addFloatingReaction('like');
+            if (navigator.vibrate) navigator.vibrate(20);
+          }}
+          whileTap={{ scale: 0.85 }}
+        >
+          <motion.div
+            animate={userReactions.has('like') ? {
+              scale: [1, 1.3, 1],
+            } : {}}
+            transition={{ duration: 0.2 }}
+          >
+            <Heart
+              className={`w-8 h-8 transition-colors ${
+                userReactions.has('like') ? 'text-pink-500' : 'text-white'
+              }`}
+              style={userReactions.has('like') ? { fill: '#EC4899' } : {}}
+            />
+          </motion.div>
+          <span className={`text-[11px] font-medium mt-1 ${
+            userReactions.has('like') ? 'text-pink-500' : 'text-white'
+          }`}>{reactionCounts.like || ''}</span>
+        </motion.button>
+
+        {/* Fire Button */}
+        <motion.button
+          className="flex flex-col items-center"
+          onClick={() => {
+            handleReaction('fire');
+            addFloatingReaction('fire');
+            if (navigator.vibrate) navigator.vibrate(20);
+          }}
+          whileTap={{ scale: 0.85 }}
+        >
+          <motion.div
+            animate={userReactions.has('fire') ? {
+              scale: [1, 1.3, 1],
+            } : {}}
+            transition={{ duration: 0.2 }}
+          >
+            <Flame
+              className={`w-8 h-8 transition-colors ${
+                userReactions.has('fire') ? 'text-orange-500' : 'text-white'
+              }`}
+              style={userReactions.has('fire') ? { fill: '#F97316' } : {}}
+            />
+          </motion.div>
+          <span className={`text-[11px] font-medium mt-1 ${
+            userReactions.has('fire') ? 'text-orange-500' : 'text-white'
+          }`}>{reactionCounts.fire || ''}</span>
+        </motion.button>
+
         {/* Comments */}
         <button
           className="flex flex-col items-center"
@@ -894,6 +952,7 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
   const { setCurrentTrack, addToQueue, currentTrack, isPlaying, togglePlay, progress, duration, seekTo, volume, setVolume } = usePlayerStore();
   const { currentUsername } = useUniverseStore();
   const { hotPool, recordReaction } = useTrackPoolStore();
+  const { boostTrack } = useDownloadStore();
 
   // Fetch reactions on mount
   useEffect(() => {
@@ -1214,6 +1273,40 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
     }
   }, [currentIndex, trackGroups.length, isActive, isDiscovering, discoverMoreTracks]);
 
+  // Cache feed content when tracks are built - batch cache for efficiency
+  useEffect(() => {
+    if (!isActive || trackGroups.length === 0) return;
+
+    // Cache upcoming tracks (current + next 5)
+    const upcomingTracks = trackGroups.slice(currentIndex, currentIndex + 6);
+
+    // Batch cache feed content
+    const contentToCache = upcomingTracks.map(group => ({
+      track_id: group.trackId,
+      title: group.trackTitle,
+      artist: group.trackArtist,
+      thumbnail_url: group.trackThumbnail || mediaCache.getThumbnailUrl(group.trackId),
+      duration: null, // Duration comes from player
+      source: 'youtube' as const,
+    }));
+
+    // Cache in background (non-blocking)
+    feedContentService.cacheBatch(contentToCache).then(cached => {
+      if (cached > 0) {
+        console.log(`[FeedContent] Cached ${cached} tracks for feed`);
+      }
+    });
+
+    // Pre-cache thumbnail URLs for upcoming cards using getBatch
+    const trackIds = upcomingTracks.map(t => t.trackId);
+    feedContentService.getBatch(trackIds).then(batchResult => {
+      // The batch fetch populates the local cache for quick thumbnail access
+      if (batchResult.size > 0) {
+        console.log(`[FeedContent] Pre-fetched ${batchResult.size} cached thumbnails`);
+      }
+    });
+  }, [currentIndex, isActive, trackGroups]);
+
   // 🔥 SMART MEDIA CACHING - Pre-cache next 3 tracks, keep last 5 in memory
   useEffect(() => {
     if (!isActive || trackGroups.length === 0) return;
@@ -1275,6 +1368,17 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
       }
     }, 50); // 50ms debounce
   };
+
+  // Track engagement when card becomes active - update access time for caching
+  useEffect(() => {
+    if (!isActive || trackGroups.length === 0) return;
+
+    const activeTrack = trackGroups[currentIndex];
+    if (activeTrack?.trackId) {
+      // Update access time for engagement tracking
+      updateAccessTime(activeTrack.trackId);
+    }
+  }, [currentIndex, isActive, trackGroups]);
 
   // Handle play - SIMPLE & CLEAN: Just update track state
   // VideoSnippet handles video + audio (native YouTube, no AudioPlayer)
@@ -1474,7 +1578,7 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
                 onReact={(type) => handleReact(group.trackId, group.trackTitle, group.trackArtist, type)}
                 onAddComment={(text) => handleAddComment(group.trackId, group.trackTitle, group.trackArtist, text)}
                 onAddToLibrary={() => {
-                  // OYÉ = Add to library (queue) + auto-play
+                  // OYÉ = Add to library (queue) + boost for offline + record reaction
                   const poolTrack = hotPool.find(t => t.id === group.trackId || t.trackId === group.trackId);
                   const seedTrack = TRACKS.find(t => t.id === group.trackId || t.trackId === group.trackId);
                   const track = poolTrack || seedTrack;
@@ -1484,6 +1588,14 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
                     handleReact(group.trackId, group.trackTitle, group.trackArtist, 'oye');
                     // Record reaction in pool for scoring
                     recordReaction(group.trackId);
+                    // BOOST: Download track for offline playback
+                    boostTrack(
+                      group.trackId,
+                      group.trackTitle,
+                      group.trackArtist,
+                      track.duration || 180,
+                      group.trackThumbnail || ''
+                    );
                   }
                 }}
                 onAddToPlaylist={() => {
@@ -1498,13 +1610,21 @@ export const VoyoVerticalFeed = ({ isActive, onGoToPlayer }: VoyoVerticalFeedPro
                 onFollowArtist={() => handleFollowArtist(group.trackArtist)}
                 onSnippetEnd={handleSnippetEnd}
                 onDoubleTapReaction={() => {
-                  // Double-tap also adds to library
+                  // Double-tap also adds to library + boosts
                   const poolTrack = hotPool.find(t => t.id === group.trackId || t.trackId === group.trackId);
                   const seedTrack = TRACKS.find(t => t.id === group.trackId || t.trackId === group.trackId);
                   const track = poolTrack || seedTrack;
                   if (track) {
                     addToQueue(track);
                     recordReaction(group.trackId);
+                    // BOOST: Download track for offline playback
+                    boostTrack(
+                      group.trackId,
+                      group.trackTitle,
+                      group.trackArtist,
+                      track.duration || 180,
+                      group.trackThumbnail || ''
+                    );
                   }
                 }}
               />

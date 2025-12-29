@@ -258,6 +258,9 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
     prevTrack,
     seekTo,
   } = usePlayerStore();
+
+  // Get current track position for hotspot detection
+  const trackPosition = Math.round(progress); // 0-100 percentage
   const { handlePlayPause } = useMobilePlay();
 
   const { trackPreferences, setExplicitLike } = usePreferenceStore();
@@ -326,9 +329,10 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
         category: 'afro-heat',
         emoji: '⚡',
         reactionType: 'oye',
+        trackPosition, // Include position for hotspot detection
       });
     }
-  }, [currentTrack, currentUsername, createReaction, spawnReaction]);
+  }, [currentTrack, currentUsername, createReaction, spawnReaction, trackPosition]);
 
   // Handle comment
   const handleAddComment = useCallback(async (text: string) => {
@@ -344,8 +348,9 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
       emoji: '💬',
       reactionType: 'oye',
       comment: text,
+      trackPosition, // Include position for hotspot detection
     });
-  }, [currentTrack, currentUsername, createReaction, spawnReaction]);
+  }, [currentTrack, currentUsername, createReaction, spawnReaction, trackPosition]);
 
   // Auto-spawn ambient reactions
   useEffect(() => {
