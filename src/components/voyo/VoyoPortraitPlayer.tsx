@@ -4525,8 +4525,8 @@ export const VoyoPortraitPlayer = ({
 
   return (
     <div
-      className="relative w-full bg-[#020203] text-white font-sans overflow-hidden flex flex-col"
-      style={{ height: 'calc(100vh - env(safe-area-inset-bottom))' }}
+      className="relative w-full bg-[#020203] text-white font-sans overflow-y-auto flex flex-col"
+      style={{ minHeight: 'calc(100vh - env(safe-area-inset-bottom))' }}
     >
 
       {/* FULLSCREEN BACKGROUND - Album art with dark overlay for floating effect */}
