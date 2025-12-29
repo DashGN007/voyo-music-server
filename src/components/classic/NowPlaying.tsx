@@ -257,6 +257,8 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
     nextTrack,
     prevTrack,
     seekTo,
+    queue,
+    removeFromQueue,
   } = usePlayerStore();
 
   // Get current track position for hotspot detection
@@ -281,6 +283,8 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
   const [isVibesExpanded, setIsVibesExpanded] = useState(false);
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
+  const [showQueue, setShowQueue] = useState(false);
+  const [shareToast, setShareToast] = useState(false);
 
   // Reactions data
   const currentTrackId = currentTrack?.id || '';
@@ -361,6 +365,41 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
     }, 4000 + Math.random() * 3000);
     return () => clearInterval(interval);
   }, [isPlaying, isOpen, spawnReaction]);
+
+  // Handle Share button
+  const handleShare = useCallback(async () => {
+    if (!currentTrack) return;
+
+    const shareData = {
+      title: currentTrack.title,
+      text: `Check out "${currentTrack.title}" by ${currentTrack.artist} on VOYO Music`,
+      url: window.location.href,
+    };
+
+    try {
+      // Try Web Share API first
+      if (navigator.share) {
+        await navigator.share(shareData);
+        spawnReaction('🔗');
+      } else {
+        // Fallback to clipboard
+        const shareText = `${shareData.text}\n${shareData.url}`;
+        await navigator.clipboard.writeText(shareText);
+        setShareToast(true);
+        spawnReaction('📋');
+        setTimeout(() => setShareToast(false), 2000);
+      }
+    } catch (error) {
+      // User cancelled or error occurred
+      console.log('Share cancelled or failed:', error);
+    }
+  }, [currentTrack, spawnReaction]);
+
+  // Handle Queue button
+  const handleQueue = useCallback(() => {
+    setShowQueue(!showQueue);
+    spawnReaction('🎵');
+  }, [showQueue, spawnReaction]);
 
   if (!currentTrack) return null;
 
@@ -531,10 +570,18 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
 
               {/* Right buttons */}
               <div className="flex items-center gap-4">
-                <motion.button className="text-white/60" whileTap={{ scale: 0.9 }}>
+                <motion.button
+                  className="text-white/60 hover:text-white"
+                  onClick={handleShare}
+                  whileTap={{ scale: 0.9 }}
+                >
                   <Share2 className="w-5 h-5" />
                 </motion.button>
-                <motion.button className="text-white/60" whileTap={{ scale: 0.9 }}>
+                <motion.button
+                  className={showQueue ? 'text-purple-400' : 'text-white/60 hover:text-white'}
+                  onClick={handleQueue}
+                  whileTap={{ scale: 0.9 }}
+                >
                   <ListMusic className="w-5 h-5" />
                 </motion.button>
               </div>
@@ -550,6 +597,108 @@ export const NowPlaying = ({ isOpen, onClose }: NowPlayingProps) => {
               currentUsername={currentUsername}
             />
           </div>
+
+          {/* QUEUE PANEL */}
+          <AnimatePresence>
+            {showQueue && (
+              <motion.div
+                className="absolute inset-0 bg-black/95 backdrop-blur-xl z-40 flex flex-col"
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 50 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              >
+                {/* Queue Header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                      <ListMusic className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-white font-bold text-base">Up Next</p>
+                      <p className="text-white/50 text-xs">{queue.length} tracks in queue</p>
+                    </div>
+                  </div>
+                  <motion.button
+                    className="p-2"
+                    onClick={() => setShowQueue(false)}
+                    whileTap={{ scale: 0.9 }}
+                  >
+                    <X className="w-6 h-6 text-white" />
+                  </motion.button>
+                </div>
+
+                {/* Queue List */}
+                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+                  {queue.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                      <ListMusic className="w-16 h-16 text-white/20 mb-4" />
+                      <p className="text-white/50 text-lg font-medium mb-2">Queue is empty</p>
+                      <p className="text-white/30 text-sm">Add tracks to build your queue</p>
+                    </div>
+                  ) : (
+                    queue.map((item, index) => (
+                      <motion.div
+                        key={item.track.id + index}
+                        className="flex items-center gap-3 bg-white/5 rounded-lg p-3 hover:bg-white/10 transition-colors"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                      >
+                        {/* Track Number */}
+                        <span className="text-white/40 text-sm font-bold w-6 text-center">
+                          {index + 1}
+                        </span>
+
+                        {/* Album Art */}
+                        <div className="w-12 h-12 rounded-md overflow-hidden flex-shrink-0">
+                          <img
+                            src={getTrackThumbnailUrl(item.track, 'default')}
+                            alt={item.track.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+
+                        {/* Track Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm font-medium truncate">
+                            {item.track.title}
+                          </p>
+                          <p className="text-white/50 text-xs truncate">
+                            {item.track.artist}
+                          </p>
+                        </div>
+
+                        {/* Remove Button */}
+                        <motion.button
+                          className="p-2 text-white/40 hover:text-red-400"
+                          onClick={() => removeFromQueue(index)}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          <X className="w-4 h-4" />
+                        </motion.button>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* SHARE TOAST */}
+          <AnimatePresence>
+            {shareToast && (
+              <motion.div
+                className="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-white/10 backdrop-blur-xl rounded-full px-6 py-3 flex items-center gap-2"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <Share2 className="w-4 h-4 text-white" />
+                <span className="text-white text-sm font-medium">Copied to clipboard</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Playlist Modal */}
           <PlaylistModal

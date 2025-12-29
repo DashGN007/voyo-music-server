@@ -10,7 +10,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Bell, Play, RefreshCw } from 'lucide-react';
+import { Search, Bell, Play, RefreshCw, Zap } from 'lucide-react';
 import { getThumb } from '../../utils/thumbnail';
 import { SmartImage } from '../ui/SmartImage';
 import { VIBES, Vibe } from '../../data/tracks';
@@ -18,6 +18,8 @@ import { LottieIcon } from '../ui/LottieIcon';
 import { getUserTopTracks, getPoolAwareHotTracks } from '../../services/personalization';
 import { usePlayerStore } from '../../store/playerStore';
 import { useTrackPoolStore } from '../../store/trackPoolStore';
+import { useReactionStore } from '../../store/reactionStore';
+import { useDownloadStore } from '../../store/downloadStore';
 import { Track } from '../../types';
 import { TiviPlusCrossPromo } from '../voyo/TiviPlusCrossPromo';
 
@@ -368,10 +370,29 @@ interface TrackCardProps {
 
 const TrackCard = ({ track, onPlay }: TrackCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [oyeActive, setOyeActive] = useState(false);
+  const { createReaction } = useReactionStore();
+  const { boostTrack } = useDownloadStore();
+
+  const handleOye = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    createReaction({
+      username: 'dash',
+      trackId: track.trackId,
+      trackTitle: track.title,
+      trackArtist: track.artist,
+      trackThumbnail: getThumb(track.trackId),
+      category: 'afro-heat',
+      reactionType: 'oye',
+    });
+    boostTrack(track.trackId, track.title, track.artist, track.duration || 180, getThumb(track.trackId));
+    setOyeActive(true);
+    setTimeout(() => setOyeActive(false), 600);
+  };
 
   return (
     <motion.button
-      className="flex-shrink-0 w-32"
+      className="flex-shrink-0 w-32 relative"
       onClick={onPlay}
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
@@ -407,6 +428,31 @@ const TrackCard = ({ track, onPlay }: TrackCardProps) => {
             </div>
           </motion.div>
         )}
+        {/* OYE Button - Top Right */}
+        <motion.button
+          className="absolute top-2 right-2 z-10"
+          onClick={handleOye}
+          whileTap={{ scale: 0.85 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: isHovered ? 1 : 0.7 }}
+        >
+          <motion.div
+            className="w-7 h-7 rounded-full flex items-center justify-center"
+            style={{
+              background: oyeActive
+                ? 'linear-gradient(135deg, #FBBF24, #F97316)'
+                : 'rgba(251, 191, 36, 0.9)',
+              boxShadow: oyeActive ? '0 0 15px rgba(251, 191, 36, 0.6)' : '0 2px 8px rgba(0,0,0,0.3)',
+            }}
+            animate={oyeActive ? {
+              scale: [1, 1.3, 1],
+              boxShadow: ['0 0 0px rgba(251,191,36,0)', '0 0 20px rgba(251,191,36,0.8)', '0 0 10px rgba(251,191,36,0.4)'],
+            } : {}}
+            transition={{ duration: 0.3 }}
+          >
+            <Zap className="w-4 h-4 text-white" style={{ fill: 'white' }} />
+          </motion.div>
+        </motion.button>
       </div>
       <p className="text-white text-sm font-medium truncate">{track.title}</p>
       <p className="text-white/50 text-[11px] truncate">{track.artist}</p>
@@ -420,8 +466,27 @@ const TrackCard = ({ track, onPlay }: TrackCardProps) => {
 
 const WideTrackCard = ({ track, onPlay }: TrackCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [oyeActive, setOyeActive] = useState(false);
+  const { createReaction } = useReactionStore();
+  const { boostTrack } = useDownloadStore();
   const youtubeId = useMemo(() => decodeVoyoId(track.trackId), [track.trackId]);
   const thumbnailUrl = `https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg`;
+
+  const handleOye = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    createReaction({
+      username: 'dash',
+      trackId: track.trackId,
+      trackTitle: track.title,
+      trackArtist: track.artist,
+      trackThumbnail: getThumb(track.trackId),
+      category: 'afro-heat',
+      reactionType: 'oye',
+    });
+    boostTrack(track.trackId, track.title, track.artist, track.duration || 180, getThumb(track.trackId));
+    setOyeActive(true);
+    setTimeout(() => setOyeActive(false), 600);
+  };
 
   return (
     <motion.button
@@ -454,6 +519,31 @@ const WideTrackCard = ({ track, onPlay }: TrackCardProps) => {
             </div>
           </motion.div>
         )}
+        {/* OYE Button - Top Right */}
+        <motion.button
+          className="absolute top-2 right-2 z-10"
+          onClick={handleOye}
+          whileTap={{ scale: 0.85 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: isHovered ? 1 : 0.7 }}
+        >
+          <motion.div
+            className="w-7 h-7 rounded-full flex items-center justify-center"
+            style={{
+              background: oyeActive
+                ? 'linear-gradient(135deg, #FBBF24, #F97316)'
+                : 'rgba(251, 191, 36, 0.9)',
+              boxShadow: oyeActive ? '0 0 15px rgba(251, 191, 36, 0.6)' : '0 2px 8px rgba(0,0,0,0.3)',
+            }}
+            animate={oyeActive ? {
+              scale: [1, 1.3, 1],
+              boxShadow: ['0 0 0px rgba(251,191,36,0)', '0 0 20px rgba(251,191,36,0.8)', '0 0 10px rgba(251,191,36,0.4)'],
+            } : {}}
+            transition={{ duration: 0.3 }}
+          >
+            <Zap className="w-4 h-4 text-white" style={{ fill: 'white' }} />
+          </motion.div>
+        </motion.button>
         <div className="absolute bottom-0 left-0 right-0 p-2">
           <p className="text-white text-xs font-semibold truncate drop-shadow-lg">{track.title}</p>
         </div>
@@ -782,6 +872,7 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub, onNavVisibilityChange
   const { history, hotTracks, discoverTracks, refreshRecommendations } = usePlayerStore();
   const { hotPool } = useTrackPoolStore();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showNotificationHint, setShowNotificationHint] = useState(false);
 
   // Ref for TIVI+ immersive section (nav hides when in view)
   const tiviBreakRef = useRef<HTMLDivElement>(null);
@@ -811,6 +902,11 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub, onNavVisibilityChange
     setIsRefreshing(true);
     refreshRecommendations();
     setTimeout(() => setIsRefreshing(false), 500);
+  };
+
+  const handleNotificationClick = () => {
+    setShowNotificationHint(true);
+    setTimeout(() => setShowNotificationHint(false), 2500);
   };
 
   // Data from existing DJ/Curator systems (pool-based)
@@ -881,12 +977,35 @@ export const HomeFeed = ({ onTrackPlay, onSearch, onDahub, onNavVisibilityChange
           <motion.button className="p-2 rounded-full bg-white/10 hover:bg-white/20" onClick={onSearch} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
             <Search className="w-5 h-5 text-white/70" />
           </motion.button>
-          <motion.button className="p-2 rounded-full bg-white/10 hover:bg-white/20 relative" whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+          <motion.button className="p-2 rounded-full bg-white/10 hover:bg-white/20 relative" onClick={handleNotificationClick} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
             <Bell className="w-5 h-5 text-white/70" />
             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
           </motion.button>
         </div>
       </header>
+
+      {/* Notification Hint Popup */}
+      <AnimatePresence>
+        {showNotificationHint && (
+          <motion.div
+            className="fixed top-20 right-4 z-50 px-4 py-3 rounded-xl shadow-2xl"
+            style={{
+              background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.95) 0%, rgba(236, 72, 153, 0.95) 100%)',
+              backdropFilter: 'blur(10px)',
+              boxShadow: '0 8px 32px rgba(168, 85, 247, 0.4)',
+            }}
+            initial={{ opacity: 0, y: -20, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+          >
+            <div className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-white" />
+              <p className="text-white text-sm font-medium">Notifications coming soon!</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Greeting */}
       <div className="px-4 pt-4 pb-6">
