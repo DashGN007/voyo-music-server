@@ -453,26 +453,19 @@ export const YouTubeIframe = memo(() => {
               // Don't call playVideo() - wait for user to click play
             }
 
-            // RETRY LOGIC: Verify playback started after 500ms
-            // Handles cases where playVideo() silently fails
+            // RETRY LOGIC: Verify playback started after 150ms (reduced from 500ms)
             setTimeout(() => {
               try {
                 const playerState = player.getPlayerState();
                 const freshState = usePlayerStore.getState();
-                console.log(`[YouTubeIframe] Retry check: playerState=${playerState}, playbackSource=${freshState.playbackSource}`);
-                // Only retry if we're still in iframe mode (not switched to cached)
-                // AND if we should be playing but it's not actually playing
                 if (freshState.playbackSource !== 'cached' &&
                     freshState.isPlaying &&
                     playerState !== YT_STATES.PLAYING &&
                     playerState !== YT_STATES.BUFFERING) {
-                  console.log('[YouTubeIframe] Retry: forcing playVideo()');
                   player.playVideo();
                 }
-              } catch (e) {
-                // Player may have been destroyed, ignore
-              }
-            }, 500);
+              } catch (e) {}
+            }, 150);
           }
 
           const duration = player.getDuration();
@@ -495,9 +488,13 @@ export const YouTubeIframe = memo(() => {
                 usePlayerStore.getState().setPlaybackSource('iframe');
               }
             }
-            if (state.playbackSource !== 'cached' && !state.isPlaying) {
-              usePlayerStore.getState().togglePlay();
-            }
+            // REMOVED: Auto-toggle was causing refresh bug
+            // When YouTube fires PLAYING during init but browser blocks autoplay,
+            // this would set isPlaying=true even though audio isn't playing.
+            // User must explicitly tap play after refresh - let browser policy work.
+            // if (state.playbackSource !== 'cached' && !state.isPlaying) {
+            //   usePlayerStore.getState().togglePlay();
+            // }
           } else if (ytState === YT_STATES.BUFFERING) {
             // Update buffer health if we're streaming via iframe
             if (state.playbackSource !== 'cached') {

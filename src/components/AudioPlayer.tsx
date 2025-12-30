@@ -321,14 +321,9 @@ export const AudioPlayer = () => {
         console.log('🎵 [VOYO] Streaming via iframe, boosting in background...');
         setPlaybackSource('iframe');
 
-        // FIX: Ensure isPlaying is true so YouTubeIframe will play
-        // The orchestrator may have set this already, but we need to ensure it
-        // in case the timing was off (race condition with async cache check)
-        const { isPlaying: currentlyPlaying, togglePlay: triggerToggle } = usePlayerStore.getState();
-        if (!currentlyPlaying) {
-          console.log('🎵 [VOYO] Setting isPlaying=true for iframe playback');
-          triggerToggle();
-        }
+        // REMOVED: Auto-toggle was causing refresh bug
+        // On page refresh, this would set isPlaying=true even though browser blocks autoplay
+        // User must tap play after refresh - don't auto-start
 
         // Start background boost (non-blocking)
         if (backgroundBoostingRef.current !== trackId) {
@@ -586,8 +581,9 @@ export const AudioPlayer = () => {
         if (playbackSource !== 'cached') return;
         const { isPlaying: shouldPlay } = usePlayerStore.getState();
         const audio = audioRef.current;
-        if (shouldPlay && audio?.src && audio.duration > 0 && audio.readyState >= 2) {
-          setTimeout(() => audioRef.current?.play().catch(() => {}), 100);
+        // Removed 100ms delay - play immediately if should be playing
+        if (shouldPlay && audio?.src && audio.readyState >= 1) {
+          audio.play().catch(() => {});
         }
       }}
       style={{ display: 'none' }}
