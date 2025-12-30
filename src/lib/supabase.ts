@@ -493,7 +493,7 @@ export const followsAPI = {
 };
 
 // ============================================
-// PORTAL CHAT API - Real-time messaging
+// PORTAL CHAT API - Room chat in someone's portal
 // ============================================
 
 export interface PortalMessage {
@@ -542,7 +542,7 @@ export const portalChatAPI = {
       portal_owner: portalOwner.toLowerCase(),
       sender,
       sender_color: senderColor,
-      message: message.slice(0, 500), // Max 500 chars
+      message: message.slice(0, 500),
     });
 
     if (error) {
@@ -556,10 +556,7 @@ export const portalChatAPI = {
   /**
    * Subscribe to portal messages (real-time)
    */
-  subscribe(
-    portalOwner: string,
-    onMessage: (message: PortalMessage) => void
-  ) {
+  subscribe(portalOwner: string, onMessage: (message: PortalMessage) => void) {
     if (!supabase) return null;
 
     return supabase
@@ -581,6 +578,245 @@ export const portalChatAPI = {
 
   /**
    * Unsubscribe from portal chat
+   */
+  unsubscribe(channel: any) {
+    if (!supabase || !channel) return;
+    supabase.removeChannel(channel);
+  },
+};
+
+// ============================================
+// DIRECT MESSAGES API - User to User DMs
+// ============================================
+
+export interface DirectMessage {
+  id: string;
+  from_user: string;
+  to_user: string;
+  message: string;
+  created_at: string;
+  read_at: string | null;
+}
+
+export interface Conversation {
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  lastMessage: string;
+  lastMessageTime: string;
+  unreadCount: number;
+}
+
+export const directMessagesAPI = {
+  /**
+   * Get conversation list (people I've messaged or who messaged me)
+   */
+  async getConversations(username: string): Promise<Conversation[]> {
+    if (!supabase) return [];
+
+    const normalizedUsername = username.toLowerCase();
+
+    // Get all messages involving this user
+    const { data, error } = await supabase
+      .from('direct_messages')
+      .select('*')
+      .or(`from_user.eq.${normalizedUsername},to_user.eq.${normalizedUsername}`)
+      .order('created_at', { ascending: false });
+
+    if (error || !data) {
+      console.error('[VOYO] Failed to fetch conversations:', error);
+      return [];
+    }
+
+    // Group by conversation partner
+    const conversationMap = new Map<string, {
+      lastMessage: DirectMessage;
+      unreadCount: number;
+    }>();
+
+    for (const msg of data) {
+      const partner = msg.from_user === normalizedUsername ? msg.to_user : msg.from_user;
+
+      if (!conversationMap.has(partner)) {
+        conversationMap.set(partner, {
+          lastMessage: msg,
+          unreadCount: 0,
+        });
+      }
+
+      // Count unread (messages TO me that aren't read)
+      if (msg.to_user === normalizedUsername && !msg.read_at) {
+        const conv = conversationMap.get(partner)!;
+        conv.unreadCount++;
+      }
+    }
+
+    // Get profile info for each partner
+    const partners = Array.from(conversationMap.keys());
+    const { data: profiles } = await supabase
+      .from('universes')
+      .select('username, public_profile')
+      .in('username', partners);
+
+    const profileMap = new Map<string, any>();
+    for (const p of profiles || []) {
+      profileMap.set(p.username, p.public_profile);
+    }
+
+    // Build conversation list
+    return Array.from(conversationMap.entries()).map(([partner, conv]) => {
+      const profile = profileMap.get(partner);
+      return {
+        username: partner,
+        displayName: profile?.displayName || partner,
+        avatarUrl: profile?.avatarUrl || null,
+        lastMessage: conv.lastMessage.message,
+        lastMessageTime: conv.lastMessage.created_at,
+        unreadCount: conv.unreadCount,
+      };
+    });
+  },
+
+  /**
+   * Get messages between two users
+   */
+  async getMessages(user1: string, user2: string, limit = 100): Promise<DirectMessage[]> {
+    if (!supabase) return [];
+
+    const u1 = user1.toLowerCase();
+    const u2 = user2.toLowerCase();
+
+    const { data, error } = await supabase
+      .from('direct_messages')
+      .select('*')
+      .or(`and(from_user.eq.${u1},to_user.eq.${u2}),and(from_user.eq.${u2},to_user.eq.${u1})`)
+      .order('created_at', { ascending: true })
+      .limit(limit);
+
+    if (error) {
+      console.error('[VOYO] Failed to fetch messages:', error);
+      return [];
+    }
+
+    return data || [];
+  },
+
+  /**
+   * Send a direct message
+   */
+  async sendMessage(fromUser: string, toUser: string, message: string): Promise<boolean> {
+    if (!supabase) return false;
+
+    const { error } = await supabase.from('direct_messages').insert({
+      from_user: fromUser.toLowerCase(),
+      to_user: toUser.toLowerCase(),
+      message: message.slice(0, 1000), // Max 1000 chars
+    });
+
+    if (error) {
+      console.error('[VOYO] Failed to send message:', error);
+      return false;
+    }
+
+    return true;
+  },
+
+  /**
+   * Mark messages as read
+   */
+  async markAsRead(fromUser: string, toUser: string): Promise<boolean> {
+    if (!supabase) return false;
+
+    const { error } = await supabase
+      .from('direct_messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('from_user', fromUser.toLowerCase())
+      .eq('to_user', toUser.toLowerCase())
+      .is('read_at', null);
+
+    return !error;
+  },
+
+  /**
+   * Get unread count for a user
+   */
+  async getUnreadCount(username: string): Promise<number> {
+    if (!supabase) return 0;
+
+    const { count, error } = await supabase
+      .from('direct_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('to_user', username.toLowerCase())
+      .is('read_at', null);
+
+    if (error) return 0;
+    return count || 0;
+  },
+
+  /**
+   * Subscribe to new messages for a user (real-time)
+   */
+  subscribe(username: string, onMessage: (message: DirectMessage) => void) {
+    if (!supabase) return null;
+
+    const normalizedUsername = username.toLowerCase();
+
+    return supabase
+      .channel(`dm:${normalizedUsername}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `to_user=eq.${normalizedUsername}`,
+        },
+        (payload) => {
+          onMessage(payload.new as DirectMessage);
+        }
+      )
+      .subscribe();
+  },
+
+  /**
+   * Subscribe to a specific conversation (real-time)
+   */
+  subscribeToConversation(
+    user1: string,
+    user2: string,
+    onMessage: (message: DirectMessage) => void
+  ) {
+    if (!supabase) return null;
+
+    const u1 = user1.toLowerCase();
+    const u2 = user2.toLowerCase();
+    const channelId = [u1, u2].sort().join(':');
+
+    return supabase
+      .channel(`dm_conv:${channelId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'direct_messages',
+        },
+        (payload) => {
+          const msg = payload.new as DirectMessage;
+          // Filter to only this conversation
+          if (
+            (msg.from_user === u1 && msg.to_user === u2) ||
+            (msg.from_user === u2 && msg.to_user === u1)
+          ) {
+            onMessage(msg);
+          }
+        }
+      )
+      .subscribe();
+  },
+
+  /**
+   * Unsubscribe from DM channel
    */
   unsubscribe(channel: any) {
     if (!supabase || !channel) return;
