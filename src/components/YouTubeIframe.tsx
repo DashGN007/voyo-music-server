@@ -295,8 +295,11 @@ export const YouTubeIframe = memo(() => {
 
     if (videoTarget === 'portrait' && isPlaying) {
       // Center over BigCenterCard area
+      // NO transition - framer-motion handles drag, CSS transition causes bounce
       return {
-        ...base,
+        position: 'fixed',
+        overflow: 'hidden',
+        background: '#000',
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
