@@ -12,7 +12,7 @@
 import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
 import { motion, AnimatePresence, useInView, TargetAndTransition } from 'framer-motion';
 import {
-  Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Maximize2, Film, Settings, Heart,
+  Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Film, Settings, Heart,
   Shuffle, Repeat, Repeat1, Share2, Mic, X
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
@@ -1795,16 +1795,15 @@ StreamCard.displayName = 'StreamCard';
 // BIG CENTER CARD (NOW PLAYING - Canva-style purple fade with premium typography)
 // TAP ALBUM ART FOR LYRICS VIEW | VIDEO HANDLED BY GLOBAL IFRAME
 // ============================================
-const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showVideo = false }: {
+const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics }: {
   track: Track;
   onExpandVideo?: () => void;
   onShowLyrics?: () => void;
-  showVideo?: boolean;
 }) => {
-  // Video embedded IN card (5338ed1 approach):
-  // - When showVideo=true (playing + video mode): show muted iframe in card
-  // - When showVideo=false (paused or no video): show thumbnail
-  // Audio comes from global YouTubeIframe - this is just for video display
+  // Single iframe architecture:
+  // - Thumbnail always visible here
+  // - Global YouTubeIframe overlays this area when videoTarget='portrait'
+  // - No duplicate iframes
 
   return (
   <motion.div
@@ -1818,77 +1817,36 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showVideo = fa
     whileHover={{ scale: 1.02 }}
     key={track.id}
   >
-    {/* VIDEO - embedded muted iframe when playing in video mode */}
-    {showVideo && (
-      <div className="absolute inset-0 z-10 bg-black overflow-hidden">
-        <iframe
-          src={`https://www.youtube.com/embed/${track.trackId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&showinfo=0&iv_load_policy=3&fs=0&mute=1&loop=1`}
-          className="w-full h-full pointer-events-none"
-          style={{
-            transform: 'scale(2)',
-            transformOrigin: 'center center',
-          }}
-          allow="autoplay; encrypted-media"
-          allowFullScreen={false}
-          title="Video"
-        />
-        {/* Purple gradient overlays to hide YouTube branding */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: 'linear-gradient(to top, rgba(139,92,246,0.4) 0%, transparent 30%)',
-          }}
-        />
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: 'linear-gradient(to bottom, rgba(139,92,246,0.3) 0%, transparent 25%)',
-          }}
-        />
-        {/* Track title overlay */}
-        <div className="absolute bottom-3 left-3 right-3 z-20">
-          <p className="text-white text-sm font-medium truncate drop-shadow-lg">
-            {track.title}
-          </p>
-          <p className="text-white/70 text-xs truncate">
-            {track.artist}
-          </p>
-        </div>
-      </div>
-    )}
-
-    {/* THUMBNAIL - visible when NOT showing video (paused or no video mode) */}
-    {!showVideo && (
+    {/* THUMBNAIL - always visible, video overlays from global iframe */}
+    <div
+      onClick={onShowLyrics}
+      className="absolute inset-0 cursor-pointer z-10"
+      role="button"
+      aria-label="Show lyrics"
+    >
+      <SmartImage
+        src={getTrackThumbnailUrl(track, 'high')}
+        alt={track.title}
+        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+        trackId={track.trackId}
+        artist={track.artist}
+        title={track.title}
+        lazy={false}
+      />
+      {/* Light purple overlay */}
       <div
-        onClick={onShowLyrics}
-        className="absolute inset-0 cursor-pointer z-10"
-        role="button"
-        aria-label="Show lyrics"
-      >
-        <SmartImage
-          src={getTrackThumbnailUrl(track, 'high')}
-          alt={track.title}
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-          trackId={track.trackId}
-          artist={track.artist}
-          title={track.title}
-          lazy={false}
-        />
-        {/* Light purple overlay - always visible */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)' }}
-        />
-        {/* Lyrics hint icon */}
-        {onShowLyrics && (
-          <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <span className="text-white text-xs">📝</span>
-          </div>
-        )}
-      </div>
-    )}
+        className="absolute inset-0 pointer-events-none"
+        style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)' }}
+      />
+      {/* Lyrics hint icon */}
+      {onShowLyrics && (
+        <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-white text-xs">📝</span>
+        </div>
+      )}
+    </div>
 
-    {/* Subtle vignette for depth - always visible */}
+    {/* Subtle vignette for depth */}
     <div
       className="absolute inset-0 pointer-events-none opacity-40 z-15"
       style={{
@@ -1896,19 +1854,8 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, showVideo = fa
       }}
     />
 
-    {/* Expand to Landscape Button - visible in video mode */}
-    {onExpandVideo && showVideo && (
-      <button
-        onClick={onExpandVideo}
-        className="absolute top-3 right-3 z-30 bg-black/60 backdrop-blur-sm rounded-full p-2 hover:bg-black/80 transition-colors"
-        aria-label="Expand to landscape"
-      >
-        <Maximize2 size={16} className="text-white" />
-      </button>
-    )}
-
-    {/* Video mode button - visible on thumbnail */}
-    {onExpandVideo && !showVideo && (
+    {/* Video mode button */}
+    {onExpandVideo && (
       <ExpandVideoButton onClick={onExpandVideo} />
     )}
 
@@ -4623,7 +4570,6 @@ export const VoyoPortraitPlayer = ({
             <BigCenterCard
               track={currentTrack}
               onExpandVideo={() => setVideoTarget('portrait')}
-              showVideo={videoTarget === 'portrait' && isPlaying}
               onShowLyrics={() => setShowLyricsOverlay(true)}
             />
           ) : (
