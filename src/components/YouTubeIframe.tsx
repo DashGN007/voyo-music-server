@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useRef, useCallback, memo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { usePlayerStore } from '../store/playerStore';
 
 const YT_STATES = {
@@ -69,13 +70,17 @@ export const YouTubeIframe = memo(() => {
   // Overlay timing state
   const [showNowPlaying, setShowNowPlaying] = useState(false);
   const [showNextUp, setShowNextUp] = useState(false);
+  const [showPortraitNextUp, setShowPortraitNextUp] = useState(false); // Full-cover thumbnail for portrait
+  const [isDragging, setIsDragging] = useState(false);
   const upcomingTrack = queue[0]?.track || null;
+
 
   // Update overlay visibility based on playback time
   useEffect(() => {
     if (videoTarget === 'hidden') {
       setShowNowPlaying(false);
       setShowNextUp(false);
+      setShowPortraitNextUp(false);
       return;
     }
     // Now Playing: first 5 seconds
@@ -85,6 +90,11 @@ export const YouTubeIframe = memo(() => {
     const midTrack = currentTime > 30 && duration > 60 && currentTime >= duration * 0.45 && currentTime < duration * 0.55;
     const endTrack = timeRemaining > 0 && timeRemaining < 20;
     setShowNextUp((midTrack || endTrack) && !!upcomingTrack);
+
+    // Portrait: Full thumbnail takeover in last 8 seconds (YouTube shows at ~5s)
+    // Disguised as intentional "Up Next" preview - not blocking, featuring!
+    const portraitEndZone = timeRemaining > 0 && timeRemaining < 8;
+    setShowPortraitNextUp(videoTarget === 'portrait' && portraitEndZone && !!upcomingTrack);
   }, [currentTime, duration, videoTarget, upcomingTrack]);
 
   // Load YouTube API once
@@ -213,6 +223,31 @@ export const YouTubeIframe = memo(() => {
     }
   }, [seekPosition, clearSeekPosition]);
 
+  // Fallback sync: When boosted, video should follow audio (not vice versa)
+  // Only kicks in if drift exceeds threshold - YouTube rarely buffers
+  useEffect(() => {
+    if (playbackSource !== 'cached' || !isPlaying) return;
+
+    const DRIFT_THRESHOLD = 2; // seconds - only sync if drift is noticeable
+    const CHECK_INTERVAL = 5000; // check every 5 seconds
+
+    const syncInterval = setInterval(() => {
+      const player = playerRef.current;
+      if (!player?.getCurrentTime || !player?.seekTo) return;
+
+      const videoTime = player.getCurrentTime() || 0;
+      const audioTime = currentTime; // From store (audio is updating this)
+      const drift = Math.abs(videoTime - audioTime);
+
+      if (drift > DRIFT_THRESHOLD) {
+        console.log(`[YouTubeIframe] Drift detected: ${drift.toFixed(1)}s - syncing video to audio`);
+        player.seekTo(audioTime, true);
+      }
+    }, CHECK_INTERVAL);
+
+    return () => clearInterval(syncInterval);
+  }, [playbackSource, isPlaying, currentTime]);
+
   // Time update interval (only when streaming from iframe)
   useEffect(() => {
     if (intervalRef.current) {
@@ -258,18 +293,19 @@ export const YouTubeIframe = memo(() => {
     }
 
     if (videoTarget === 'portrait' && isPlaying) {
-      // Center over BigCenterCard area (208x208 mobile, 240x240 md)
+      // Center over BigCenterCard area
       return {
-        ...base,
+        position: 'fixed',
+        overflow: 'hidden',
+        background: '#000',
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
         width: '208px',
         height: '208px',
         borderRadius: '2rem',
-        zIndex: 50,
+        zIndex: 60,
         opacity: 1,
-        transition: 'opacity 0.4s ease-out',
       };
     }
 
@@ -301,21 +337,32 @@ export const YouTubeIframe = memo(() => {
 
   const showOverlays = videoTarget !== 'hidden' && isPlaying;
 
+  // Portrait mode: draggable
+  const isPortraitMode = videoTarget === 'portrait' && isPlaying;
+
   return (
-    <div style={getContainerStyle()}>
+    <motion.div
+      style={getContainerStyle()}
+      drag={isPortraitMode}
+      dragMomentum={false}
+      dragElastic={0}
+      onDragStart={() => setIsDragging(true)}
+      onDragEnd={() => setIsDragging(false)}
+      whileDrag={{ boxShadow: '0 25px 50px rgba(139, 92, 246, 0.5)' }}
+    >
       {/* Video container */}
       <div style={getVideoStyle()}>
         <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       </div>
 
-      {/* Tap to close - portrait only */}
-      {videoTarget === 'portrait' && isPlaying && (
-        <div
-          onClick={() => setVideoTarget('hidden')}
+      {/* Tap to close - portrait only (uses onTap to not fire on drag) */}
+      {isPortraitMode && (
+        <motion.div
+          onTap={() => setVideoTarget('hidden')}
           style={{
             position: 'absolute',
             inset: 0,
-            cursor: 'pointer',
+            cursor: 'grab',
             zIndex: 5,
           }}
         />
@@ -434,15 +481,69 @@ export const YouTubeIframe = memo(() => {
         </div>
       )}
 
-      {/* Portrait: tap hint */}
-      {videoTarget === 'portrait' && isPlaying && (
+      {/* Portrait: drag/tap hint */}
+      {isPortraitMode && !showPortraitNextUp && (
         <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, textAlign: 'center', zIndex: 15, pointerEvents: 'none' }}>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 8 }}>Tap to close</p>
+          <p style={{ color: isDragging ? 'rgba(139,92,246,0.8)' : 'rgba(255,255,255,0.4)', fontSize: 8, transition: 'color 0.2s' }}>
+            {isDragging ? '📱 Rotate phone for FULL Vibes' : 'Drag to move • Tap to close'}
+          </p>
         </div>
       )}
 
+      {/* Portrait: Full "Up Next" thumbnail takeover - covers YouTube suggestions intentionally */}
+      {showPortraitNextUp && upcomingTrack && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6 }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 20,
+            borderRadius: '2rem',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {/* Next track thumbnail as background */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `url(${upcomingTrack.coverUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              filter: 'brightness(0.7)',
+            }}
+          />
+          {/* Purple gradient overlay */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'linear-gradient(to bottom, rgba(88,28,135,0.4) 0%, rgba(88,28,135,0.8) 100%)',
+            }}
+          />
+          {/* Content */}
+          <div style={{ position: 'relative', zIndex: 5, textAlign: 'center', padding: 16 }}>
+            <p style={{ color: 'rgba(251,191,36,0.9)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.2em', fontWeight: 600, marginBottom: 8 }}>
+              Up Next
+            </p>
+            <p style={{ color: 'white', fontWeight: 'bold', fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
+              {upcomingTrack.title}
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, marginTop: 2 }}>
+              {upcomingTrack.artist}
+            </p>
+          </div>
+        </motion.div>
+      )}
+
       {/* No X button in landscape - LandscapeVOYO controls handle navigation */}
-    </div>
+    </motion.div>
   );
 });
 
