@@ -465,8 +465,9 @@ export const SearchOverlayV2 = ({ isOpen, onClose }: SearchOverlayProps) => {
     usePlayerStore.getState().playTrack(track);
     // FIX A4: Signal to Classic mode that NowPlaying should open
     usePlayerStore.getState().setShouldOpenNowPlaying(true);
-    onClose();
-  }, [resultToTrack, onClose]);
+    // DON'T auto-close - let user stay on search page
+    // They can continue browsing/playing, click X when done
+  }, [resultToTrack]);
 
   const handleAddToQueue = useCallback((result: SearchResult, pos: { x: number; y: number }) => {
     setFlyingCD({

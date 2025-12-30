@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useRef, useCallback, memo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { usePlayerStore } from '../store/playerStore';
 
 const YT_STATES = {
@@ -51,6 +52,7 @@ export const YouTubeIframe = memo(() => {
   const volume = usePlayerStore((s) => s.volume);
   const playbackSource = usePlayerStore((s) => s.playbackSource);
   const videoTarget = usePlayerStore((s) => s.videoTarget);
+  const videoPolitePosition = usePlayerStore((s) => s.videoPolitePosition);
   const seekPosition = usePlayerStore((s) => s.seekPosition);
   const currentTime = usePlayerStore((s) => s.currentTime);
   const duration = usePlayerStore((s) => s.duration);
@@ -69,7 +71,9 @@ export const YouTubeIframe = memo(() => {
   // Overlay timing state
   const [showNowPlaying, setShowNowPlaying] = useState(false);
   const [showNextUp, setShowNextUp] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const upcomingTrack = queue[0]?.track || null;
+
 
   // Update overlay visibility based on playback time
   useEffect(() => {
@@ -258,18 +262,48 @@ export const YouTubeIframe = memo(() => {
     }
 
     if (videoTarget === 'portrait' && isPlaying) {
-      // Center over BigCenterCard area (208x208 mobile, 240x240 md)
+      // Polite position - video moves out of the way based on page context
+      // NO transition on position - framer-motion handles smooth movement
+      // z-60 to be above search overlay (z-50)
+      let top: string, left: string, right: string | undefined, bottom: string | undefined;
+
+      switch (videoPolitePosition) {
+        case 'bottom':
+          top = 'auto';
+          bottom = '120px';
+          left = 'calc(50% - 104px)';
+          break;
+        case 'top-right':
+          top = '100px';
+          right = '20px';
+          left = 'auto';
+          break;
+        case 'top-left':
+          top = '100px';
+          left = '20px';
+          break;
+        case 'center':
+        default:
+          top = 'calc(50% - 104px)';
+          left = 'calc(50% - 104px)';
+          break;
+      }
+
       return {
-        ...base,
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
+        position: 'fixed',
+        overflow: 'hidden',
+        background: '#000',
+        top,
+        left,
+        right,
+        bottom,
         width: '208px',
         height: '208px',
         borderRadius: '2rem',
-        zIndex: 50,
+        zIndex: 60,
         opacity: 1,
-        transition: 'opacity 0.4s ease-out',
+        // No transition - instant position changes avoid mobile keyboard weirdness
+        // Drag still feels smooth via framer-motion
       };
     }
 
@@ -301,21 +335,32 @@ export const YouTubeIframe = memo(() => {
 
   const showOverlays = videoTarget !== 'hidden' && isPlaying;
 
+  // Portrait mode: draggable
+  const isPortraitMode = videoTarget === 'portrait' && isPlaying;
+
   return (
-    <div style={getContainerStyle()}>
+    <motion.div
+      style={getContainerStyle()}
+      drag={isPortraitMode}
+      dragMomentum={false}
+      dragElastic={0}
+      onDragStart={() => setIsDragging(true)}
+      onDragEnd={() => setIsDragging(false)}
+      whileDrag={{ boxShadow: '0 25px 50px rgba(139, 92, 246, 0.5)' }}
+    >
       {/* Video container */}
       <div style={getVideoStyle()}>
         <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       </div>
 
-      {/* Tap to close - portrait only */}
-      {videoTarget === 'portrait' && isPlaying && (
-        <div
-          onClick={() => setVideoTarget('hidden')}
+      {/* Tap to close - portrait only (uses onTap to not fire on drag) */}
+      {isPortraitMode && (
+        <motion.div
+          onTap={() => setVideoTarget('hidden')}
           style={{
             position: 'absolute',
             inset: 0,
-            cursor: 'pointer',
+            cursor: 'grab',
             zIndex: 5,
           }}
         />
@@ -434,15 +479,17 @@ export const YouTubeIframe = memo(() => {
         </div>
       )}
 
-      {/* Portrait: tap hint */}
-      {videoTarget === 'portrait' && isPlaying && (
+      {/* Portrait: drag/tap hint */}
+      {isPortraitMode && (
         <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, textAlign: 'center', zIndex: 15, pointerEvents: 'none' }}>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 8 }}>Tap to close</p>
+          <p style={{ color: isDragging ? 'rgba(139,92,246,0.8)' : 'rgba(255,255,255,0.4)', fontSize: 8, transition: 'color 0.2s' }}>
+            {isDragging ? '📱 Rotate phone for FULL Vibes' : 'Drag to move • Tap to close'}
+          </p>
         </div>
       )}
 
       {/* No X button in landscape - LandscapeVOYO controls handle navigation */}
-    </div>
+    </motion.div>
   );
 });
 
