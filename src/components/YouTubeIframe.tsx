@@ -71,7 +71,6 @@ export const YouTubeIframe = memo(() => {
   const [showNowPlaying, setShowNowPlaying] = useState(false);
   const [showNextUp, setShowNextUp] = useState(false);
   const [showPortraitNextUp, setShowPortraitNextUp] = useState(false); // Full-cover thumbnail for portrait
-  const [isDragging, setIsDragging] = useState(false);
   const upcomingTrack = queue[0]?.track || null;
 
 
@@ -225,7 +224,6 @@ export const YouTubeIframe = memo(() => {
 
   // Fallback sync: When boosted, video should follow audio (not vice versa)
   // Only kicks in if drift exceeds threshold - YouTube rarely buffers
-  // NOTE: Don't include currentTime in deps - read it fresh each check
   useEffect(() => {
     if (playbackSource !== 'cached' || !isPlaying) return;
 
@@ -237,7 +235,7 @@ export const YouTubeIframe = memo(() => {
       if (!player?.getCurrentTime || !player?.seekTo) return;
 
       const videoTime = player.getCurrentTime() || 0;
-      const audioTime = usePlayerStore.getState().currentTime; // Read fresh from store
+      const audioTime = currentTime; // From store (audio is updating this)
       const drift = Math.abs(videoTime - audioTime);
 
       if (drift > DRIFT_THRESHOLD) {
@@ -247,7 +245,7 @@ export const YouTubeIframe = memo(() => {
     }, CHECK_INTERVAL);
 
     return () => clearInterval(syncInterval);
-  }, [playbackSource, isPlaying]);
+  }, [playbackSource, isPlaying, currentTime]);
 
   // Time update interval (only when streaming from iframe)
   useEffect(() => {
@@ -295,7 +293,6 @@ export const YouTubeIframe = memo(() => {
 
     if (videoTarget === 'portrait' && isPlaying) {
       // Center over BigCenterCard area
-      // NO transition - framer-motion handles drag, CSS transition causes bounce
       return {
         position: 'fixed',
         overflow: 'hidden',
@@ -312,13 +309,12 @@ export const YouTubeIframe = memo(() => {
     }
 
     // Hidden - offscreen for audio streaming
-    // Keep same size as portrait to prevent YouTube rebuffer on transition
     return {
       ...base,
-      bottom: '-300px',
-      right: '-300px',
-      width: '208px',
-      height: '208px',
+      bottom: '-200px',
+      right: '-200px',
+      width: '160px',
+      height: '90px',
       zIndex: -1,
       opacity: 0,
       pointerEvents: 'none',
@@ -349,8 +345,7 @@ export const YouTubeIframe = memo(() => {
       drag={isPortraitMode}
       dragMomentum={false}
       dragElastic={0}
-      onDragStart={() => setIsDragging(true)}
-      onDragEnd={() => setIsDragging(false)}
+      dragTransition={{ power: 0, timeConstant: 0 }}
       whileDrag={{ boxShadow: '0 25px 50px rgba(139, 92, 246, 0.5)' }}
     >
       {/* Video container */}
@@ -487,8 +482,8 @@ export const YouTubeIframe = memo(() => {
       {/* Portrait: drag/tap hint */}
       {isPortraitMode && !showPortraitNextUp && (
         <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, textAlign: 'center', zIndex: 15, pointerEvents: 'none' }}>
-          <p style={{ color: isDragging ? 'rgba(139,92,246,0.8)' : 'rgba(255,255,255,0.4)', fontSize: 8, transition: 'color 0.2s' }}>
-            {isDragging ? '📱 Rotate phone for FULL Vibes' : 'Drag to move • Tap to close'}
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 8 }}>
+            Drag • Tap to close
           </p>
         </div>
       )}
