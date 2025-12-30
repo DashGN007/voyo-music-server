@@ -2,9 +2,9 @@
  * VOYO Portal Chat - Dimensional Portal Messages
  *
  * Features:
- * - Real-time chat within a portal session
+ * - Real-time chat via Supabase Realtime
  * - Each user gets a unique color based on their username
- * - Messages persist during portal session
+ * - Messages persist for 2 hours (auto-cleanup)
  * - Smooth animations for new messages
  *
  * The vibe: You're in someone's musical dimension, chatting with other visitors
@@ -12,20 +12,13 @@
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, MessageCircle, X, Users } from 'lucide-react';
+import { Send, MessageCircle, X, Users, Wifi, WifiOff } from 'lucide-react';
 import { haptics } from '../../utils/haptics';
+import { portalChatAPI, PortalMessage, isSupabaseConfigured } from '../../lib/supabase';
 
 // ============================================================================
 // TYPES
 // ============================================================================
-
-export interface PortalMessage {
-  id: string;
-  username: string;
-  text: string;
-  timestamp: number;
-  color: string;
-}
 
 interface PortalChatProps {
   portalOwner: string;          // Whose portal we're in
@@ -76,38 +69,6 @@ function getUserColor(username: string): string {
 }
 
 // ============================================================================
-// LOCAL STORAGE CHAT (Temporary until Supabase chat table)
-// ============================================================================
-
-function getChatKey(portalOwner: string): string {
-  return `voyo_portal_chat_${portalOwner.toLowerCase()}`;
-}
-
-function loadMessages(portalOwner: string): PortalMessage[] {
-  try {
-    const stored = localStorage.getItem(getChatKey(portalOwner));
-    if (!stored) return [];
-    const messages = JSON.parse(stored);
-    // Filter messages older than 1 hour
-    const oneHourAgo = Date.now() - 60 * 60 * 1000;
-    return messages.filter((m: PortalMessage) => m.timestamp > oneHourAgo);
-  } catch {
-    return [];
-  }
-}
-
-function saveMessages(portalOwner: string, messages: PortalMessage[]): void {
-  try {
-    // Only keep last 100 messages
-    const trimmed = messages.slice(-100);
-    localStorage.setItem(getChatKey(portalOwner), JSON.stringify(trimmed));
-  } catch {
-    // Storage full, clear old data
-    localStorage.removeItem(getChatKey(portalOwner));
-  }
-}
-
-// ============================================================================
 // CHAT MESSAGE COMPONENT
 // ============================================================================
 
@@ -117,7 +78,7 @@ interface ChatMessageProps {
 }
 
 const ChatMessage = memo(({ message, isOwnMessage }: ChatMessageProps) => {
-  const timeAgo = getTimeAgo(message.timestamp);
+  const timeAgo = getTimeAgo(new Date(message.created_at).getTime());
 
   return (
     <motion.div
@@ -128,9 +89,9 @@ const ChatMessage = memo(({ message, isOwnMessage }: ChatMessageProps) => {
       {/* Username with color */}
       <span
         className="text-xs font-medium mb-1"
-        style={{ color: message.color }}
+        style={{ color: message.sender_color }}
       >
-        {message.username}
+        {message.sender}
         <span className="text-white/30 ml-2 font-normal">{timeAgo}</span>
       </span>
 
@@ -143,12 +104,12 @@ const ChatMessage = memo(({ message, isOwnMessage }: ChatMessageProps) => {
         }`}
         style={{
           background: isOwnMessage
-            ? `linear-gradient(135deg, ${message.color}40 0%, ${message.color}20 100%)`
+            ? `linear-gradient(135deg, ${message.sender_color}40 0%, ${message.sender_color}20 100%)`
             : 'rgba(255,255,255,0.1)',
-          borderLeft: isOwnMessage ? 'none' : `3px solid ${message.color}`,
+          borderLeft: isOwnMessage ? 'none' : `3px solid ${message.sender_color}`,
         }}
       >
-        <p className="text-white text-sm">{message.text}</p>
+        <p className="text-white text-sm">{message.message}</p>
       </div>
     </motion.div>
   );
@@ -170,26 +131,42 @@ export const PortalChat = memo(({ portalOwner, currentUser, isPortalOpen, onClos
   const [messages, setMessages] = useState<PortalMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isMinimized, setIsMinimized] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const subscriptionRef = useRef<any>(null);
 
   // Get current user's color
   const userColor = getUserColor(currentUser);
 
-  // Load messages on mount
+  // Load initial messages and subscribe to realtime
   useEffect(() => {
-    if (!isPortalOpen) return;
+    if (!isPortalOpen || !isSupabaseConfigured) return;
 
-    const loaded = loadMessages(portalOwner);
-    setMessages(loaded);
+    // Load existing messages
+    const loadMessages = async () => {
+      const existing = await portalChatAPI.getMessages(portalOwner);
+      setMessages(existing);
+      setIsConnected(true);
+    };
+    loadMessages();
 
-    // Poll for new messages (until we add Supabase realtime)
-    const pollInterval = setInterval(() => {
-      const fresh = loadMessages(portalOwner);
-      setMessages(fresh);
-    }, 2000);
+    // Subscribe to new messages
+    subscriptionRef.current = portalChatAPI.subscribe(portalOwner, (newMessage) => {
+      setMessages((prev) => {
+        // Avoid duplicates
+        if (prev.some((m) => m.id === newMessage.id)) return prev;
+        return [...prev, newMessage];
+      });
+    });
 
-    return () => clearInterval(pollInterval);
+    return () => {
+      if (subscriptionRef.current) {
+        portalChatAPI.unsubscribe(subscriptionRef.current);
+        subscriptionRef.current = null;
+      }
+    };
   }, [portalOwner, isPortalOpen]);
 
   // Scroll to bottom on new messages
@@ -200,23 +177,41 @@ export const PortalChat = memo(({ portalOwner, currentUser, isPortalOpen, onClos
   }, [messages, isMinimized]);
 
   // Send message
-  const handleSend = useCallback(() => {
-    if (!inputText.trim() || !currentUser) return;
+  const handleSend = useCallback(async () => {
+    if (!inputText.trim() || !currentUser || isSending) return;
 
-    const newMessage: PortalMessage = {
-      id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
-      username: currentUser,
-      text: inputText.trim(),
-      timestamp: Date.now(),
-      color: userColor,
-    };
-
-    const updatedMessages = [...messages, newMessage];
-    setMessages(updatedMessages);
-    saveMessages(portalOwner, updatedMessages);
+    const messageText = inputText.trim();
     setInputText('');
+    setIsSending(true);
     haptics.light();
-  }, [inputText, currentUser, userColor, messages, portalOwner]);
+
+    // Optimistic update - add message immediately
+    const optimisticMessage: PortalMessage = {
+      id: `temp-${Date.now()}`,
+      portal_owner: portalOwner,
+      sender: currentUser,
+      sender_color: userColor,
+      message: messageText,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMessage]);
+
+    // Send to Supabase
+    const success = await portalChatAPI.sendMessage(
+      portalOwner,
+      currentUser,
+      userColor,
+      messageText
+    );
+
+    if (!success) {
+      // Remove optimistic message on failure
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id));
+      setInputText(messageText); // Restore input
+    }
+
+    setIsSending(false);
+  }, [inputText, currentUser, userColor, portalOwner, isSending]);
 
   // Handle enter key
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
@@ -227,6 +222,22 @@ export const PortalChat = memo(({ portalOwner, currentUser, isPortalOpen, onClos
   }, [handleSend]);
 
   if (!isPortalOpen) return null;
+
+  // Offline fallback
+  if (!isSupabaseConfigured) {
+    return (
+      <motion.div
+        className="fixed bottom-24 right-4 z-50 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        <span className="text-white/50 text-sm flex items-center gap-2">
+          <WifiOff size={16} />
+          Chat offline
+        </span>
+      </motion.div>
+    );
+  }
 
   // Minimized state - just a floating button
   if (isMinimized) {
@@ -252,6 +263,12 @@ export const PortalChat = memo(({ portalOwner, currentUser, isPortalOpen, onClos
             {messages.length > 9 ? '9+' : messages.length}
           </span>
         )}
+        {/* Connection indicator */}
+        <span
+          className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-black ${
+            isConnected ? 'bg-green-500' : 'bg-yellow-500'
+          }`}
+        />
       </motion.button>
     );
   }
@@ -279,6 +296,9 @@ export const PortalChat = memo(({ portalOwner, currentUser, isPortalOpen, onClos
           <span className="text-white font-semibold text-sm">
             {portalOwner}'s Portal
           </span>
+          {isConnected && (
+            <Wifi size={14} className="text-green-400" />
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -325,7 +345,7 @@ export const PortalChat = memo(({ portalOwner, currentUser, isPortalOpen, onClos
               <ChatMessage
                 key={msg.id}
                 message={msg}
-                isOwnMessage={msg.username === currentUser}
+                isOwnMessage={msg.sender === currentUser}
               />
             ))}
           </AnimatePresence>
@@ -346,20 +366,21 @@ export const PortalChat = memo(({ portalOwner, currentUser, isPortalOpen, onClos
           onKeyPress={handleKeyPress}
           placeholder={`Message ${portalOwner}'s portal...`}
           className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-sm placeholder-white/40 focus:outline-none focus:border-purple-500/50"
-          maxLength={200}
+          maxLength={500}
+          disabled={isSending}
         />
         <motion.button
           className="w-10 h-10 rounded-xl flex items-center justify-center"
           style={{
-            background: inputText.trim()
+            background: inputText.trim() && !isSending
               ? `linear-gradient(135deg, ${userColor} 0%, ${userColor}80 100%)`
               : 'rgba(255,255,255,0.1)',
           }}
           whileTap={{ scale: 0.95 }}
           onClick={handleSend}
-          disabled={!inputText.trim()}
+          disabled={!inputText.trim() || isSending}
         >
-          <Send size={18} className="text-white" />
+          <Send size={18} className={isSending ? 'text-white/50 animate-pulse' : 'text-white'} />
         </motion.button>
       </div>
     </motion.div>

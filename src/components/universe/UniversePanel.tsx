@@ -566,7 +566,7 @@ export const UniversePanel = ({ isOpen, onClose }: UniversePanelProps) => {
                         voyomusic.com/{currentUsername}
                       </code>
                       <button
-                        onClick={() => handleCopy(`https://voyomusic.com/${currentUsername}`)}
+                        onClick={() => handleCopy(`${window.location.origin}/${currentUsername}`)}
                         className="p-2 rounded-lg bg-white/10 hover:bg-white/20"
                       >
                         {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-white/70" />}

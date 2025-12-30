@@ -493,6 +493,102 @@ export const followsAPI = {
 };
 
 // ============================================
+// PORTAL CHAT API - Real-time messaging
+// ============================================
+
+export interface PortalMessage {
+  id: string;
+  portal_owner: string;
+  sender: string;
+  sender_color: string;
+  message: string;
+  created_at: string;
+}
+
+export const portalChatAPI = {
+  /**
+   * Get recent messages for a portal (last 2 hours)
+   */
+  async getMessages(portalOwner: string, limit = 50): Promise<PortalMessage[]> {
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
+      .from('portal_messages')
+      .select('*')
+      .eq('portal_owner', portalOwner.toLowerCase())
+      .order('created_at', { ascending: true })
+      .limit(limit);
+
+    if (error) {
+      console.error('[VOYO] Failed to fetch portal messages:', error);
+      return [];
+    }
+
+    return data || [];
+  },
+
+  /**
+   * Send a message to a portal
+   */
+  async sendMessage(
+    portalOwner: string,
+    sender: string,
+    senderColor: string,
+    message: string
+  ): Promise<boolean> {
+    if (!supabase) return false;
+
+    const { error } = await supabase.from('portal_messages').insert({
+      portal_owner: portalOwner.toLowerCase(),
+      sender,
+      sender_color: senderColor,
+      message: message.slice(0, 500), // Max 500 chars
+    });
+
+    if (error) {
+      console.error('[VOYO] Failed to send portal message:', error);
+      return false;
+    }
+
+    return true;
+  },
+
+  /**
+   * Subscribe to portal messages (real-time)
+   */
+  subscribe(
+    portalOwner: string,
+    onMessage: (message: PortalMessage) => void
+  ) {
+    if (!supabase) return null;
+
+    return supabase
+      .channel(`portal_chat:${portalOwner.toLowerCase()}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'portal_messages',
+          filter: `portal_owner=eq.${portalOwner.toLowerCase()}`,
+        },
+        (payload) => {
+          onMessage(payload.new as PortalMessage);
+        }
+      )
+      .subscribe();
+  },
+
+  /**
+   * Unsubscribe from portal chat
+   */
+  unsubscribe(channel: any) {
+    if (!supabase || !channel) return;
+    supabase.removeChannel(channel);
+  },
+};
+
+// ============================================
 // LYRICS API - Phonetic Lyrics Storage
 // ============================================
 
