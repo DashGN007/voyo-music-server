@@ -681,10 +681,8 @@ export const LandscapeVOYO = ({ onVideoMode }: LandscapeVOYOProps) => {
   };
 
   return (
-    <div className="relative w-full h-full bg-black overflow-hidden">
-      {/* LAYER 1: Video plays via AudioPlayer iframe (positioned by setVideoTarget) */}
-      {/* The AudioPlayer's iframe is set to 'landscape' mode and appears fullscreen here */}
-      <div className="absolute inset-0 z-0 bg-black" />
+    <div className="fixed inset-0 overflow-hidden z-50">
+      {/* Video plays via YouTubeIframe at z-40 underneath this transparent overlay */}
 
       {/* LAYER 2: Tap Detection Area (invisible) */}
       <div

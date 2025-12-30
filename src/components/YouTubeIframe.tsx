@@ -253,7 +253,7 @@ export const YouTubeIframe = memo(() => {
       return {
         ...base,
         inset: 0,
-        zIndex: 100,
+        zIndex: 40,
       };
     }
 
@@ -268,6 +268,8 @@ export const YouTubeIframe = memo(() => {
         height: '208px',
         borderRadius: '2rem',
         zIndex: 50,
+        opacity: 1,
+        transition: 'opacity 0.4s ease-out',
       };
     }
 
@@ -279,8 +281,9 @@ export const YouTubeIframe = memo(() => {
       width: '160px',
       height: '90px',
       zIndex: -1,
-      opacity: 0.01,
+      opacity: 0,
       pointerEvents: 'none',
+      transition: 'opacity 0.15s ease-out',
     };
   };
 
@@ -318,27 +321,47 @@ export const YouTubeIframe = memo(() => {
         />
       )}
 
-      {/* Purple gradient overlays */}
+      {/* Purple overlays */}
       {showOverlays && (
         <>
+          {/* Gentle full-card purple tint */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              pointerEvents: 'none',
+              zIndex: 9,
+              background: 'rgba(139, 92, 246, 0.04)',
+            }}
+          />
+          {/* Top gradient */}
           <div
             style={{
               position: 'absolute',
               inset: 0,
               pointerEvents: 'none',
               zIndex: 10,
-              background: 'linear-gradient(to bottom, rgba(88,28,135,0.8) 0%, transparent 35%)',
+              background: 'linear-gradient(to bottom, rgba(88,28,135,0.7) 0%, transparent 30%)',
+              animation: 'fadeIn 1s ease-out',
             }}
           />
+          {/* Bottom gradient */}
           <div
             style={{
               position: 'absolute',
               inset: 0,
               pointerEvents: 'none',
               zIndex: 10,
-              background: 'linear-gradient(to top, rgba(88,28,135,0.9) 0%, transparent 40%)',
+              background: 'linear-gradient(to top, rgba(88,28,135,0.8) 0%, transparent 35%)',
+              animation: 'fadeIn 1s ease-out',
             }}
           />
+          <style>{`
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+          `}</style>
         </>
       )}
 
@@ -418,31 +441,7 @@ export const YouTubeIframe = memo(() => {
         </div>
       )}
 
-      {/* Landscape: expand button for portrait, close button for landscape */}
-      {videoTarget === 'landscape' && (
-        <button
-          onClick={() => setVideoTarget('hidden')}
-          style={{
-            position: 'absolute',
-            top: 16,
-            right: 16,
-            zIndex: 20,
-            background: 'rgba(0,0,0,0.6)',
-            border: 'none',
-            borderRadius: '50%',
-            width: 40,
-            height: 40,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            color: 'white',
-            fontSize: 20,
-          }}
-        >
-          ✕
-        </button>
-      )}
+      {/* No X button in landscape - LandscapeVOYO controls handle navigation */}
     </div>
   );
 });

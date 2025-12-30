@@ -13,7 +13,7 @@ import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
 import { motion, AnimatePresence, useInView, TargetAndTransition } from 'framer-motion';
 import {
   Play, Pause, SkipForward, SkipBack, Zap, Flame, Plus, Film, Settings, Heart,
-  Shuffle, Repeat, Repeat1, Share2, Mic, X
+  Shuffle, Repeat, Repeat1, Share2, Mic, Mic2, X
 } from 'lucide-react';
 import { usePlayerStore } from '../../store/playerStore';
 import { useIntentStore, VibeMode } from '../../store/intentStore';
@@ -1795,16 +1795,12 @@ StreamCard.displayName = 'StreamCard';
 // BIG CENTER CARD (NOW PLAYING - Canva-style purple fade with premium typography)
 // TAP ALBUM ART FOR LYRICS VIEW | VIDEO HANDLED BY GLOBAL IFRAME
 // ============================================
-const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics }: {
+const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics, hideThumb }: {
   track: Track;
   onExpandVideo?: () => void;
   onShowLyrics?: () => void;
+  hideThumb?: boolean;
 }) => {
-  // Single iframe architecture:
-  // - Thumbnail always visible here
-  // - Global YouTubeIframe overlays this area when videoTarget='portrait'
-  // - No duplicate iframes
-
   return (
   <motion.div
     className="relative w-52 h-52 md:w-60 md:h-60 rounded-[2rem] overflow-hidden z-20 group"
@@ -1812,12 +1808,21 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics }: {
       boxShadow: '0 25px 60px -12px rgba(0,0,0,0.9), 0 0 50px rgba(139,92,246,0.2), 0 0 100px rgba(139,92,246,0.1)',
     }}
     initial={{ scale: 0.95, opacity: 0 }}
-    animate={{ scale: 1, opacity: 1 }}
-    transition={springs.ultraSmooth}
+    animate={{
+      scale: hideThumb ? 0.94 : 1,
+      opacity: hideThumb ? 0 : 1
+    }}
+    transition={hideThumb ? {
+      duration: 0.5,
+      ease: [0.16, 1, 0.3, 1]
+    } : {
+      duration: 0.2,
+      ease: 'easeOut'
+    }}
     whileHover={{ scale: 1.02 }}
     key={track.id}
   >
-    {/* THUMBNAIL - always visible, video overlays from global iframe */}
+    {/* THUMBNAIL */}
     <div
       onClick={onShowLyrics}
       className="absolute inset-0 cursor-pointer z-10"
@@ -1827,7 +1832,7 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics }: {
       <SmartImage
         src={getTrackThumbnailUrl(track, 'high')}
         alt={track.title}
-        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+        className="w-full h-full object-cover transition-transform duration-700 scale-110 group-hover:scale-125"
         trackId={track.trackId}
         artist={track.artist}
         title={track.title}
@@ -1840,8 +1845,8 @@ const BigCenterCard = memo(({ track, onExpandVideo, onShowLyrics }: {
       />
       {/* Lyrics hint icon */}
       {onShowLyrics && (
-        <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <span className="text-white text-xs">📝</span>
+        <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-sm rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Mic2 size={14} className="text-white" />
         </div>
       )}
     </div>
@@ -4571,6 +4576,7 @@ export const VoyoPortraitPlayer = ({
               track={currentTrack}
               onExpandVideo={() => setVideoTarget('portrait')}
               onShowLyrics={() => setShowLyricsOverlay(true)}
+              hideThumb={videoTarget === 'portrait'}
             />
           ) : (
             <div className="w-48 h-48 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center">
