@@ -11,7 +11,9 @@ import {
 } from 'lucide-react';
 import { UniversePanel } from '../universe/UniversePanel';
 import { usePlayerStore } from '../../store/playerStore';
+import { useUniverseStore } from '../../store/universeStore';
 import { getYouTubeThumbnail } from '../../data/tracks';
+import { DirectMessageChat } from '../chat/DirectMessageChat';
 
 // Premium avatar images
 // TODO: Replace dash with actual profile photo when available
@@ -379,9 +381,17 @@ export const Hub = ({ onOpenProfile }: HubProps) => {
   const [noteInput, setNoteInput] = useState('');
   const [messageTab, setMessageTab] = useState<'all' | 'unread' | 'stories'>('all');
   const [isUniverseOpen, setIsUniverseOpen] = useState(false);
+  const [activeChat, setActiveChat] = useState<{
+    username: string;
+    displayName: string;
+    avatar: string | null;
+  } | null>(null);
 
   // Connect to real player state
   const { currentTrack, queue } = usePlayerStore();
+
+  // Get current logged in user
+  const { currentUsername } = useUniverseStore();
   const myNowPlaying = currentTrack ? { title: currentTrack.title, artist: currentTrack.artist } : null;
   const nextTrack = queue[0] || null;
 
@@ -403,6 +413,19 @@ export const Hub = ({ onOpenProfile }: HubProps) => {
       {/* Story Viewer */}
       <AnimatePresence>
         {selectedFriend && <StoryViewer friend={selectedFriend} onClose={() => setSelectedFriend(null)} />}
+      </AnimatePresence>
+
+      {/* Direct Message Chat */}
+      <AnimatePresence>
+        {activeChat && currentUsername && (
+          <DirectMessageChat
+            currentUser={currentUsername}
+            otherUser={activeChat.username}
+            otherUserDisplayName={activeChat.displayName}
+            otherUserAvatar={activeChat.avatar}
+            onBack={() => setActiveChat(null)}
+          />
+        )}
       </AnimatePresence>
 
       {/* Universe Panel */}
@@ -827,6 +850,11 @@ export const Hub = ({ onOpenProfile }: HubProps) => {
                   key={msg.id}
                   className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-white/[0.03] active:bg-white/[0.04] transition-colors"
                   whileTap={{ scale: 0.98 }}
+                  onClick={() => setActiveChat({
+                    username: msg.friendId,
+                    displayName: msg.friendName,
+                    avatar: msg.friendAvatar,
+                  })}
                 >
                   {/* Circle avatar */}
                   <div className="relative flex-shrink-0">
