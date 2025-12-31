@@ -20,6 +20,9 @@ import {
   type ParsedLyricLine,
 } from './lrclib';
 
+import { getGeniusLyrics, type GeniusResult } from './geniusScraper';
+import { fetchByYoutubeId as fetchSyncedLyrics, type SyncedLyricsResult } from './syncedLyricsService';
+
 import {
   type PhoneticLyrics,
   type LyricSegment,
@@ -152,6 +155,107 @@ export async function fetchLyricsSimple(
 }
 
 /**
+ * Convert SyncedLyrics backend result to EnrichedLyrics format
+ */
+function syncedResultToEnriched(synced: SyncedLyricsResult, track: Track): EnrichedLyrics {
+  const translated: TranslatedSegment[] = synced.lines.map((line, i) => {
+    const nextLine = synced.lines[i + 1];
+    return {
+      startTime: line.time,
+      endTime: nextLine ? nextLine.time : line.time + 5,
+      original: line.text,
+      phonetic: line.text,
+      translations: [],
+      isVerified: true,
+    };
+  });
+
+  const phonetic: PhoneticLyrics = {
+    trackId: track.id,
+    originalText: synced.plain || synced.lines.map(l => l.text).join('\n'),
+    cleanedText: synced.plain || synced.lines.map(l => l.text).join('\n'),
+    segments: synced.lines.map((line, i) => {
+      const nextLine = synced.lines[i + 1];
+      return {
+        startTime: line.time,
+        endTime: nextLine ? nextLine.time : line.time + 5,
+        text: line.text,
+        phonetic: line.text,
+      };
+    }),
+    language: 'en',
+    confidence: 0.95,
+    generatedAt: new Date(),
+    polishedBy: ['syncedlyrics-community'],
+  };
+
+  return {
+    trackId: track.id,
+    trackTitle: track.title,
+    artist: track.artist,
+    phonetic,
+    translated,
+    language: 'en',
+    confidence: 0.95,
+    generatedAt: new Date(),
+    polishedBy: ['syncedlyrics-community'],
+    approvedBy: [],
+    reportedIssues: [],
+    translationCoverage: 0,
+    communityScore: 95,
+  };
+}
+
+/**
+ * Convert Genius result to EnrichedLyrics format (plain text, no sync)
+ */
+function geniusResultToEnriched(genius: GeniusResult, track: Track): EnrichedLyrics {
+  const lines = (genius.lyrics || '').split('\n').filter(l => l.trim());
+
+  // Create segments from lines (no timing, estimate 3s per line)
+  const translated: TranslatedSegment[] = lines.map((line, i) => ({
+    startTime: i * 3,
+    endTime: (i + 1) * 3,
+    original: line,
+    phonetic: line,
+    translations: [],
+    isVerified: false,
+  }));
+
+  const phonetic: PhoneticLyrics = {
+    trackId: track.id,
+    originalText: genius.lyrics || '',
+    cleanedText: genius.lyrics || '',
+    segments: lines.map((line, i) => ({
+      startTime: i * 3,
+      endTime: (i + 1) * 3,
+      text: line,
+      phonetic: line,
+    })),
+    language: 'en',
+    confidence: 0.9,
+    generatedAt: new Date(),
+    polishedBy: ['genius'],
+  };
+
+  return {
+    trackId: track.id,
+    trackTitle: track.title,
+    artist: track.artist,
+    phonetic,
+    translated,
+    language: 'en',
+    confidence: 0.9,
+    generatedAt: new Date(),
+    polishedBy: ['genius'],
+    approvedBy: [],
+    reportedIssues: [],
+    translationCoverage: 0,
+    communityScore: 80,
+  };
+}
+
+/**
  * Convert LRCLIB result to EnrichedLyrics format
  */
 function lrcResultToEnriched(lrc: LRCLibResult, track: Track): EnrichedLyrics {
@@ -229,9 +333,20 @@ export async function generateLyrics(
 
   try {
     // =====================================
+    // PRIORITY 0: SYNCED LYRICS BACKEND (Best African coverage)
+    // =====================================
+    updateProgress('fetching', 5, 'Checking syncedlyrics (community sources)...');
+    const syncedResult = await fetchSyncedLyrics(track.id, track.title, track.artist);
+
+    if (syncedResult.found && syncedResult.lines.length > 0) {
+      updateProgress('complete', 100, `Found via syncedlyrics! ${syncedResult.lines.length} synced lines`);
+      return syncedResultToEnriched(syncedResult, track);
+    }
+
+    // =====================================
     // PRIORITY 1: LRCLIB (FREE, INSTANT!)
     // =====================================
-    updateProgress('fetching', 5, 'Checking LRCLIB (free lyrics database)...');
+    updateProgress('fetching', 10, 'Checking LRCLIB (free lyrics database)...');
     const lrcResult = await getLRCLibLyrics(track.title, track.artist, track.duration);
 
     if (lrcResult.found && lrcResult.lines) {
@@ -270,7 +385,44 @@ export async function generateLyrics(
     }
 
     // =====================================
-    // PRIORITY 2: LOCAL CACHE
+    // PRIORITY 2: GENIUS SCRAPER (Grey Zone - Best African coverage)
+    // =====================================
+    updateProgress('fetching', 20, 'Checking Genius (African music)...');
+    const geniusResult = await getGeniusLyrics(track.title, track.artist);
+
+    if (geniusResult.found && geniusResult.lyrics) {
+      updateProgress('complete', 100, `Found on Genius! ${geniusResult.lyrics.length} chars`);
+
+      const enriched = geniusResultToEnriched(geniusResult, track);
+
+      // Cache to Supabase
+      if (isSupabaseConfigured) {
+        lyricsAPI.save({
+          track_id: track.id,
+          title: track.title,
+          artist: track.artist,
+          phonetic_raw: geniusResult.lyrics,
+          phonetic_clean: geniusResult.lyrics,
+          language: 'en',
+          confidence: 0.9,
+          segments: enriched.translated.map(seg => ({
+            start: seg.startTime,
+            end: seg.endTime,
+            text: seg.original,
+            phonetic: seg.phonetic,
+          })),
+          translations: {},
+          status: 'raw',
+          polished_by: ['genius'],
+          verified_by: null,
+        }).catch(() => {});
+      }
+
+      return enriched;
+    }
+
+    // =====================================
+    // PRIORITY 3: LOCAL CACHE
     // =====================================
     // Check Supabase first (persistent cache), then localStorage (offline fallback)
     if (isSupabaseConfigured) {
