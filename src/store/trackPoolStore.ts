@@ -365,11 +365,38 @@ export const useTrackPoolStore = create<TrackPoolStore>()(
           const newColdPool = state.coldPool.filter((t) => !matchingIds.has(t.id));
           const recovered = matching.map((t) => ({ ...t, isHot: true, isCold: false, poolScore: 50 }));
 
+          console.log(`[VOYO Pool] Recovered ${recovered.length} tracks from cold pool`);
+
           return {
             hotPool: [...state.hotPool, ...recovered],
             coldPool: newColdPool,
           };
         });
+
+        // ASYNC: Filter out disliked tracks after recovery (preference-aware refinement)
+        import('../store/preferenceStore').then(({ usePreferenceStore }) => {
+          const state = get();
+          const preferences = usePreferenceStore.getState().trackPreferences;
+
+          // Remove any explicitly disliked tracks from the hot pool
+          const filtered = state.hotPool.filter(
+            (t) => preferences[t.id]?.explicitLike !== false
+          );
+
+          if (filtered.length < state.hotPool.length) {
+            const removed = state.hotPool.length - filtered.length;
+            console.log(`[VOYO Pool] Removed ${removed} disliked tracks from recovered batch`);
+
+            set({
+              hotPool: filtered,
+              // Move removed tracks back to cold pool
+              coldPool: [
+                ...state.coldPool,
+                ...state.hotPool.filter((t) => !filtered.includes(t))
+              ],
+            });
+          }
+        }).catch(() => {});
       },
 
       // =====================================
@@ -378,9 +405,12 @@ export const useTrackPoolStore = create<TrackPoolStore>()(
 
       getHotTracks: (limit) => {
         const state = get();
+        // Add randomization to prevent same order every time
         return [...state.hotPool]
-          .sort((a, b) => b.poolScore - a.poolScore)
-          .slice(0, limit);
+          .map(t => ({ track: t, score: t.poolScore + Math.random() * 5 }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, limit)
+          .map(s => s.track);
       },
 
       getTracksForMode: (modeId, limit) => {
@@ -400,9 +430,19 @@ export const useTrackPoolStore = create<TrackPoolStore>()(
           mood: currentTrack.mood,
         });
 
+        // BUILD EXCLUSION SET: Exclude current track by both id and trackId
+        const excludeSet = new Set<string>();
+        excludeSet.add(currentTrack.id);
+        if (currentTrack.trackId) excludeSet.add(currentTrack.trackId);
+
         // Prioritize same mode, then similar, then high score
         const scored = state.hotPool
-          .filter((t) => t.id !== currentTrack.id)
+          .filter((t) => {
+            // Check both id and trackId for thorough deduplication
+            if (excludeSet.has(t.id)) return false;
+            if (t.trackId && excludeSet.has(t.trackId)) return false;
+            return true;
+          })
           .map((t) => {
             let score = t.poolScore;
 
@@ -412,11 +452,39 @@ export const useTrackPoolStore = create<TrackPoolStore>()(
             // Boost same artist
             if (t.artist.toLowerCase() === currentTrack.artist.toLowerCase()) score += 30;
 
+            // RANDOMIZATION: Add small jitter to prevent same order every time
+            score += Math.random() * 8; // Up to 8 points of randomness for variety
+
             return { track: t, score };
           })
           .sort((a, b) => b.score - a.score);
 
-        return scored.slice(0, limit).map((s) => s.track);
+        // Apply diversity: Don't return all from same artist
+        const result: PooledTrack[] = [];
+        const artistCount: Record<string, number> = {};
+
+        for (const { track } of scored) {
+          if (result.length >= limit) break;
+
+          const artistLower = track.artist.toLowerCase();
+          const count = artistCount[artistLower] || 0;
+
+          // Limit max 2 tracks per artist for variety
+          if (count >= 2) continue;
+
+          result.push(track);
+          artistCount[artistLower] = count + 1;
+        }
+
+        // Fill remaining if needed
+        for (const { track } of scored) {
+          if (result.length >= limit) break;
+          if (!result.some(r => r.id === track.id)) {
+            result.push(track);
+          }
+        }
+
+        return result;
       },
 
       // =====================================

@@ -32,6 +32,7 @@ import {
 } from '../services/personalization';
 import { BitrateLevel, BufferStatus } from '../services/audioEngine';
 import { prefetchTrack } from '../services/api';
+import { isKnownUnplayable } from '../services/trackVerifier';
 
 // Network quality types
 type NetworkQuality = 'slow' | 'medium' | 'fast' | 'unknown';
@@ -522,75 +523,158 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       }
     }
 
-    // Check queue first
+    // Check queue first - filter out any unplayable tracks
     if (state.queue.length > 0) {
-      const [next, ...rest] = state.queue;
-      if (state.currentTrack && state.currentTime > 5) {
-        get().addToHistory(state.currentTrack, state.currentTime);
+      // FIX 6: Skip any known unplayable tracks in queue
+      let queueToProcess = state.queue;
+      let nextPlayable: QueueItem | null = null;
+      let rest: QueueItem[] = [];
+
+      while (queueToProcess.length > 0 && !nextPlayable) {
+        const [candidate, ...remaining] = queueToProcess;
+        if (candidate.track.trackId && isKnownUnplayable(candidate.track.trackId)) {
+          console.warn(`[PlayerStore] Skipping unplayable track in queue: ${candidate.track.title}`);
+          queueToProcess = remaining;
+        } else {
+          nextPlayable = candidate;
+          rest = remaining;
+        }
       }
-      // POOL ENGAGEMENT: Record play for next track
-      recordPoolEngagement(next.track.id, 'play');
 
-      // INSTANT SKIP: Prefetch the next track in queue for even faster loading
-      if (rest.length > 0 && rest[0].track.trackId) {
-        prefetchTrack(rest[0].track.trackId);
-      }
+      // If no playable track found in queue, fall through to other sources
+      if (!nextPlayable) {
+        console.log('[PlayerStore] No playable tracks in queue, trying other sources...');
+        set({ queue: [] }); // Clear the dead queue
+      } else {
+        if (state.currentTrack && state.currentTime > 5) {
+          get().addToHistory(state.currentTrack, state.currentTime);
+        }
+        // POOL ENGAGEMENT: Record play for next track
+        recordPoolEngagement(nextPlayable.track.id, 'play');
 
-      set({
-        currentTrack: next.track,
-        queue: rest,
-        isPlaying: true,
-        progress: 0,
-        currentTime: 0,
-        seekPosition: null, // Clear seek position
-        // SKEEP FIX: Reset playback rate when changing tracks
-        playbackRate: 1,
-        isSkeeping: false,
-      });
+        // INSTANT SKIP: Prefetch the next track in queue for even faster loading
+        if (rest.length > 0 && rest[0].track.trackId) {
+          prefetchTrack(rest[0].track.trackId);
+        }
 
-      // FIX 3: Persist queue after consuming track
-      setTimeout(() => {
-        const state = get();
-        const current = loadPersistedState();
-        savePersistedState({
-          ...current,
-          queue: state.queue.map(q => ({
-            trackId: q.track.id,
-            addedAt: q.addedAt,
-            source: q.source,
-          })),
+        set({
+          currentTrack: nextPlayable.track,
+          queue: rest,
+          isPlaying: true,
+          progress: 0,
+          currentTime: 0,
+          seekPosition: null, // Clear seek position
+          // SKEEP FIX: Reset playback rate when changing tracks
+          playbackRate: 1,
+          isSkeeping: false,
         });
-      }, 100);
 
-      return;
+        // FIX 3: Persist queue after consuming track
+        setTimeout(() => {
+          const state = get();
+          const current = loadPersistedState();
+          savePersistedState({
+            ...current,
+            queue: state.queue.map(q => ({
+              trackId: q.track.id,
+              addedAt: q.addedAt,
+              source: q.source,
+            })),
+          });
+        }, 100);
+
+        return;
+      }
     }
 
-    // Queue is empty - check repeat all mode
+    // Queue is empty or all tracks unplayable - check repeat all mode
     if (state.repeatMode === 'all' && state.history.length > 0) {
-      // Restart from the first track in history
-      const firstTrack = state.history[0].track;
+      // REPEAT ALL FIX: Rebuild queue from history and play first track
+      // This ensures proper looping through all played tracks
       if (state.currentTrack && state.currentTime > 5) {
         get().addToHistory(state.currentTrack, state.currentTime);
       }
-      set({
-        currentTrack: firstTrack,
-        isPlaying: true,
-        progress: 0,
-        currentTime: 0,
-        seekPosition: null, // Clear seek position
-        // SKEEP FIX: Reset playback rate when changing tracks
-        playbackRate: 1,
-        isSkeeping: false,
-      });
-      return;
+
+      // Get all unique tracks from history (in order played)
+      const historyTracks = state.history.map(h => h.track);
+      const uniqueTracks: Track[] = [];
+      const seenIds = new Set<string>();
+      for (const track of historyTracks) {
+        const trackId = track.id || track.trackId;
+        if (trackId && !seenIds.has(trackId)) {
+          seenIds.add(trackId);
+          uniqueTracks.push(track);
+        }
+      }
+
+      if (uniqueTracks.length > 0) {
+        // Play first track, queue the rest
+        const [firstTrack, ...restTracks] = uniqueTracks;
+        const newQueue: QueueItem[] = restTracks.map(track => ({
+          track,
+          addedAt: new Date().toISOString(),
+          source: 'auto' as const,
+        }));
+
+        set({
+          currentTrack: firstTrack,
+          queue: newQueue,
+          isPlaying: true,
+          progress: 0,
+          currentTime: 0,
+          seekPosition: null,
+          playbackRate: 1,
+          isSkeeping: false,
+        });
+        return;
+      }
     }
 
     // Pick next track - shuffle mode or regular discovery
-    const availableTracks = state.discoverTracks.length > 0
+    // BUILD EXCLUSION SET: Recent history + current track to avoid repeats
+    const currentTrackId = state.currentTrack?.id || state.currentTrack?.trackId;
+    const recentHistoryIds = new Set<string>();
+
+    // Add last 20 played tracks to exclusion (check both id and trackId)
+    state.history.slice(-20).forEach(h => {
+      if (h.track.id) recentHistoryIds.add(h.track.id);
+      if (h.track.trackId) recentHistoryIds.add(h.track.trackId);
+    });
+
+    // CRITICAL: Always exclude the current track to prevent immediate replay
+    if (currentTrackId) {
+      recentHistoryIds.add(currentTrackId);
+    }
+    if (state.currentTrack?.trackId) {
+      recentHistoryIds.add(state.currentTrack.trackId);
+    }
+
+    // Filter available tracks to exclude recently played
+    const allAvailable = state.discoverTracks.length > 0
       ? state.discoverTracks
       : state.hotTracks.length > 0
       ? state.hotTracks
       : TRACKS;
+
+    // DEDUPLICATION: Remove recently played tracks (check both id and trackId)
+    let availableTracks = allAvailable.filter(t =>
+      !recentHistoryIds.has(t.id) && !recentHistoryIds.has(t.trackId)
+    );
+
+    // Fallback: If all filtered out, use originals BUT still exclude current track
+    if (availableTracks.length === 0) {
+      availableTracks = allAvailable.filter(t => {
+        const tid = t.id || t.trackId;
+        return tid !== currentTrackId;
+      });
+      // Shuffle for variety
+      availableTracks = availableTracks.sort(() => Math.random() - 0.5);
+    }
+
+    // LAST RESORT: If somehow still empty, use all but shuffle
+    if (availableTracks.length === 0) {
+      availableTracks = [...allAvailable].sort(() => Math.random() - 0.5);
+    }
 
     if (availableTracks.length > 0) {
       let nextTrack;
@@ -600,15 +684,24 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         const randomIndex = Math.floor(Math.random() * availableTracks.length);
         nextTrack = availableTracks[randomIndex];
       } else {
-        // Regular mode: Pick random from available
+        // Regular mode: Pick random from available (add variety)
         nextTrack = availableTracks[Math.floor(Math.random() * availableTracks.length)];
+      }
+
+      // SAFETY CHECK: Ensure we're not playing the same track
+      if ((nextTrack.id === currentTrackId || nextTrack.trackId === currentTrackId) && availableTracks.length > 1) {
+        // Pick a different one
+        const filtered = availableTracks.filter(t => t.id !== currentTrackId && t.trackId !== currentTrackId);
+        if (filtered.length > 0) {
+          nextTrack = filtered[Math.floor(Math.random() * filtered.length)];
+        }
       }
 
       if (state.currentTrack && state.currentTime > 5) {
         get().addToHistory(state.currentTrack, state.currentTime);
       }
       // POOL ENGAGEMENT: Record play for next track
-      recordPoolEngagement(nextTrack.id, 'play');
+      recordPoolEngagement(nextTrack.id || nextTrack.trackId, 'play');
       set({
         currentTrack: nextTrack,
         isPlaying: true,
@@ -688,6 +781,12 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       // FIX 4: Duplicate detection
       if (state.queue.some(q => q.track.id === track.id)) {
         return state; // Don't add duplicate
+      }
+
+      // FIX 5: Reject known unplayable tracks
+      if (track.trackId && isKnownUnplayable(track.trackId)) {
+        console.warn(`[PlayerStore] Rejected unplayable track from queue: ${track.title}`);
+        return state; // Don't add unplayable track
       }
 
       const newItem: QueueItem = {
@@ -848,10 +947,11 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   // Recommendation Actions
   refreshRecommendations: () => {
     const state = get();
+    // IMPROVED DEDUP: Exclude more history (last 20) to prevent repeats
     const excludeIds = [
       state.currentTrack?.id,
       ...state.queue.map((q) => q.track.id),
-      ...state.history.slice(-5).map((h) => h.track.id),
+      ...state.history.slice(-20).map((h) => h.track.id), // Increased from 5 to 20
     ].filter(Boolean) as string[];
 
     // POOL-AWARE v3.0: Pull from dynamic track pool (falls back to v2.0 if empty)

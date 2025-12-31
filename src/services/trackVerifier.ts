@@ -28,8 +28,18 @@ let hasRunStartupHeal = false;
 
 // Debounce/queue to avoid hammering API
 const pendingVerifications = new Map<string, Promise<string | null>>();
-const verificationResults = new Map<string, { voyoId: string; thumbnail: string } | null>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const verificationResults = new Map<string, { voyoId: string; thumbnail: string; expiresAt: number } | null>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for successful verifications
+const FAILED_CACHE_TTL = 30 * 60 * 1000; // 30 minutes for failed (don't hammer dead tracks)
+
+// Track permanent failures (video deleted/private) - longer cache
+const permanentFailures = new Map<string, { reason: string; failedAt: number }>();
+const PERMANENT_FAILURE_TTL = 24 * 60 * 60 * 1000; // 24 hours for permanent failures
+
+// Retry tracking - prevent infinite retry loops
+const retryAttempts = new Map<string, { count: number; lastAttempt: number }>();
+const MAX_RETRIES = 3;
+const RETRY_COOLDOWN = 10 * 60 * 1000; // 10 minutes between retry sets
 
 /**
  * Verify and fix a track with a failed thumbnail
@@ -41,16 +51,42 @@ export async function verifyTrack(
   title: string
 ): Promise<string | null> {
   const cacheKey = `${artist}|${title}`.toLowerCase();
+  const now = Date.now();
 
-  // Check cache first
+  // Check permanent failure cache first (video deleted/private)
+  const permFailure = permanentFailures.get(originalTrackId);
+  if (permFailure && (now - permFailure.failedAt) < PERMANENT_FAILURE_TTL) {
+    console.log(`[TrackVerifier] ⛔ Permanent failure (${permFailure.reason}): ${artist} - ${title}`);
+    return null;
+  }
+
+  // Check retry limits
+  const retryInfo = retryAttempts.get(cacheKey);
+  if (retryInfo) {
+    const timeSinceLastAttempt = now - retryInfo.lastAttempt;
+    if (retryInfo.count >= MAX_RETRIES && timeSinceLastAttempt < RETRY_COOLDOWN) {
+      console.log(`[TrackVerifier] 🛑 Max retries (${MAX_RETRIES}) reached, cooling down: ${artist} - ${title}`);
+      return null;
+    }
+    // Reset retry count if cooldown has passed
+    if (timeSinceLastAttempt >= RETRY_COOLDOWN) {
+      retryAttempts.delete(cacheKey);
+    }
+  }
+
+  // Check cache (with expiry check)
   const cached = verificationResults.get(cacheKey);
   if (cached !== undefined) {
     if (cached === null) {
       console.log(`[TrackVerifier] ❌ Already failed: ${artist} - ${title}`);
       return null;
     }
-    console.log(`[TrackVerifier] ✅ Cache hit: ${artist} - ${title}`);
-    return cached.thumbnail;
+    if (now < cached.expiresAt) {
+      console.log(`[TrackVerifier] ✅ Cache hit: ${artist} - ${title}`);
+      return cached.thumbnail;
+    }
+    // Cache expired, remove it
+    verificationResults.delete(cacheKey);
   }
 
   // Check if already in progress
@@ -59,6 +95,10 @@ export async function verifyTrack(
     console.log(`[TrackVerifier] ⏳ Already verifying: ${artist} - ${title}`);
     return pending;
   }
+
+  // Update retry tracking
+  const currentRetry = retryAttempts.get(cacheKey) || { count: 0, lastAttempt: 0 };
+  retryAttempts.set(cacheKey, { count: currentRetry.count + 1, lastAttempt: now });
 
   // Start verification
   const verificationPromise = doVerification(originalTrackId, artist, title, cacheKey);
@@ -101,14 +141,15 @@ async function doVerification(
     console.log(`[TrackVerifier]    Old ID: ${originalTrackId}`);
     console.log(`[TrackVerifier]    New ID: ${verified.voyoId}`);
 
-    // Cache the result
+    // Cache the result with expiry timestamp
     verificationResults.set(cacheKey, {
       voyoId: verified.voyoId,
       thumbnail: newThumbnail,
+      expiresAt: Date.now() + CACHE_TTL,
     });
 
-    // Clear cache after TTL
-    setTimeout(() => verificationResults.delete(cacheKey), CACHE_TTL);
+    // Reset retry count on success
+    retryAttempts.delete(cacheKey);
 
     // Update track in pool store
     updateTrackInPool(originalTrackId, verified);
@@ -124,9 +165,85 @@ async function doVerification(
   } catch (error) {
     console.error(`[TrackVerifier] Error verifying ${artist} - ${title}:`, error);
     verificationResults.set(cacheKey, null);
-    setTimeout(() => verificationResults.delete(cacheKey), CACHE_TTL);
+    // Use longer TTL for failures to avoid hammering
+    setTimeout(() => verificationResults.delete(cacheKey), FAILED_CACHE_TTL);
     return null;
   }
+}
+
+/**
+ * Check if a track is playable via YouTube oEmbed API
+ * Returns: { playable: true } or { playable: false, reason: string }
+ */
+export async function isTrackPlayable(trackId: string): Promise<{ playable: boolean; reason?: string }> {
+  if (!trackId) return { playable: false, reason: 'no_track_id' };
+
+  // Clean the track ID
+  let ytId = trackId;
+  if (ytId.startsWith('VOYO_')) ytId = ytId.replace('VOYO_', '');
+
+  // Check permanent failure cache
+  const permFailure = permanentFailures.get(trackId);
+  if (permFailure && (Date.now() - permFailure.failedAt) < PERMANENT_FAILURE_TTL) {
+    return { playable: false, reason: permFailure.reason };
+  }
+
+  try {
+    const response = await fetch(
+      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${ytId}&format=json`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+
+    if (response.ok) {
+      return { playable: true };
+    }
+
+    // YouTube returns specific errors
+    if (response.status === 401 || response.status === 403) {
+      permanentFailures.set(trackId, { reason: 'private_or_removed', failedAt: Date.now() });
+      return { playable: false, reason: 'private_or_removed' };
+    }
+    if (response.status === 404) {
+      permanentFailures.set(trackId, { reason: 'video_not_found', failedAt: Date.now() });
+      return { playable: false, reason: 'video_not_found' };
+    }
+
+    return { playable: false, reason: `http_${response.status}` };
+  } catch (error) {
+    // Network error - don't mark as permanent failure
+    console.warn(`[TrackVerifier] Playability check failed for ${trackId}:`, error);
+    return { playable: false, reason: 'network_error' };
+  }
+}
+
+/**
+ * Mark a track as permanently failed (called when YouTube player reports error)
+ */
+export function markTrackAsFailed(trackId: string, errorCode: number): void {
+  let reason = 'unknown_error';
+
+  // YouTube error codes: https://developers.google.com/youtube/iframe_api_reference#onError
+  switch (errorCode) {
+    case 2:
+      reason = 'invalid_parameter';
+      break;
+    case 5:
+      reason = 'html5_player_error';
+      break;
+    case 100:
+      reason = 'video_not_found';
+      permanentFailures.set(trackId, { reason, failedAt: Date.now() });
+      break;
+    case 101:
+    case 150:
+      reason = 'embedding_disabled';
+      permanentFailures.set(trackId, { reason, failedAt: Date.now() });
+      break;
+    default:
+      reason = `youtube_error_${errorCode}`;
+  }
+
+  console.log(`[TrackVerifier] ⛔ Marked as failed: ${trackId} (${reason})`);
 }
 
 /**
@@ -493,6 +610,41 @@ export async function runStartupHeal(): Promise<void> {
   });
 }
 
+/**
+ * Check if a track is known to be unplayable (from permanent failure cache)
+ */
+export function isKnownUnplayable(trackId: string): boolean {
+  if (!trackId) return false;
+  const permFailure = permanentFailures.get(trackId);
+  if (!permFailure) return false;
+  return (Date.now() - permFailure.failedAt) < PERMANENT_FAILURE_TTL;
+}
+
+/**
+ * Remove a track from permanent failure cache (for manual retry)
+ */
+export function clearFailure(trackId: string): void {
+  permanentFailures.delete(trackId);
+  console.log(`[TrackVerifier] Cleared failure for: ${trackId}`);
+}
+
+/**
+ * Get verification stats for debugging
+ */
+export function getVerificationStats(): {
+  cachedResults: number;
+  pendingVerifications: number;
+  permanentFailures: number;
+  retryTracking: number;
+} {
+  return {
+    cachedResults: verificationResults.size,
+    pendingVerifications: pendingVerifications.size,
+    permanentFailures: permanentFailures.size,
+    retryTracking: retryAttempts.size,
+  };
+}
+
 // Debug helper
 if (typeof window !== 'undefined') {
   (window as any).trackVerifier = {
@@ -503,12 +655,20 @@ if (typeof window !== 'undefined') {
     validateBeforePool,
     runStartupHeal,
     clearCache: clearVerificationCache,
+    isPlayable: isTrackPlayable,
+    isKnownUnplayable,
+    markFailed: markTrackAsFailed,
+    clearFailure,
+    stats: getVerificationStats,
     getPending: () => Array.from(pendingVerifications.keys()),
     getCached: () => Array.from(verificationResults.entries()),
+    getFailures: () => Array.from(permanentFailures.entries()),
   };
   console.log('🔧 [TrackVerifier] Debug commands:');
   console.log('   window.trackVerifier.batchHeal()  - Fix ALL bad thumbnails NOW');
   console.log('   window.trackVerifier.verify(id, artist, title)  - Fix single track');
+  console.log('   window.trackVerifier.stats()  - Get verification statistics');
+  console.log('   window.trackVerifier.getFailures()  - List permanently failed tracks');
 }
 
 export default {
@@ -519,4 +679,9 @@ export default {
   validateBeforePool,
   runStartupHeal,
   clearVerificationCache,
+  isTrackPlayable,
+  markTrackAsFailed,
+  isKnownUnplayable,
+  clearFailure,
+  getVerificationStats,
 };

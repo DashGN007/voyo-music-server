@@ -51,12 +51,32 @@ const WEIGHTS = {
 };
 
 // ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+/**
+ * Calculate skip penalty with time decay
+ * Skips from long ago have less impact than recent skips
+ * Decay: 100% impact today, 0% after 30 days
+ */
+function calculateDecayedSkipPenalty(pref: TrackPreference): number {
+  if (pref.skips === 0) return 0;
+
+  const daysSinceLastPlay = (Date.now() - new Date(pref.lastPlayedAt).getTime()) / (1000 * 60 * 60 * 24);
+  const decayFactor = Math.max(0, 1 - (daysSinceLastPlay / 30)); // Decays to 0 over 30 days
+  const baseSkipPenalty = pref.skips * WEIGHTS.SKIP_PENALTY;
+
+  return baseSkipPenalty * decayFactor;
+}
+
+// ============================================
 // SCORING FUNCTIONS
 // ============================================
 
 /**
  * Calculate BEHAVIOR score based on listen history
  * What the user DID (passive signals)
+ * Now includes time decay for skip penalties
  */
 export function calculateBehaviorScore(track: Track, preferences: Record<string, TrackPreference>): number {
   const pref = preferences[track.id];
@@ -80,8 +100,8 @@ export function calculateBehaviorScore(track: Track, preferences: Record<string,
     const reactionScore = pref.reactions * WEIGHTS.REACTIONS;
     score += reactionScore;
 
-    // Skip penalty
-    const skipScore = pref.skips * WEIGHTS.SKIP_PENALTY;
+    // Skip penalty WITH TIME DECAY (new!)
+    const skipScore = calculateDecayedSkipPenalty(pref);
     score += skipScore;
   }
 
@@ -579,6 +599,10 @@ export function debugIntent(): void {
  * - Pulls from growing pool (not static 11 tracks)
  * - Uses pool scores (engagement + recency + intent)
  * - Blends new tracks smoothly (no jarring refresh)
+ *
+ * v3.1 IMPROVEMENTS:
+ * - Added randomization factor to prevent same tracks every time
+ * - Better deduplication with trackId fallback
  */
 export function getPoolAwareHotTracks(limit: number = 5): Track[] {
   const poolStore = useTrackPoolStore.getState();
@@ -609,6 +633,9 @@ export function getPoolAwareHotTracks(limit: number = 5): Track[] {
       score += rank === 0 ? 20 : rank === 1 ? 10 : 5;
     }
 
+    // RANDOMIZATION: Add small jitter to prevent deterministic ordering
+    score += Math.random() * 5; // Up to 5 points of randomness
+
     return { track: pooledTrack as Track, mode: pooledTrack.detectedMode, score };
   });
 
@@ -627,6 +654,8 @@ export function getPoolAwareHotTracks(limit: number = 5): Track[] {
     if (topFromMode) {
       result.push(topFromMode.track);
       usedIds.add(topFromMode.track.id);
+      // Also track trackId for robust dedup
+      if (topFromMode.track.trackId) usedIds.add(topFromMode.track.trackId);
     }
     if (result.length >= limit) break;
   }
@@ -648,6 +677,11 @@ export function getPoolAwareHotTracks(limit: number = 5): Track[] {
  *
  * Uses Track Pool Store for dynamic discovery.
  * Blends similarity + intent + pool engagement.
+ *
+ * v3.1 IMPROVEMENTS:
+ * - Added randomization factor to prevent same tracks appearing
+ * - Better deduplication with trackId fallback
+ * - Shuffle equivalent scores for variety
  */
 export function getPoolAwareDiscoveryTracks(
   currentTrack: Track,
@@ -674,10 +708,18 @@ export function getPoolAwareDiscoveryTracks(
     mood: currentTrack.mood,
   });
 
-  // Filter and score
-  const candidates = hotPool.filter(
-    (t) => t.id !== currentTrack.id && !excludeIds.includes(t.id)
-  );
+  // BUILD EXCLUSION SET: Include both id and trackId for robust dedup
+  const excludeSet = new Set<string>();
+  excludeIds.forEach(id => excludeSet.add(id));
+  excludeSet.add(currentTrack.id);
+  if (currentTrack.trackId) excludeSet.add(currentTrack.trackId);
+
+  // Filter and score - check both id and trackId for thorough deduplication
+  const candidates = hotPool.filter((t) => {
+    if (excludeSet.has(t.id)) return false;
+    if (t.trackId && excludeSet.has(t.trackId)) return false;
+    return true;
+  });
 
   const scored = candidates.map((pooledTrack) => {
     let score = 0;
@@ -703,6 +745,10 @@ export function getPoolAwareDiscoveryTracks(
       score += 10;
     }
 
+    // 4. RANDOMIZATION FACTOR: Add small random jitter to prevent deterministic ordering
+    // This ensures variety even when scores are similar
+    score += Math.random() * 5; // Up to 5 points of randomness
+
     return { track: pooledTrack as Track, mode: pooledTrack.detectedMode, score };
   });
 
@@ -725,6 +771,8 @@ export function getPoolAwareDiscoveryTracks(
     if (!usedIds.has(item.track.id)) {
       result.push(item.track);
       usedIds.add(item.track.id);
+      // Also track trackId to prevent duplicates with different id formats
+      if (item.track.trackId) usedIds.add(item.track.trackId);
       modeCount[item.mode] = currentModeCount + 1;
     }
   }

@@ -14,6 +14,7 @@
 import { useEffect, useRef, useCallback, memo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { usePlayerStore } from '../store/playerStore';
+import { markTrackAsFailed } from '../services/trackVerifier';
 
 const YT_STATES = {
   UNSTARTED: -1,
@@ -167,8 +168,21 @@ export const YouTubeIframe = memo(() => {
           }
         },
         onError: (e: any) => {
-          console.error('[YouTubeIframe] Error:', e.data);
+          const errorCode = e.data;
+          console.error('[YouTubeIframe] Error:', errorCode);
           initializingRef.current = false;
+
+          // Mark track as failed for future reference
+          if (videoId) {
+            markTrackAsFailed(videoId, errorCode);
+          }
+
+          // Auto-skip to next track on playback errors
+          // Error codes: 100 = not found, 101/150 = embedding disabled
+          if (errorCode === 100 || errorCode === 101 || errorCode === 150) {
+            console.log('[YouTubeIframe] Skipping unplayable track...');
+            setTimeout(() => nextTrack(), 500);
+          }
         },
       },
     });
