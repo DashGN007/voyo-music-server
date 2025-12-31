@@ -72,6 +72,7 @@ export const YouTubeIframe = memo(() => {
   const [showNowPlaying, setShowNowPlaying] = useState(false);
   const [showNextUp, setShowNextUp] = useState(false);
   const [showPortraitNextUp, setShowPortraitNextUp] = useState(false); // Full-cover thumbnail for portrait
+  const [isDragging, setIsDragging] = useState(false);
   const upcomingTrack = queue[0]?.track || null;
 
 
@@ -360,6 +361,8 @@ export const YouTubeIframe = memo(() => {
       dragMomentum={false}
       dragElastic={0}
       dragTransition={{ power: 0, timeConstant: 0 }}
+      onDragStart={() => setIsDragging(true)}
+      onDragEnd={() => setIsDragging(false)}
       whileDrag={{ boxShadow: '0 25px 50px rgba(139, 92, 246, 0.5)' }}
     >
       {/* Video container */}
@@ -496,8 +499,8 @@ export const YouTubeIframe = memo(() => {
       {/* Portrait: drag/tap hint */}
       {isPortraitMode && !showPortraitNextUp && (
         <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, textAlign: 'center', zIndex: 15, pointerEvents: 'none' }}>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 8 }}>
-            Drag • Tap to close
+          <p style={{ color: isDragging ? 'rgba(139,92,246,0.8)' : 'rgba(255,255,255,0.4)', fontSize: 8, transition: 'color 0.2s' }}>
+            {isDragging ? '📱 Rotate phone for FULL Vibes' : 'Drag to move • Tap to close'}
           </p>
         </div>
       )}

@@ -132,6 +132,7 @@ interface PlayerStore {
   volume: number;
   viewMode: ViewMode;
   videoTarget: 'hidden' | 'portrait' | 'landscape'; // Where to show the video iframe (replaces isVideoMode)
+  videoPolitePosition: 'center' | 'bottom' | 'top-right' | 'top-left'; // Auto-position based on page context
   seekPosition: number | null; // When set, AudioPlayer should seek to this position
 
   // Flag to signal that a track was selected (from search, etc.) and NowPlaying should open
@@ -215,6 +216,7 @@ interface PlayerStore {
   cycleViewMode: () => void;
   setViewMode: (mode: ViewMode) => void;
   setVideoTarget: (target: 'hidden' | 'portrait' | 'landscape') => void;
+  setVideoPolitePosition: (pos: 'center' | 'bottom' | 'top-right' | 'top-left') => void;
 
   // Actions - Queue
   addToQueue: (track: Track, position?: number) => void;
@@ -269,6 +271,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   shouldOpenNowPlaying: false,
   viewMode: 'card',
   videoTarget: 'hidden',
+  videoPolitePosition: 'center',
   shuffleMode: false,
   repeatMode: 'off',
 
@@ -774,6 +777,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   setViewMode: (mode) => set({ viewMode: mode }),
 
   setVideoTarget: (target: 'hidden' | 'portrait' | 'landscape') => set({ videoTarget: target }),
+  setVideoPolitePosition: (pos: 'center' | 'bottom' | 'top-right' | 'top-left') => set({ videoPolitePosition: pos }),
 
   // Queue Actions
   addToQueue: (track, position) => {
