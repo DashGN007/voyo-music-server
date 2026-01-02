@@ -70,17 +70,7 @@ jobs:
           pip install boto3 requests
 
             cat > /tmp/cookies.txt << 'EOF'
-    # Netscape HTTP Cookie File
-    .youtube.com        TRUE    /       TRUE    0       __Secure-3PAPISID   cZoTw5ODO1Kk0yzS/AMihDY2kCbzOkuhWO
-    .youtube.com        TRUE    /       FALSE   0       PREFhl=en&tz=UTC
-    .youtube.com        TRUE    /       TRUE    0       SOCSCAI
-    .youtube.com        TRUE    /       TRUE    0       YSC9F5X2bh-4dk
-    .youtube.com        TRUE    /       TRUE    1782868418 __Secure-ROLLOUT_TOKEN   CNbns-X46frgpQEQ05610tbrkQMYku7j2tbrkQM%3D
-    .youtube.com        TRUE    /       TRUE    1782892772 VISITOR_INFO1_LIVE       I56cNKMY8Jo
-    .youtube.com        TRUE    /       TRUE    1782892772 VISITOR_PRIVACY_METADATA CgJNWRIEGgAgXg%3D%3D
-    .youtube.com        TRUE    /       TRUE    1767341027 GPS      1
-    EOF
-            sed -i 's/^  //' /tmp/cookies.txt
+            echo "IyBOZXRzY2FwZSBIVFRQIENvb2tpZSBGaWxlCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQKWCV9fU2VjdXJlLTNQQVBJU0lECWNab1R3NU9ETzFLazB5elMvQU1paERZMmtDYnpPa3VoV08KLnlvdXR1YmUuY29tCVRSVUUJLwlGQUxTRQkwCVBSRUYJaGw9ZW4mdHo9VVRDCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQKWCVNPQ1MJQ0FJCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQKWCVZTQWK5RjVYMmJoLTRkawoud291dHViZS5jb20JVFJVRQKVCVRSRVUKDE3ODI4Njg0MTgJX19TZWN1cmUtUk9MTE9VVF9UT0tFTglDTmJucy1YNDZ2cmdwUUVRMDU2MTB0YnJrUU1Za3U3ajJ0YnJrUU0lM0QKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE3ODI4OTI3NzIJVklTSVRPUl9JTkZPMV9MSVZFCUk1NmNOS01ZOEpvCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQKXNDI4OTI3NzIJVklTSVRPUl9QUklWQUNZX01FVEFEQVRBCUNnSk5XUklFR2dBZ1hnJTNEJTNECi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQKXNTM0MTAyNwlHUFMJMQo=" | base64 -d > /tmp/cookies.txt
 
         - name: Create worker script
         run: |
