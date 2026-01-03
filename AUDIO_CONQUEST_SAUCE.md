@@ -1,3 +1,70 @@
+# VOYO Audio Conquest - The Working Sauce
+
+**Date Discovered**: 2026-01-03
+**Success Rate**: 97%
+**Backup File**: `.github/workflows/audio_conquest_WORKING_BACKUP.yml`
+
+## What Works
+
+Run #26 structure (commit `5431763`) + fresh cookies
+
+### Key Components
+
+1. **20 parallel jobs** with matrix strategy
+2. **Binary yt-dlp** from GitHub releases (not pip)
+3. **Deno installed** for JS challenge solving
+4. **NO `--extractor-args`** - let yt-dlp auto-negotiate
+5. **Fresh login cookies** exported from incognito, session frozen immediately
+
+### Cookie Export Process
+
+1. Open Chrome Incognito
+2. Log into YouTube
+3. Install "Get cookies.txt LOCALLY" extension
+4. Export cookies immediately
+5. **CLOSE INCOGNITO RIGHT AWAY** - freezes the session
+6. Base64 encode: `cat cookies.txt | base64 -w0`
+7. Paste into workflow
+
+### Workflow Parameters
+
+```
+total_jobs: 20        # 20 parallel workers
+chunk_size: 5000      # 5000 tracks per job
+start_offset: X       # Where to resume from
+```
+
+### Math
+
+- 20 jobs × 5000 tracks = 100,000 tracks per run
+- ~97% success rate = ~97,000 uploads per run
+- 324,289 total tracks ÷ 100k = 3-4 runs to complete
+
+### Failure Types (Normal)
+
+- "Video unavailable" - deleted videos
+- "Not available in your country" - geo-blocked
+- "audio conversion failed" - rare codec issues
+
+### Files
+
+- Workflow: `.github/workflows/audio_conquest.yml`
+- Working commit: `5431763` (original Run #26)
+- Current with fresh cookies: `556db2a`
+
+## DO NOT
+
+- Use `--extractor-args` flags
+- Use pip install yt-dlp (use binary)
+- Share cookies across multiple accounts
+- Keep browser open after cookie export
+- Overcomplicate it
+
+---
+
+## Full Working Workflow (audio_conquest.yml)
+
+```yaml
 name: Audio Conquest
 
 on:
@@ -64,7 +131,7 @@ jobs:
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
           pip install boto3 requests
-          echo "IyBOZXRzY2FwZSBIVFRQIENvb2tpZSBGaWxlCiMgaHR0cHM6Ly9jdXJsLmhheHguc2UvcmZjL2Nvb2tpZV9zcGVjLmh0bWwKIyBUaGlzIGlzIGEgZ2VuZXJhdGVkIGZpbGUhIERvIG5vdCBlZGl0LgoKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE3Njc0MjQ4NTcJR1BTCTEKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE3OTg5NTkwODAJX19TZWN1cmUtMVBTSURUUwlzaWR0cy1DalVCZmxhQ2RiUE5YNDE1bWxNOXJoSFRrV2JXSHdNdlZOUERncmN4bmt2TnhoTUVXOXlrYUJnZDZ0dzhfT0lNUmgzRk9KblVQUkFBCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxNzk4OTU5MDgwCV9fU2VjdXJlLTNQU0lEVFMJc2lkdHMtQ2pVQmZsYUNkYlBOWDQxNW1sTTlyaEhUa1diV0h3TXZWTlBEZ3JjeG5rdk54aE1FVzl5a2FCZ2Q2dHc4X09JTVJoM0ZPSm5VUFJBQQoueW91dHViZS5jb20JVFJVRQkvCUZBTFNFCTE4MDE5ODMwODAJSFNJRAlBVGFZMjdWYXMzZ041cHpuegoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTgwMTk4MzA4MAlTU0lECUE5NHVETTd0T050QVBBVU9tCi55b3V0dWJlLmNvbQlUUlVFCS8JRkFMU0UJMTgwMTk4MzA4MAlBUElTSUQJcVdqZnFWV2RPN1h2RGdabS9BS0duRlZqdVM2N1NZakYxWgoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTgwMTk4MzA4MAlTQVBJU0lECVRaWEhuNnpEQjRzYWhJaVovQU1WcUVGcmpTdVE2OGFDakoKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE4MDE5ODMwODAJX19TZWN1cmUtMVBBUElTSUQJVFpYSG42ekRCNHNhaElpWi9BTVZxRUZyalN1UTY4YUNqSgoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTgwMTk4MzA4MAlfX1NlY3VyZS0zUEFQSVNJRAlUWlhIbjZ6REI0c2FoSWlaL0FNVnFFRnJqU3VRNjhhQ2pKCi55b3V0dWJlLmNvbQlUUlVFCS8JRkFMU0UJMTgwMTk4MzA4MAlTSUQJZy5hMDAwNVFnSXpTTzhEWlM4NlkzeEpQaGtkV0RNR0dVMzhlQW90dEt6QXlLbkNYRkxjUDFCSC1PMGpCRVNaM0dmXzRPVm9HWnA2QUFDZ1lLQVZJU0FSY1NGUUhHWDJNaUs3d0xVbm1kclhVMlJQc3hXSk1qY3hvVkFVRjh5S3FzTXBOMlVHSUk1UlpQZHM1WlJobVMwMDc2Ci55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxODAxOTgzMDgwCV9fU2VjdXJlLTFQU0lECWcuYTAwMDVRZ0l6U084RFpTODZZM3hKUGhrZFdETUdHVTM4ZUFvdHRLekF5S25DWEZMY1AxQkdwUWZEVFdoLTlSaUUyZzdIbmJ5aVFBQ2dZS0FmNFNBUmNTRlFIR1gyTWlPU0lmUzM3NjNXTGlGWW5ManVKYmFob1ZBVUY4eUtwam94OWVNcGZuNXJOOVpqN0ozQVdjMDA3NgoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTgwMTk4MzA4MAlfX1NlY3VyZS0zUFNJRAlnLmEwMDA1UWdJelNPOERaUzg2WTN4SlBoa2RXRE1HR1UzOGVBb3R0S3pBeUtuQ1hGTGNQMUJNRGFqNXBOMEFKRHMyT1RXN2xjMXZ3QUNnWUtBVmtTQVJjU0ZRSEdYMk1pQm1tS19QNjl6NS1tczZUUE55RlFsUm9WQVVGOHlLcHFCLThnX216VmE4aWhtczc1Mk1zVTAwNzYKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE4MDE5ODMwODAJTE9HSU5fSU5GTwlBRm1tRjJzd1JRSWdYLVR0bWJBZ3g0Wk5vYXkzNVFfeTRZcm1IanJNMGNZREVKWDV1cVFrUTRFQ0lRRE42UmlLQ0dfWHlXNTdvX2xDQ2t4MGdhM0phdGVOZURBVFBYTXBGTlZhcEE6UVVRM01qTm1lSFprUlRWak1EVXlUR2c0TVY4dFVWbzVTRGRSY0V0TFp5MDBaMjFEVDNCb1FrMTFXa3hxVFd4R2IzSlRSV2RDTjA1VVdUZGpTMlpWUzI5RVVWTmxZMEY1V1hKVGEzTmhhMkZDTjJKek9FRkVSR1Z5VVVKMlgwZHFkVWsxVDJFNFRsZzJWMmxJTjBOSVpTMWxkM0EwU2pNNE5GSnhNMlJzTmkwMFVraENjMEZSY0RsWGNsUXpjRVJuVDBvMlFuZE5hSFZDTW5WS1dERjVWVmQzCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxODAxOTgzMDgzCVBSRUYJZjY9NDAwMDAwODAmdHo9QXNpYS5LdWFsYV9MdW1wdXImZjQ9NDAwMDAwMAoueW91dHViZS5jb20JVFJVRQkvCUZBTFNFCTE3OTg5NTkwODYJU0lEQ0MJQUtFeVh6V1BUdm4tUFZOcEh0eDRsZnduVmFZTWdKWjRUaFU3aHo1dGZrbGI2eEdKMlRkZjV6SUE5V3FOVXpHVk42UXUtVXMKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE3OTg5NTkwODYJX19TZWN1cmUtMVBTSURDQwlBS0V5WHpYVFU2eW9OY1g4cmtoejZoZ21Oa0NwOWNUMGZrSjlUS0pUTUJKNzkxOE0wVWQxX2FDQlRaTFZLOHR5Rldsa1RaV3NwQQoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTc5ODk1OTA4NglfX1NlY3VyZS0zUFNJRENDCUFLRXlYelVOa0xCUU05YmNVUjBXMFc3Z0tlUzZzU3JpV1B6WEJVWm9YdlhfWHIzeERGeGJaTWxmdUt4ejJqdkwwdU9YTF8wZjNRCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxNzgyOTc1MDU3CV9fU2VjdXJlLVlOSUQJMTQuWVQ9aG00T0VhWWJfb1FyNFhzb3pQbVg0Qkt5VVNtME04Yk9oRFZlYndYWURtLXBqckRLYWtiSXlJcGdMSXJWT0hMV0RodlRrbmJIa0QwWnU3OVo2dTVuQXE1SjBhQ3hDajlBU2RMbnpEWlFRWExXTWRySmNrRmFVMWNWU2R5ampJYURsM29zQnpoUTBtSU1iNm5faFFLdEVjcGtuUmhTOXg4czY0N1MzNXpCLTg3aXVZRFVJNGNVSmZRb3JPV3c3OWI3d1VScWE1NC1BUmt6al9zbklhU1pCZXNYc2otd1dCb0xFLTJOYl9iQ01oc0JuVTVQRDk1R19nUGtpb1Q1NFJvcTV4cVFmTGRYeEhJU2JsWl92NkVSTlN0bG82YnZFYkxtTmdMeW42eDBEbTQxMkdkWkI2c2FSUl9udVJnbjdtTHVpbHBQTVA2T2dkTVJKZmdJS3R4VFBRCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkwCVlTQwk1T0trdmMxQ3hGQQoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTc4Mjk3NTA4NglWSVNJVE9SX0lORk8xX0xJVkUJYXRGal9RV3Jla0EKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE3ODI5NzUwODYJVklTSVRPUl9QUklWQUNZX01FVEFEQVRBCUNnSk5XUklFR2dBZ1FRJTNEJTNECi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxNzgyOTc1MDU4CV9fU2VjdXJlLVJPTExPVVRfVE9LRU4JQ0wtZHRJNk05OWJnWXhERG50XzY0LTZSQXhpTzhZZjc0LTZSQXclM0QlM0QK" | base64 -d > /tmp/cookies.txt
+          echo "YOUR_BASE64_COOKIES_HERE" | base64 -d > /tmp/cookies.txt
 
       - name: Create worker script
         run: |
@@ -166,10 +233,8 @@ jobs:
               uploaded = 0
               failed = 0
 
-              # Process with slight delays to avoid rate limits
               for i, yt_id in enumerate(to_process):
-                  time.sleep(random.uniform(0.1, 0.3))  # Minimal delay
-                  # Debug first 3 tracks to see what's happening
+                  time.sleep(random.uniform(0.1, 0.3))
                   if download_and_upload(yt_id, debug=(i < 3)):
                       uploaded += 1
                   else:
@@ -193,3 +258,4 @@ jobs:
           LIMIT: ${{ matrix.limit }}
           JOB_ID: ${{ matrix.job_id }}
         run: python worker.py
+```
