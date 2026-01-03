@@ -1,4 +1,4 @@
-name: Audio Conquest
+name: Audio Conquest 1
 
 on:
   workflow_dispatch:
@@ -19,9 +19,9 @@ jobs:
     steps:
       - name: Setup
         env:
-          COOKIES: ${{ secrets.YOUTUBE_COOKIES_0 }}
+          COOKIES: ${{ secrets.YOUTUBE_COOKIES_1 }}
         run: |
-          echo "Conquest 0: offset=${{ inputs.start_offset }}, limit=${{ inputs.chunk_size }}"
+          echo "Conquest 1: offset=${{ inputs.start_offset }}, limit=${{ inputs.chunk_size }}"
           sudo apt-get update && sudo apt-get install -y ffmpeg
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
@@ -31,7 +31,7 @@ jobs:
             echo "$COOKIES" | base64 -d > /tmp/cookies.txt
             echo "✓ Cookies loaded"
           else
-            echo "❌ ERROR: Add YOUTUBE_COOKIES_0 secret"
+            echo "❌ ERROR: Add YOUTUBE_COOKIES_1 secret"
             exit 1
           fi
 
@@ -70,7 +70,7 @@ jobs:
               config=Config(retries={'max_attempts': 3}))
 
           def log(msg):
-              print(f"[Conquest0] {msg}", flush=True)
+              print(f"[Conquest1] {msg}", flush=True)
 
           def get_tracks():
               headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
