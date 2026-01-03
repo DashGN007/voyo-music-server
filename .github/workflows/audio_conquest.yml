@@ -105,11 +105,13 @@ jobs:
                   "-o", str(TEMP_DIR / f"{yt_id}.%(ext)s"),
                   "--no-playlist",
                   "--cookies", "/tmp/cookies.txt",
-                  "--extractor-args", "youtube:player_client=mweb",
                   "--retries", "2", "--socket-timeout", "30",
                   f"https://www.youtube.com/watch?v={yt_id}"]
+              # Ensure deno is in PATH for JS challenge solving
+              env = os.environ.copy()
+              env["PATH"] = f"/home/runner/.deno/bin:{env.get('PATH', '')}"
               try:
-                  result = subprocess.run(cmd, capture_output=True, timeout=120, text=True)
+                  result = subprocess.run(cmd, capture_output=True, timeout=120, text=True, env=env)
                   if debug or result.returncode != 0:
                       log(f"yt-dlp exit={result.returncode} stderr={result.stderr[:200] if result.stderr else 'none'}")
                   if not output.exists():
@@ -166,5 +168,4 @@ jobs:
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           OFFSET: ${{ inputs.start_offset }}
           LIMIT: ${{ inputs.chunk_size }}
-          PATH: /home/runner/.deno/bin:/home/runner/.local/bin:/usr/local/bin:/usr/bin:/bin
         run: python worker.py
