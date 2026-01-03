@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       chunk_size:
-        description: 'Tracks per job'
+        description: 'Tracks per worker'
         default: '5000'
         type: string
       start_offset:
-        description: 'Starting offset'
+        description: 'Starting offset (worker 0)'
         default: '0'
         type: string
 
@@ -16,10 +16,15 @@ jobs:
   download:
     runs-on: ubuntu-latest
     timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [0, 1, 2, 3, 4]
     steps:
       - name: Setup
         run: |
-          echo "Conquest dashgn009: offset=${{ inputs.start_offset }}, limit=${{ inputs.chunk_size }}"
+          OFFSET=$(( ${{ inputs.start_offset }} + ${{ matrix.worker }} * ${{ inputs.chunk_size }} ))
+          echo "Conquest dashgn009 Worker ${{ matrix.worker }}: offset=$OFFSET, limit=${{ inputs.chunk_size }}"
           sudo apt-get update && sudo apt-get install -y ffmpeg
           curl -fsSL https://deno.land/install.sh | sh
           export DENO_INSTALL="$HOME/.deno"
@@ -28,7 +33,7 @@ jobs:
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
           pip install boto3 requests
-          echo "REPLACE_WITH_DASHGN009_COOKIES_BASE64" | base64 -d > /tmp/cookies.txt
+          echo "IyBOZXRzY2FwZSBIVFRQIENvb2tpZSBGaWxlCiMgaHR0cHM6Ly9jdXJsLmhheHguc2UvcmZjL2Nvb2tpZV9zcGVjLmh0bWwKIyBUaGlzIGlzIGEgZ2VuZXJhdGVkIGZpbGUhIERvIG5vdCBlZGl0LgoKLnlvdXR1YmUuY29tCVRSVUUJLwlGQUxTRQkxODAyMDI1MTQ2CVNJRAlnLmEwMDA1UWhJRTZ3UGExaWhkZnA3QTFjSUdaN1RqVFZhWkFzNUZtY0l1ODFNSjNtOVA5NHR1NEp4TWRCSlhPb28tVWRKSnI2V0RnQUNnWUtBZm9TQVJZU0ZRSEdYMk1pbHFfeXJyaXg2S3RuSUlJUndmRWZaUm9WQVVGOHlLcjF0LXdCSWdDVjFTa05BdzhWc0w3LTAwNzYKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE4MDIwMjUxNDYJX19TZWN1cmUtMVBTSUQJZy5hMDAwNVFoSUU2d1BhMWloZGZwN0ExY0lHWjdUalRWYVpBczVGbWNJdTgxTUozbTlQOTR0bG1OcjhkVVFmNVFwMjhXU3IyNWNzQUFDZ1lLQWE4U0FSWVNGUUhHWDJNaUR3LUhtWUpEaDhPTWxtMDhZNGpSclJvVkFVRjh5S3JPN05aR2JjM2VXZmc1U1A2eGl3MTMwMDc2Ci55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxODAyMDI1MTQ2CV9fU2VjdXJlLTNQU0lECWcuYTAwMDVRaElFNndQYTFpaGRmcDdBMWNJR1o3VGpUVmFaQXM1Rm1jSXU4MU1KM205UDk0dFozbWNfWHE5eHZZQTdtbnBqeVk2aHdBQ2dZS0FYa1NBUllTRlFIR1gyTWl3UjgxdkxITG82dkFJaUlfeTdrdkVob1ZBVUY4eUtyTlJ3NWY5UlQwU3h2ZU1nY2p1dVQ2MDA3NgoueW91dHViZS5jb20JVFJVRQkvCUZBTFNFCTE4MDIwMjUxNDYJSFNJRAlBUzZOSnhtMko1ZzVBSzlUMwoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTgwMjAyNTE0NglTU0lECUFtLW96bjVSYUVyb1owMHIwCi55b3V0dWJlLmNvbQlUUlVFCS8JRkFMU0UJMTgwMjAyNTE0NglBUElTSUQJNzcycnVNWkkybUprUmRFRy9BT2JnLTM5cHo2QUphamRMYwoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTgwMjAyNTE0NglTQVBJU0lECUlHdlViU1hVWm9wczFfUjEvQTRodVI3MkQ2N3QxX3JoSEQKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE4MDIwMjUxNDYJX19TZWN1cmUtMVBBUElTSUQJSUd2VWJTWFVab3BzMV9SMS9BNGh1UjcyRDY3dDFfcmhIRAoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTgwMjAyNTE0NglfX1NlY3VyZS0zUEFQSVNJRAlJR3ZVYlNYVVpvcHMxX1IxL0E0aHVSNzJENjd0MV9yaEhECi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxODAyMDI1MTYzCUxPR0lOX0lORk8JQUZtbUYyc3dSUUlnTThwckpGYjQxTEcxVW9oQVExNjZNYktGeC1OY0dCbEJmeU01QUtmYjZWVUNJUUNjVlhRYUF5Z1FvdlhFVVJMbXkzcjQ4cXZMbFVFV0lKN3hJX1B4aHkydDJnOlFVUTNNak5tZDBNMVZ6RXplRGx3UmxKbFpVbEtlRGd5Wm5obU9FMDJjelpXY2xCdVMwVTVhQzFQUTNZNVVWQkxSRE14VDI4MGFrbFFRbGx0ZUc5QlpURlVNMVpPU1hNeExXeFBYMk5IZEVsT2FtZDJkSFpzZFVwdVFraEVPVlZ4VERGM1ZtUmhXVGxtTURSNU1EZHZaVWRUUTBoS2QwcExRVEJFYUVSNFNHY3dXRXd5VkU5eE1sSTNlRTExWDJOS2RFOUxhaTFwYWtZMmNrMW9kSGN4WlUxQgoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTgwMjAyNjAwMQlQUkVGCWY0PTQwMDAwMDAmZjY9NDAwMDAwMDAmdHo9QXNpYS5LdWFsYV9MdW1wdXIKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE3OTkwMDIwMDMJX19TZWN1cmUtMVBTSURUUwlzaWR0cy1DakVCZmxhQ2RUMF9PMWxTc3Jrd2JRem5JelRhY1JtTFlwQm1tY1F5OTZnZVQyUHFFVEstQjNpTG5XX3dBZDdPQUJZR0VBQQoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTc5OTAwMjAwMwlfX1NlY3VyZS0zUFNJRFRTCXNpZHRzLUNqRUJmbGFDZFQwX08xbFNzcmt3YlF6bkl6VGFjUm1MWXBCbW1jUXk5NmdlVDJQcUVUSy1CM2lMbldfd0FkN09BQllHRUFBCi55b3V0dWJlLmNvbQlUUlVFCS8JRkFMU0UJMTc5OTAwMjAwOQlTSURDQwlBS0V5WHpWX094VEUxUl9hWFZVaXA0MHgwblhWNm9GTlhmbnV2dnpHMXBrQjQ2UEVLSHNrUVNURVo1Zll5TG8tS2x0WHVwak9BUQoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTc5OTAwMjAwOQlfX1NlY3VyZS0xUFNJRENDCUFLRXlYelY3bVlaRUJaeWhlbzNCUjdhb0ZZRGdGMUV0bU5hcFdpNks0eTFuWnZPbE0xSnNpTS1ZYUJfN3M5eGl1OEVscHVvLQoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTc5OTAwMjAwOQlfX1NlY3VyZS0zUFNJRENDCUFLRXlYelZ3aThVYUhvaUpDWUsyeTEtbVVCT2JKajNVUFByMUo4UklFbHV6MmRjQXh3SXNvSmZmNmI2Q25ZamxRVjNua0loaFNnCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkwCVlTQwlrNXdpOVR4NUMxQQoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTc4MzAxODAwMAlWSVNJVE9SX0lORk8xX0xJVkUJdnNSbExkYXJfem8KLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE3ODMwMTgwMDAJVklTSVRPUl9QUklWQUNZX01FVEFEQVRBCUNnSk5XUklFR2dBZ0dnJTNEJTNECi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxNzgzMDE3OTk5CV9fU2VjdXJlLVlOSUQJMTQuWVQ9QXpEcXBybUV0dkRFTGVsR0dHXzBMVlZDb0xNSmdfSF9JT3cyUHFLbk40dXBDam51aUdVd1M5ZmVfalJiQnY5VDloREk0dWs2VTVCRHN3SlI2LU56ZnRqeWptbnUxTnl4azNxTnZ3U2tLQjBONE1aNE9DMVRzTFU5ZWNtQmQtaUtoc0VyaUxNazBxUmx2Y0Y0Z0lIa3JnLU9mSTN2dms2cUVQR3k1SkVHWFFmZXJaaUpHUVdWVXpoLUViX21mWlRQUndmX0NjTzhaZWFWdUVNSU1sNThkM3M1R0RNekxnMjFrSWtOOTVQYlBXelJhNmNORG5KcGE3RVJNMUhXMWd2RWZ4UjdxM2RMQ1RtWFJaRmVBLU4zUUUtMEpCcEliTjg3OXpkYVJhQ25zb3M3ejJRRzZ6dDNQeVVwbGFVQkt4UU10OTFvM1BHQ1RUWExjTUdIQ09RS29RCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxNzgzMDE4MDAwCV9fU2VjdXJlLVJPTExPVVRfVE9LRU4JQ05lT3BLUGgyb2JtX3dFUXU0S1EtSVB3a1FNWTFJbkItSVB3a1FNJTNECg==" | base64 -d > /tmp/cookies.txt
 
       - name: Create worker script
         run: |
@@ -50,6 +55,7 @@ jobs:
           R2_BUCKET = 'voyo-audio'
           OFFSET = int(os.environ['OFFSET'])
           LIMIT = int(os.environ['LIMIT'])
+          WORKER = os.environ['WORKER']
 
           TEMP_DIR = Path("/tmp/voyo-audio")
           TEMP_DIR.mkdir(exist_ok=True)
@@ -61,7 +67,7 @@ jobs:
               config=Config(retries={'max_attempts': 3}))
 
           def log(msg):
-              print(f"[dashgn009] {msg}", flush=True)
+              print(f"[dashgn009-W{WORKER}] {msg}", flush=True)
 
           def get_tracks():
               headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
@@ -162,4 +168,7 @@ jobs:
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           OFFSET: ${{ inputs.start_offset }}
           LIMIT: ${{ inputs.chunk_size }}
-        run: python worker.py
+          WORKER: ${{ matrix.worker }}
+        run: |
+          REAL_OFFSET=$(( ${{ inputs.start_offset }} + ${{ matrix.worker }} * ${{ inputs.chunk_size }} ))
+          OFFSET=$REAL_OFFSET python worker.py
