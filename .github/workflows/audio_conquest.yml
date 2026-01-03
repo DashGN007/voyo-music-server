@@ -127,7 +127,7 @@ jobs:
 
           def download_and_upload(yt_id, debug=False):
               output = TEMP_DIR / f"{yt_id}.opus"
-              cmd = ["yt-dlp", "-x", "--audio-format", "opus", "--audio-quality", "0",  # 0 = BEST quality
+              cmd = ["yt-dlp", "-f", "bestaudio", "-x", "--audio-format", "opus", "--audio-quality", "0",  # bestaudio = demand best available
                   "-o", str(TEMP_DIR / f"{yt_id}.%(ext)s"),
                   "--no-playlist",
                   "--cookies", "/tmp/cookies.txt",
