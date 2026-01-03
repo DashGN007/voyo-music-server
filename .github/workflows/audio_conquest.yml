@@ -165,4 +165,5 @@ jobs:
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           OFFSET: ${{ inputs.start_offset }}
           LIMIT: ${{ inputs.chunk_size }}
+          PATH: /home/runner/.deno/bin:/home/runner/.local/bin:/usr/local/bin:/usr/bin:/bin
         run: python worker.py
