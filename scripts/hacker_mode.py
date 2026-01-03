@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-HACKER MODE - Fast 2-tier upload (128kbps + 64kbps)
+HACKER MODE - Raw audio archive (best quality, no conversion)
 Matches GitHub Actions workflow exactly.
 
 Usage:
-    python3 scripts/hacker_mode.py --limit 1000 --offset 18000 --workers 5
+    python3 scripts/hacker_mode.py --limit 1000 --offset 18000 --workers 3 --cookies /path/to/cookies.txt
 """
 
 import os
@@ -61,49 +61,52 @@ def get_existing():
     existing = set()
     try:
         paginator = get_r2().get_paginator('list_objects_v2')
-        for page in paginator.paginate(Bucket=R2_BUCKET, Prefix="128/"):
-            for obj in page.get('Contents', []):
-                key = obj['Key']
-                if '/' in key:
-                    fname = key.split('/')[-1]
-                    if '.' in fname:
-                        existing.add(fname.rsplit('.', 1)[0])
+        # Check raw/ and legacy folders
+        for prefix in ["raw/", "128/", "audio/128/"]:
+            for page in paginator.paginate(Bucket=R2_BUCKET, Prefix=prefix):
+                for obj in page.get('Contents', []):
+                    key = obj['Key']
+                    if '/' in key:
+                        fname = key.split('/')[-1]
+                        if '.' in fname:
+                            existing.add(fname.rsplit('.', 1)[0])
     except Exception as e:
         print(f"Warning listing R2: {e}")
     return existing
 
+COOKIES_FILE = None  # Set via args
+
 def process_track(yt_id, idx, total):
     try:
-        output = TEMP_DIR / f"{yt_id}.opus"
-
-        # Download
-        cmd = ["yt-dlp", "-x", "--audio-format", "opus", "--audio-quality", "5",
+        # BEST QUALITY: bestaudio direct (no -x, no ffmpeg)
+        cmd = ["yt-dlp", "-f", "bestaudio/best", "-S", "+size,+br",
                "-o", str(TEMP_DIR / f"{yt_id}.%(ext)s"),
-               "--no-playlist", "--quiet", "--no-warnings",
+               "--no-playlist", "--retries", "2", "--socket-timeout", "30",
                f"https://www.youtube.com/watch?v={yt_id}"]
 
-        subprocess.run(cmd, capture_output=True, timeout=120)
+        if COOKIES_FILE:
+            cmd.insert(-1, "--cookies")
+            cmd.insert(-1, COOKIES_FILE)
 
-        # Check for webm fallback
-        if not output.exists():
-            webm = TEMP_DIR / f"{yt_id}.webm"
-            if webm.exists():
-                webm.rename(output)
+        result = subprocess.run(cmd, capture_output=True, timeout=120, text=True)
 
-        if output.exists():
-            # Upload to both tiers
-            r2 = get_r2()
-            r2.upload_file(str(output), R2_BUCKET, f"128/{yt_id}.opus")
-            r2.upload_file(str(output), R2_BUCKET, f"64/{yt_id}.opus")
-            output.unlink()
+        # Find whatever file was created
+        for ext in ['opus', 'webm', 'm4a', 'mp3', 'ogg']:
+            output = TEMP_DIR / f"{yt_id}.{ext}"
+            if output.exists():
+                # Upload to raw/ with original extension
+                r2 = get_r2()
+                r2.upload_file(str(output), R2_BUCKET, f"raw/{yt_id}.{ext}")
+                output.unlink()
+                with lock:
+                    stats['success'] += 1
+                return f"[{idx}/{total}] {yt_id} ✓ (.{ext})"
 
-            with lock:
-                stats['success'] += 1
-            return f"[{idx}/{total}] {yt_id} ✓"
-        else:
-            with lock:
-                stats['failed'] += 1
-            return f"[{idx}/{total}] {yt_id} ✗"
+        # No file found
+        with lock:
+            stats['failed'] += 1
+        stderr_short = result.stderr[:50] if result.stderr else "no output"
+        return f"[{idx}/{total}] {yt_id} ✗ {stderr_short}"
 
     except Exception as e:
         with lock:
@@ -111,15 +114,20 @@ def process_track(yt_id, idx, total):
         return f"[{idx}/{total}] {yt_id} ✗ {str(e)[:30]}"
 
 def main():
+    global COOKIES_FILE
     parser = argparse.ArgumentParser()
     parser.add_argument('--limit', type=int, default=1000)
     parser.add_argument('--offset', type=int, default=0)
-    parser.add_argument('--workers', type=int, default=5)
+    parser.add_argument('--workers', type=int, default=3)
+    parser.add_argument('--cookies', type=str, help='Path to cookies.txt file')
     args = parser.parse_args()
+
+    COOKIES_FILE = args.cookies
 
     print("=" * 50)
     print(f"HACKER MODE - {args.workers} workers")
     print(f"Offset: {args.offset}, Limit: {args.limit}")
+    print(f"Cookies: {args.cookies or 'NONE (may fail!)'}")
     print("=" * 50)
 
     TEMP_DIR.mkdir(exist_ok=True)
