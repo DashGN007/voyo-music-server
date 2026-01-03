@@ -18,34 +18,30 @@ jobs:
     timeout-minutes: 350
     steps:
       - name: Setup
-        env:
-          COOKIES: ${{ secrets.YOUTUBE_COOKIES_0 }}
         run: |
           echo "Conquest 0: offset=${{ inputs.start_offset }}, limit=${{ inputs.chunk_size }}"
+          # Install ffmpeg
           sudo apt-get update && sudo apt-get install -y ffmpeg
+          # Install deno for yt-dlp signature solving
+          curl -fsSL https://deno.land/install.sh | sh
+          export DENO_INSTALL="$HOME/.deno"
+          export PATH="$DENO_INSTALL/bin:$PATH"
+          echo "$DENO_INSTALL/bin" >> $GITHUB_PATH
+          # Install yt-dlp
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
           pip install boto3 requests
+          # Fresh cookies - baked in (YouTube Account 0)
+          echo "IyBOZXRzY2FwZSBIVFRQIENvb2tpZSBGaWxlCiMgaHR0cDovL2N1cmwuaGF4eC5zZS9yZmMvY29va2llX3NwZWMuaHRtbAojIFRoaXMgaXMgYSBnZW5lcmF0ZWQgZmlsZSEgIERvIG5vdCBlZGl0LgoKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE3ODI5MTkwMDcJVklTSVRPUl9JTkZPMV9MSVZFCTB6dGRNQ3RvVTI0Ci55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxNzgyOTE5MDA3CVZJU0lUT1JfUFJJVkFDWV9NRVRBREFUQQlDZ0pOV1JJRUdnQWdFZyUzRCUzRAoueW91dHViZS5jb20JVFJVRQkvCUZBTFNFCTE4MDE4NzU0NzQJU0lECWcuYTAwMDVRal9TQk5hcUctUlUwQ3hWcEtZbTRLUmFWdnpkNEMyaEQ5YWNIay1NLXNZNnRUOV9LOWphN1BMcm52aFNjb3pYTGVxVXdBQ2dZS0FRZ1NBUlVTRlFIR1gyTWlvRFliMFNTRHNqYUppV2JWQkhKZjh4b1ZBVUY4eUtveURra25ucGNJd2JhYmY2dDkwMWl2MDA3NgoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTgwMTg3NTQ3NAlfX1NlY3VyZS0xUFNJRAlnLmEwMDA1UWpfU0JOYXFHLVJVMEN4VnBLWW00S1JhVnZ6ZDRDMmhEOWFjSGstTS1zWTZ0VDlHdVRLRFVNMW90Q0ZvVDhPUGJBeWpBQUNnWUtBVnNTQVJVU0ZRSEdYMk1pM2lwdm1ZZ3g2QlZ3TllfOXBObGE0Um9WQVVGOHlLcXM0MWFCQTBxdEItZEFKMk1jcUVYdTAwNzYKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE4MDE4NzU0NzQJX19TZWN1cmUtM1BTSUQJZy5hMDAwNVFqX1NCTmFxRy1SVTBDeFZwS1ltNEtSYVZ2emQ0QzJoRDlhY0hrLU0tc1k2dFQ5UV80SjVsU3BUd2pGTHJ0TEJTRHZxd0FDZ1lLQWFjU0FSVVNGUUhHWDJNaUJkajZ6NlJVbmtfZG8yX3ZDWXp4MkJvVkFVRjh5S3E4eXp3RktUVGd2bXQ1a01kbHplNkUwMDc2Ci55b3V0dWJlLmNvbQlUUlVFCS8JRkFMU0UJMTgwMTg3NTQ3NAlIU0lECUFWYTBrZk5hbVdKMDk0cVVUCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxODAxODc1NDc0CVNTSUQJQUFuQkJETE9NaTRWMUEzcUIKLnlvdXR1YmUuY29tCVRSVUUJLwlGQUxTRQkxODAxODc1NDc0CUFQSVNJRAl0YkVpYVhURlgyMjBhOEpWL0FDa1ExdFlXd3pyWFFqVF9uCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxODAxODc1NDc0CVNBUElTSUQJY1pvVHc1T0RPMUtrMHl6Uy9BTWloRFkya0Niek9rdWhXTwoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTgwMTg3NTQ3NAlfX1NlY3VyZS0xUEFQSVNJRAljWm9UdzVPRE8xS2sweXpTL0FNaWhEWTJrQ2J6T2t1aFdPCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxODAxODc1NDc0CV9fU2VjdXJlLTNQQVBJU0lECWNab1R3NU9ETzFLazB5elMvQU1paERZMmtDYnpPa3VoV08KLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE4MDE4NzU0NzQJTE9HSU5fSU5GTwlBRm1tRjJzd1JRSWhBUHY3NHlwNUFldGhJNVpRQzRDQktrVXB3ZTljVlRaa1lwS0d5MWxRV1R5akFpQjREVkxkZmhBUko5Y0NWVEYwR1g5aDQ5WjNRSkRRQmtIWEp4cWtXZGhVT0E6UVVRM01qTm1lRXhhU1hnNE0ySlBNVzFIWlhOME5EUm9WalpCUVRCdU9GZzJSMXBrTW10dk1IWnBNbE5zVWtrNVZEbGpSemxWVG1scU1YbFBWM2hSU1RFdFlWWnpNbTUzYTNCdlNGSmhUbUp6YkUwdE5EUkdVVU00Ykc0eVVIVkNZMFZPU0VRd2ExTXlTRTFpTWtwV1VWWnBXSHB2VVc0dFVIa3dlV1p5WVU1TE5rNTVPVFZQVFY5RlZtZHNNRzFEU1ZaUWQwRkVVSE5ETjJaTmQyZG1ZalpuCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxODAxOTc2NTUyCVBSRUYJZjY9NDAwMDAwODAmZjc9MTAwJnR6PUFzaWEuS3VhbGFfTHVtcHVyJmY0PTQwMDAwMDAKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE3ODI4OTM0MTkJX19TZWN1cmUtWU5JRAkxNC5ZVD1taXR2TjFoYVo5T1p4X0Y5Q0RJNHc1cUkyNHU3aDhqUkVlT2RqM2tOZ1poX1plZktUd05leTExcFBkejROVTEtZDhuWjlTbXNfZE9LMUt0ZGplLU1nWGFOTEFqYzZROExWd3M0RjVlNUJNbzlUNmtKVEppSnVYTXpPLUx1YUkzWmhrNkduM2xMcnRfWFNCQU02Rk9tM25kTWdIQVJkX3hMejBZVWJXSmc4cnhRRmNFRElDd0d2Qm1JbnUwX2JqdUdtV0pZSXotLWtTQkVHVm5wR3JCRG1yOFpaNjBEWUcyZVBUOFdTQWtyX3U5M2RSeUxNVEg0dDNzeWp2WDl3bWNZbTZTcS0xOEN5RlR2RUNycUJCeUxwSTFWQ244M1RQY2NCVVFnbnQxbENVd2hDUVJHZ3ZEQ2FmbTQ0UGV2LUxHY1FBOHNIeHhUbGZhV1VROGRmbkZyX0EKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTAJWVNDCWJkMmEzZXpjMHpJCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxNzk4OTU2MDg2CV9fU2VjdXJlLTFQU0lEVFMJc2lkdHMtQ2pNQmZsYUNkWlpTdGMzWWhackM3SlRieTVXc3BWRUNuc0tQdEd1cEg3RnhzbHBKTGtXMjc0TUgtck1HbVh4RFl4ZVk0RXdRQUEKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE3OTg5NTYwODYJX19TZWN1cmUtM1BTSURUUwlzaWR0cy1Dak1CZmxhQ2RaWlN0YzNZaFpyQzdKVGJ5NVdzcFZFQ25zS1B0R3VwSDdGeHNscEpMa1cyNzRNSC1yTUdtWHhEWXhlWTRFd1FBQQoueW91dHViZS5jb20JVFJVRQkvCUZBTFNFCTE3OTg5NTYwODYJU0lEQ0MJQUtFeVh6WGdSQzF5YWc0bU5yTnVzVlhDaVotdEJrMlZ4eE44UkI2cG5VV2V4YWZpNlpOcHFYS0xUcWhSbnZLV3lzQXRJOVhlCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxNzk4OTU2MDg2CV9fU2VjdXJlLTFQU0lEQ0MJQUtFeVh6VUF2bHVaR092WF9lLVJyYzZNZ3dCXzFHakc0MlNITGNubDRmU09vNncxUWNiM2lONmtjNm45b3l2TzFkYmwzQVZEVUEKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE3OTg5NTYwODYJX19TZWN1cmUtM1BTSURDQwlBS0V5WHpYMEhPTjUzdTFlTnJmUFQ0bnJrQkRRYXh5Zm1vTHVwTUs5cWF3eUlYTGdPeHhYWEZhdEh5OFRIRUdFalRPUXVMTzAK" | base64 -d > /tmp/cookies.txt
+          echo "✓ Cookies loaded"
 
-          if [ -n "$COOKIES" ]; then
-            echo "$COOKIES" | base64 -d > /tmp/cookies.txt
-            echo "✓ Cookies loaded"
-          else
-            echo "❌ ERROR: Add YOUTUBE_COOKIES_0 secret"
-            exit 1
-          fi
-
-      - name: Create and run worker
-        env:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
-          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
-          OFFSET: ${{ inputs.start_offset }}
-          LIMIT: ${{ inputs.chunk_size }}
+      - name: Create worker script
         run: |
           cat << 'SCRIPT' > worker.py
-          import os, subprocess, time, random
+          import os
+          import subprocess
+          import time
+          import random
           from pathlib import Path
           import boto3
           from botocore.config import Config
@@ -94,22 +90,22 @@ jobs:
               existing = set()
               try:
                   paginator = r2.get_paginator('list_objects_v2')
-                  for prefix in ["128/", "64/"]:
-                      for page in paginator.paginate(Bucket=R2_BUCKET, Prefix=prefix):
-                          for obj in page.get('Contents', []):
-                              key = obj['Key']
-                              if '/' in key:
-                                  filename = key.split('/')[-1]
-                                  if '.' in filename:
-                                      existing.add(filename.rsplit('.', 1)[0])
+                  for page in paginator.paginate(Bucket=R2_BUCKET, Prefix="128/"):
+                      for obj in page.get('Contents', []):
+                          key = obj['Key']
+                          if '/' in key:
+                              filename = key.split('/')[-1]
+                              if '.' in filename:
+                                  existing.add(filename.rsplit('.', 1)[0])
               except Exception as e:
-                  log(f"Warning: {e}")
+                  log(f"Warning getting existing: {e}")
               return existing
 
           def download_and_upload(yt_id, debug=False):
+              output = TEMP_DIR / f"{yt_id}.opus"
               cmd = ["yt-dlp", "-x", "--audio-format", "opus", "--audio-quality", "5",
                   "-o", str(TEMP_DIR / f"{yt_id}.%(ext)s"),
-                  "--no-playlist", "--quiet", "--no-warnings",
+                  "--no-playlist",
                   "--cookies", "/tmp/cookies.txt",
                   "--retries", "2", "--socket-timeout", "30",
                   f"https://www.youtube.com/watch?v={yt_id}"]
@@ -117,7 +113,6 @@ jobs:
                   result = subprocess.run(cmd, capture_output=True, timeout=120, text=True)
                   if debug or result.returncode != 0:
                       log(f"yt-dlp exit={result.returncode} stderr={result.stderr[:200] if result.stderr else 'none'}")
-                  output = TEMP_DIR / f"{yt_id}.opus"
                   if not output.exists():
                       webm = TEMP_DIR / f"{yt_id}.webm"
                       if webm.exists():
@@ -128,31 +123,48 @@ jobs:
                       output.unlink()
                       return True
               except Exception as e:
-                  log(f"Exception: {e}")
+                  log(f"Exception for {yt_id}: {e}")
               return False
 
           def main():
               log(f"Starting: offset={OFFSET}, limit={LIMIT}")
               tracks = get_tracks()
-              log(f"Got {len(tracks)} tracks")
+              log(f"Got {len(tracks)} tracks from DB")
+
               existing = get_existing()
-              log(f"Found {len(existing)} existing")
+              log(f"Found {len(existing)} already on R2")
+
               to_process = [t for t in tracks if t not in existing]
-              log(f"To process: {len(to_process)}")
+              log(f"Need to process: {len(to_process)}")
+
               if not to_process:
+                  log("Nothing to process!")
                   return
-              uploaded = failed = 0
+
+              uploaded = 0
+              failed = 0
+
               for i, yt_id in enumerate(to_process):
                   time.sleep(random.uniform(0.1, 0.3))
                   if download_and_upload(yt_id, debug=(i < 3)):
                       uploaded += 1
                   else:
                       failed += 1
-                  if (i + 1) % 50 == 0:
+                  if (i + 1) % 25 == 0:
                       log(f"Progress: {i+1}/{len(to_process)} | ✅ {uploaded} | ❌ {failed}")
+
               log(f"DONE: ✅ {uploaded} | ❌ {failed}")
 
           if __name__ == "__main__":
               main()
           SCRIPT
-          python worker.py
+
+      - name: Run worker
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          OFFSET: ${{ inputs.start_offset }}
+          LIMIT: ${{ inputs.chunk_size }}
+        run: python worker.py

@@ -18,34 +18,30 @@ jobs:
     timeout-minutes: 350
     steps:
       - name: Setup
-        env:
-          COOKIES: ${{ secrets.YOUTUBE_COOKIES_1 }}
         run: |
           echo "Conquest 1: offset=${{ inputs.start_offset }}, limit=${{ inputs.chunk_size }}"
+          # Install ffmpeg
           sudo apt-get update && sudo apt-get install -y ffmpeg
+          # Install deno for yt-dlp signature solving
+          curl -fsSL https://deno.land/install.sh | sh
+          export DENO_INSTALL="$HOME/.deno"
+          export PATH="$DENO_INSTALL/bin:$PATH"
+          echo "$DENO_INSTALL/bin" >> $GITHUB_PATH
+          # Install yt-dlp
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
           pip install boto3 requests
+          # TODO: Replace with YouTube Account 1 cookies (base64)
+          echo "REPLACE_WITH_YOUTUBE_ACCOUNT_1_COOKIES_BASE64" | base64 -d > /tmp/cookies.txt
+          echo "✓ Cookies loaded"
 
-          if [ -n "$COOKIES" ]; then
-            echo "$COOKIES" | base64 -d > /tmp/cookies.txt
-            echo "✓ Cookies loaded"
-          else
-            echo "❌ ERROR: Add YOUTUBE_COOKIES_1 secret"
-            exit 1
-          fi
-
-      - name: Create and run worker
-        env:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
-          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
-          OFFSET: ${{ inputs.start_offset }}
-          LIMIT: ${{ inputs.chunk_size }}
+      - name: Create worker script
         run: |
           cat << 'SCRIPT' > worker.py
-          import os, subprocess, time, random
+          import os
+          import subprocess
+          import time
+          import random
           from pathlib import Path
           import boto3
           from botocore.config import Config
@@ -94,22 +90,22 @@ jobs:
               existing = set()
               try:
                   paginator = r2.get_paginator('list_objects_v2')
-                  for prefix in ["128/", "64/"]:
-                      for page in paginator.paginate(Bucket=R2_BUCKET, Prefix=prefix):
-                          for obj in page.get('Contents', []):
-                              key = obj['Key']
-                              if '/' in key:
-                                  filename = key.split('/')[-1]
-                                  if '.' in filename:
-                                      existing.add(filename.rsplit('.', 1)[0])
+                  for page in paginator.paginate(Bucket=R2_BUCKET, Prefix="128/"):
+                      for obj in page.get('Contents', []):
+                          key = obj['Key']
+                          if '/' in key:
+                              filename = key.split('/')[-1]
+                              if '.' in filename:
+                                  existing.add(filename.rsplit('.', 1)[0])
               except Exception as e:
-                  log(f"Warning: {e}")
+                  log(f"Warning getting existing: {e}")
               return existing
 
           def download_and_upload(yt_id, debug=False):
+              output = TEMP_DIR / f"{yt_id}.opus"
               cmd = ["yt-dlp", "-x", "--audio-format", "opus", "--audio-quality", "5",
                   "-o", str(TEMP_DIR / f"{yt_id}.%(ext)s"),
-                  "--no-playlist", "--quiet", "--no-warnings",
+                  "--no-playlist",
                   "--cookies", "/tmp/cookies.txt",
                   "--retries", "2", "--socket-timeout", "30",
                   f"https://www.youtube.com/watch?v={yt_id}"]
@@ -117,7 +113,6 @@ jobs:
                   result = subprocess.run(cmd, capture_output=True, timeout=120, text=True)
                   if debug or result.returncode != 0:
                       log(f"yt-dlp exit={result.returncode} stderr={result.stderr[:200] if result.stderr else 'none'}")
-                  output = TEMP_DIR / f"{yt_id}.opus"
                   if not output.exists():
                       webm = TEMP_DIR / f"{yt_id}.webm"
                       if webm.exists():
@@ -128,31 +123,48 @@ jobs:
                       output.unlink()
                       return True
               except Exception as e:
-                  log(f"Exception: {e}")
+                  log(f"Exception for {yt_id}: {e}")
               return False
 
           def main():
               log(f"Starting: offset={OFFSET}, limit={LIMIT}")
               tracks = get_tracks()
-              log(f"Got {len(tracks)} tracks")
+              log(f"Got {len(tracks)} tracks from DB")
+
               existing = get_existing()
-              log(f"Found {len(existing)} existing")
+              log(f"Found {len(existing)} already on R2")
+
               to_process = [t for t in tracks if t not in existing]
-              log(f"To process: {len(to_process)}")
+              log(f"Need to process: {len(to_process)}")
+
               if not to_process:
+                  log("Nothing to process!")
                   return
-              uploaded = failed = 0
+
+              uploaded = 0
+              failed = 0
+
               for i, yt_id in enumerate(to_process):
                   time.sleep(random.uniform(0.1, 0.3))
                   if download_and_upload(yt_id, debug=(i < 3)):
                       uploaded += 1
                   else:
                       failed += 1
-                  if (i + 1) % 50 == 0:
+                  if (i + 1) % 25 == 0:
                       log(f"Progress: {i+1}/{len(to_process)} | ✅ {uploaded} | ❌ {failed}")
+
               log(f"DONE: ✅ {uploaded} | ❌ {failed}")
 
           if __name__ == "__main__":
               main()
           SCRIPT
-          python worker.py
+
+      - name: Run worker
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          OFFSET: ${{ inputs.start_offset }}
+          LIMIT: ${{ inputs.chunk_size }}
+        run: python worker.py
