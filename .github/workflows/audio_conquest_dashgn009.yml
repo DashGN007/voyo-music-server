@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        worker: [0, 1, 2, 3, 4]
+        worker: [0, 1, 2]
     steps:
       - name: Setup
         run: |
