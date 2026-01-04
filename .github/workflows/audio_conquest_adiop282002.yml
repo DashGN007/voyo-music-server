@@ -120,7 +120,6 @@ jobs:
                           webm.rename(output)
                   if output.exists():
                       r2.upload_file(str(output), R2_BUCKET, f"128/{yt_id}.opus")
-                      r2.upload_file(str(output), R2_BUCKET, f"64/{yt_id}.opus")
                       output.unlink()
                       return True
               except Exception as e:
