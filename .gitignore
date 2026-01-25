@@ -27,6 +27,7 @@ dist-ssr
 # Environment variables
 .env
 .env.*
+!.env.example
 .venv/
 # Large data files - host on CDN/storage instead
 data/canonized_*.json

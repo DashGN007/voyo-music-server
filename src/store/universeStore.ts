@@ -74,10 +74,23 @@ export interface ViewingUniverse {
   portalOpen: boolean;
 }
 
+// DASH Citizen storage key (shared across all DASH apps)
+const DASH_CITIZEN_KEY = 'dash_citizen_storage';
+const COMMAND_CENTER_URL = 'https://dash-command.vercel.app';
+
+interface DashCitizen {
+  coreId: string;
+  displayId: string;
+  fullName: string;
+  initials: string;
+}
+
 interface UniverseStore {
   // Auth State
   isLoggedIn: boolean;
   currentUsername: string | null;
+  coreId: string | null; // DASH identity (links to Command Center)
+  dashCitizen: DashCitizen | null;
   isLoading: boolean;
   error: string | null;
 
@@ -98,6 +111,8 @@ interface UniverseStore {
   // Auth Actions
   signup: (username: string, pin: string, displayName?: string) => Promise<boolean>;
   login: (username: string, pin: string) => Promise<boolean>;
+  loginWithDash: () => void; // Redirect to Command Center
+  handleDashCallback: () => boolean; // Handle return from Command Center
   logout: () => void;
   checkUsername: (username: string) => Promise<boolean>;
 
@@ -218,10 +233,21 @@ function getBoostedTrackIds(): string[] {
 // STORE
 // ============================================
 
+// Helper to get DASH citizen from localStorage
+const getDashCitizen = (): DashCitizen | null => {
+  try {
+    const stored = localStorage.getItem(DASH_CITIZEN_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch (e) { /* ignore */ }
+  return null;
+};
+
 export const useUniverseStore = create<UniverseStore>((set, get) => ({
   // Initial State - check localStorage for existing session
-  isLoggedIn: Boolean(localStorage.getItem(STORAGE_KEYS.username)),
-  currentUsername: localStorage.getItem(STORAGE_KEYS.username),
+  isLoggedIn: Boolean(localStorage.getItem(STORAGE_KEYS.username) || getDashCitizen()),
+  currentUsername: localStorage.getItem(STORAGE_KEYS.username) || getDashCitizen()?.coreId || null,
+  coreId: getDashCitizen()?.coreId || null,
+  dashCitizen: getDashCitizen(),
   isLoading: false,
   error: null,
 
@@ -299,14 +325,62 @@ export const useUniverseStore = create<UniverseStore>((set, get) => ({
   },
 
   // ========================================
+  // AUTH: LOGIN WITH DASH (Command Center SSO)
+  // ========================================
+  loginWithDash: () => {
+    const returnUrl = encodeURIComponent(window.location.href);
+    window.location.href = `${COMMAND_CENTER_URL}?returnUrl=${returnUrl}&app=V`;
+  },
+
+  // ========================================
+  // AUTH: HANDLE DASH CALLBACK
+  // ========================================
+  handleDashCallback: () => {
+    const params = new URLSearchParams(window.location.search);
+    const authData = params.get('dashAuth');
+
+    if (!authData) return false;
+
+    try {
+      const citizen: DashCitizen = JSON.parse(atob(authData));
+
+      if (citizen.coreId) {
+        // Save to localStorage (shared across all DASH apps)
+        localStorage.setItem(DASH_CITIZEN_KEY, JSON.stringify(citizen));
+
+        // Update store
+        set({
+          isLoggedIn: true,
+          currentUsername: citizen.coreId,
+          coreId: citizen.coreId,
+          dashCitizen: citizen,
+          isLoading: false,
+        });
+
+        // Clean URL
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+
+        return true;
+      }
+    } catch (e) {
+      console.error('[DASH Auth] Failed to parse callback:', e);
+    }
+    return false;
+  },
+
+  // ========================================
   // AUTH: LOGOUT
   // ========================================
   logout: () => {
     localStorage.removeItem(STORAGE_KEYS.username);
     localStorage.removeItem(STORAGE_KEYS.session);
+    localStorage.removeItem(DASH_CITIZEN_KEY);
     set({
       isLoggedIn: false,
       currentUsername: null,
+      coreId: null,
+      dashCitizen: null,
       portalSession: null,
       isPortalOpen: false,
     });

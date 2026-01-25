@@ -922,6 +922,12 @@ function App() {
     setShowSplash(false);
   }, []);
 
+  // DASH AUTH: Handle callback from Command Center
+  useEffect(() => {
+    const { handleDashCallback } = useUniverseStore.getState();
+    handleDashCallback();
+  }, []);
+
   // MOBILE FIX: Setup audio unlock on app mount
   useEffect(() => {
     setupMobileAudioUnlock();

@@ -20,7 +20,8 @@ import { VoyoBottomNav } from './navigation/VoyoBottomNav';
 import { VoyoVerticalFeed } from './feed/VoyoVerticalFeed';
 import { CreatorUpload } from './upload/CreatorUpload';
 import { VoyoPortraitPlayer } from './VoyoPortraitPlayer';
-import { Hub } from '../classic/Hub';
+import { Dahub } from '../dahub/Dahub';
+import { APP_CODES } from '../../lib/dahub/dahub-api';
 
 // Quick DJ Prompts
 const DJ_PROMPTS = [
@@ -305,7 +306,7 @@ export const PortraitVOYO = ({ onSearch, onDahub, onHome }: PortraitVOYOProps) =
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           style={{ pointerEvents: voyoActiveTab === 'dahub' ? 'auto' : 'none' }}
         >
-          <Hub />
+          <Dahub appContext={APP_CODES.VOYO} />
         </motion.div>
 
         {/* LAYER 5: BOTTOM NAVIGATION (Always on Top) */}

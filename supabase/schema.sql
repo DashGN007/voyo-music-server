@@ -128,11 +128,14 @@ CREATE TABLE IF NOT EXISTS reactions (
   -- THE reaction
   emoji TEXT NOT NULL DEFAULT '🔥',
   reaction_type TEXT NOT NULL DEFAULT 'oye' CHECK (reaction_type IN (
-    'oyo', 'oye', 'fire', 'chill', 'hype', 'love'
+    'like', 'oye', 'fire'  -- Simplified: Heart, Energy, Hot
   )),
 
   -- Optional text comment
   comment TEXT,
+
+  -- WHERE in the track (for hotspot detection)
+  track_position REAL,  -- 0-100 percentage of track position
 
   -- WHEN
   created_at TIMESTAMPTZ DEFAULT now()
