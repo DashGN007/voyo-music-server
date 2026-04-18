@@ -1,0 +1,205 @@
+name: Audio Conquest Queue (warm-polling)
+
+# Self-sustaining queue worker for the free-path extraction pipeline.
+#
+# Unlike the per-account batch conquest workflows (which range-iterate
+# video_intelligence by offset), this one polls voyo_upload_queue and
+# claims pending rows atomically via claim_upload_queue(). Runs for
+# ~5h per dispatch, then the scheduled cron re-triggers — which means
+# there are always ≥3 workers draining the queue.
+#
+# Dynamic insert flow:
+#   PWA searches for track not in R2
+#   → UPSERT into voyo_upload_queue (status='pending')
+#   → a worker here claims it within 2-3s
+#   → yt-dlp + opus transcode + R2 upload (~6-12s)
+#   → row marked status='done'
+#   → PWA realtime subscription fires → OYO plays it
+#
+# To run more accounts in parallel, duplicate this file with a different
+# cookie blob and a different worker_id prefix. Each account = 3 workers.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Every 4 hours — overlaps the 5h worker run so there's always a
+    # live worker. SKIP LOCKED means concurrent workers don't race.
+    - cron: '0 */4 * * *'
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330  # leave headroom under the 6h GitHub cap
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [0, 1, 2]
+    steps:
+      - name: Setup
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          sudo curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+          pip install -q boto3 requests
+          # Cookies — reuse diopazizworld account for now. Duplicate this
+          # file + swap this blob to fan out across more Google accounts.
+          echo "IyBOZXRzY2FwZSBIVFRQIENvb2tpZSBGaWxlCiMgaHR0cHM6Ly9jdXJsLmhheHguc2UvcmZjL2Nvb2tpZV9zcGVjLmh0bWwKIyBUaGlzIGlzIGEgZ2VuZXJhdGVkIGZpbGUhIERvIG5vdCBlZGl0LgoKLnlvdXR1YmUuY29tCVRSVUUJLwlGQUxTRQkxODAyMDc0NzcyCUhTSUQJQW1sVFJobi1HTERQYjJyRmQKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE4MDIwNzQ3NzIJU1NJRAlBVXJTUU1CNlZlSmdreWR0RgoueW91dHViZS5jb20JVFJVRQkvCUZBTFNFCTE4MDIwNzQ3NzIJQVBJU0lECU9fYmxoUVd5azl2eXgzSWsvQXVVNHl5aXdpLWYycFFnOXQKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE4MDIwNzQ3NzIJU0FQSVNJRAkwSHFsNGQ4bmhVRi1SLWsxL0FFeWVlYW9hVGwwNzZEaEhLCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxODAyMDc0NzcyCV9fU2VjdXJlLTFQQVBJU0lECTBIcWw0ZDhuaFVGLVItazEvQUV5ZWVhb2FUbDA3NkRoSEsKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE4MDIwNzQ3NzIJX19TZWN1cmUtM1BBUElTSUQJMEhxbDRkOG5oVUYtUi1rMS9BRXllZWFvYVRsMDc2RGhISwoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTc5Nzk4MDAwNAlMT0dJTl9JTkZPCUFGbW1GMnN3UlFJaEFOQ212aXBFSG4waDAycGdEWEpnYVNoX1JOZ0JnU0ZWd2t6T3JSVE9Ta2llQWlCRDJjLWNaaUwyYXFTaFdaRlc4Z2VkYUVfRlU5Y3NjYlRXUWJYUEcwTWlxUTpRVVEzTWpObWVuSjJkV0ZaTW5wV05tTlRjR0o0U1cxbVgwSXhkVFZTVFhsTmJ6Tndka1JrUWxscVowbG9XV1p1U0VjdFMwbE1OemhQZVZsc09GZHBkMUJTWldsdWVWaHhXREZpU1ZkcmNYRkxPR3N4ZVhKdmEyeE5WME5RUXpoSFl6STNhR1IxYzFOdGFTMHpkV3R6VjNacVUzVlBTbGR3TkRkSGNWZHphMVZVU21KZmNrVjFjemN4TnpjeVpsQk9lVkZPVVhab1pHWTRVSE41T1RCSVVXeDMKLnlvdXR1YmUuY29tCVRSVUUJLwlGQUxTRQkxODAyMDc0NzcyCVNJRAlnLmEwMDA1UWd2Z0hwUmxtUkd5SXF1U29xQTYwckVtMzhrZHZOSmJaRzJfZG1TSmUyYWZwZ3YyWXd4cDdCbUdoWDJKamJSNmx4WFd3QUNnWUtBUThTQVJNU0ZRSEdYMk1pNW5DMDhUa25TQnJkUlJvczZTOFlkQm9WQVVGOHlLcXBTMzB6eWJfakhzMXFiVHFUS0lxNTAwNzYKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE4MDIwNzQ3NzIJX19TZWN1cmUtMVBTSUQJZy5hMDAwNVFndmdIcFJsbVJHeUlxdVNvcUE2MHJFbTM4a2R2TkpiWkcyX2RtU0plMmFmcGd2SFllSmhlSExlOU1pZXo5T19KTV80UUFDZ1lLQVlzU0FSTVNGUUhHWDJNaW9wLUVnNEhzMXA5QjNNdS1zVGtWbFJvVkFVRjh5S3BIWW90Y3lnSVctdmhfcHZ2NkU0N0MwMDc2Ci55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxODAyMDc0NzcyCV9fU2VjdXJlLTNQU0lECWcuYTAwMDVRZ3ZnSHBSbG1SR3lJcXVTb3FBNjByRW0zOGtkdk5KYlpHMl9kbVNKZTJhZnBndkRFeS10RjE1Y0ZrdmVPOUZrakpJT0FBQ2dZS0FWZ1NBUk1TRlFIR1gyTWl2UHNVckpLdjY2d3p3QnJTVm13c1hSb1ZBVUY4eUtyYXJEV1pVaDcxSkFSMVBQeXFCM3k2MDA3NgoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTc5OTA1MDc3NAlfX1NlY3VyZS0xUFNJRFRTCXNpZHRzLUNqSUJmbGFDZFNmbkR5dHppTktodjlnQ2NiZndicFF4ZTJDbVkxeEVsdWFqMTRIbFJaZUx4RDl6OUh6bXgyakdadWxNeGhBQQoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTc5OTA1MDc3NAlfX1NlY3VyZS0zUFNJRFRTCXNpZHRzLUNqSUJmbGFDZFNmbkR5dHppTktodjlnQ2NiZndicFF4ZTJDbVkxeEVsdWFqMTRIbFJaZUx4RDl6OUh6bXgyakdadWxNeGhBQQoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTgwMjA3NTA4OQlQUkVGCWY0PTQwMDAwMDAmZjY9NDAwMDAwMDAmdHo9QXNpYS5LdWFsYV9MdW1wdXImZjc9MTAwCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxNzY3NTE1NDI1CUNPTlNJU1RFTkNZCUFQZVZ5aS13b2k3ekFIb1JVUUlKSlU2ZXdackM3NHgwY0JhbmYwX0wtTWI3QW9WZ0lwNklZV2RxenRaRk5UT2d3eUJsQ3cwY3RHb19yMkx6WEphZGVlYVdLMUJxNDJwZ2swb01DQmVHR2I2Z1ZyTEVqQkZyeWwyNjhCQlRSMVhTdFVkTkVMdW9pbmQ1NUdnVkkxX2NpdHhGCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxNzk5MDUxMDk2CVNJRENDCUFLRXlYelh1U2xqUDk5Zms1Vy1zU0F4b3FDbDhhSkRzUURJdkxWZDdKMDhJdGVCRHljSXdKVFI1ZDByYjJXejg5UEJ3c0ltcEpRCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxNzk5MDUxMDk2CV9fU2VjdXJlLTFQU0lEQ0MJQUtFeVh6VVZhNTlWdnRHWkNValByUkhTb0w5VUR6TnlGdlY4TUh1VHlqcEJQaHVlcS1aLWQtSm1Ga3daTFB4RGZlVTAzQ0JaCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxNzk5MDUxMDk2CV9fU2VjdXJlLTNQU0lEQ0MJQUtFeVh6VzR2N3lzQUk5cmlQeXJLOXFPN1o0RTQ3Z0ZWZnNBUEFpTHFRa3M3Y3JWT1ZUaFBLYlRmLUpXYkFIeElBejJMQUg3U3cKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTAJWVNDCTRYM2Rfbk1MTDNnCi55b3V0dWJlLmNvbQlUUlVFCS8JVFJVRQkxNzgzMDY2ODAyCVZJU0lUT1JfSU5GTzFfTElWRQlOLWUyN2NOUFpNSQoueW91dHViZS5jb20JVFJVRQkvCVRSVUUJMTc4MzA2NjgwMglWSVNJVE9SX1BSSVZBQ1lfTUVUQURBVEEJQ2dKTldSSUVHZ0FnU3clM0QlM0QKLnlvdXR1YmUuY29tCVRSVUUJLwlUUlVFCTE3ODMwNjY3NzIJX19TZWN1cmUtUk9MTE9VVF9UT0tFTglDT0NfcjRUMXRmQ0dSQkR5cVlUUXVmR1JBeGlPd3FfUXVmR1JBdyUzRCUzRAo=" | base64 -d > /tmp/cookies.txt
+
+      - name: Write queue worker
+        run: |
+          cat > worker.py <<'SCRIPT'
+          import os, subprocess, time, random, signal, sys
+          from pathlib import Path
+          import boto3
+          from botocore.config import Config
+          import requests
+
+          SUPABASE_URL  = "https://anmgyxhnyhbyxzpjhxgx.supabase.co"
+          SUPABASE_KEY  = os.environ['SUPABASE_KEY']
+          R2_ACCOUNT_ID = os.environ['R2_ACCOUNT_ID']
+          R2_ACCESS_KEY = os.environ['R2_ACCESS_KEY']
+          R2_SECRET_KEY = os.environ['R2_SECRET_KEY']
+          R2_BUCKET     = 'voyo-audio'
+          WORKER        = os.environ['WORKER']
+          RUN_ID        = os.environ.get('GITHUB_RUN_ID', 'local')
+          WORKER_ID     = f"queue-{RUN_ID}-w{WORKER}"
+
+          # Run budget: 5h 10m. Workflow timeout is 5h 30m, buffer for cleanup.
+          BUDGET_SEC   = 5 * 3600 + 10 * 60
+          POLL_IDLE_SEC = 3
+          BATCH_SIZE   = 5
+
+          TEMP_DIR = Path("/tmp/voyo-audio")
+          TEMP_DIR.mkdir(exist_ok=True)
+
+          r2 = boto3.client('s3',
+              endpoint_url=f'https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com',
+              aws_access_key_id=R2_ACCESS_KEY,
+              aws_secret_access_key=R2_SECRET_KEY,
+              config=Config(retries={'max_attempts': 3}))
+
+          HEADERS = {
+              'apikey':         SUPABASE_KEY,
+              'Authorization':  f'Bearer {SUPABASE_KEY}',
+              'Content-Type':   'application/json',
+          }
+
+          def log(msg):
+              print(f"[{WORKER_ID}] {msg}", flush=True)
+
+          def claim_batch():
+              """Atomic claim via SECURITY DEFINER RPC. Returns up to BATCH_SIZE rows."""
+              url = f"{SUPABASE_URL}/rest/v1/rpc/claim_upload_queue"
+              body = {'p_worker_id': WORKER_ID, 'p_batch_size': BATCH_SIZE}
+              r = requests.post(url, json=body, headers=HEADERS, timeout=10)
+              if r.status_code != 200:
+                  log(f"claim failed: {r.status_code} {r.text[:200]}")
+                  return []
+              return r.json()
+
+          def mark_done(row_id):
+              url = f"{SUPABASE_URL}/rest/v1/voyo_upload_queue?id=eq.{row_id}"
+              body = {'status': 'done', 'completed_at': 'now()'}
+              requests.patch(url, json=body, headers=HEADERS, timeout=10)
+
+          def mark_failed(row_id, error_msg):
+              # Append error, increment failure count, set back to pending for retry
+              url  = f"{SUPABASE_URL}/rest/v1/voyo_upload_queue?id=eq.{row_id}"
+              # Read current count first (only 1 round-trip in practice)
+              cur  = requests.get(f"{url}&select=failure_count", headers=HEADERS, timeout=10)
+              count = (cur.json()[0]['failure_count'] if cur.status_code == 200 and cur.json() else 0) + 1
+              new_status = 'failed' if count >= 3 else 'pending'
+              body = {
+                  'status':         new_status,
+                  'failure_count':  count,
+                  'last_error':     error_msg[:500],
+                  'claimed_at':     None,
+                  'claimed_by_worker': None,
+              }
+              requests.patch(url, json=body, headers=HEADERS, timeout=10)
+
+          def requeue_stale():
+              """Housekeeping — unclaim rows stuck in processing > 10 min."""
+              url = f"{SUPABASE_URL}/rest/v1/rpc/requeue_stale_claims"
+              try:
+                  r = requests.post(url, json={}, headers=HEADERS, timeout=10)
+                  n = r.json() if r.status_code == 200 else 0
+                  if n: log(f"housekeeping: requeued {n} stale rows")
+              except Exception as e:
+                  log(f"housekeeping error: {e}")
+
+          def extract_and_upload(yt_id):
+              out = TEMP_DIR / f"{yt_id}.opus"
+              cmd = ["yt-dlp", "-x", "--audio-format", "opus", "--audio-quality", "5",
+                     "-o", str(TEMP_DIR / f"{yt_id}.%(ext)s"),
+                     "--no-playlist",
+                     "--cookies", "/tmp/cookies.txt",
+                     "--retries", "2", "--socket-timeout", "30",
+                     f"https://www.youtube.com/watch?v={yt_id}"]
+              result = subprocess.run(cmd, capture_output=True, timeout=120, text=True)
+              if not out.exists():
+                  webm = TEMP_DIR / f"{yt_id}.webm"
+                  if webm.exists(): webm.rename(out)
+              if not out.exists():
+                  stderr_tail = (result.stderr or '')[-300:]
+                  raise RuntimeError(f"yt-dlp exit={result.returncode}: {stderr_tail}")
+              r2.upload_file(str(out), R2_BUCKET, f"128/{yt_id}.opus")
+              out.unlink(missing_ok=True)
+
+          # Graceful shutdown if runner kills us near the timeout
+          _running = True
+          def _term(_s, _f):
+              global _running
+              log("SIGTERM received — finishing current track then exiting")
+              _running = False
+          signal.signal(signal.SIGTERM, _term)
+          signal.signal(signal.SIGINT,  _term)
+
+          def main():
+              start = time.time()
+              processed = 0
+              failed    = 0
+              last_housekeep = 0
+              log(f"starting — budget {BUDGET_SEC}s")
+
+              while _running and (time.time() - start) < BUDGET_SEC:
+                  # Occasional housekeeping (every ~5 min)
+                  if time.time() - last_housekeep > 300:
+                      requeue_stale()
+                      last_housekeep = time.time()
+
+                  batch = claim_batch()
+                  if not batch:
+                      time.sleep(POLL_IDLE_SEC)
+                      continue
+
+                  for row in batch:
+                      yt_id = row['youtube_id']
+                      row_id = row['id']
+                      t0 = time.time()
+                      try:
+                          extract_and_upload(yt_id)
+                          mark_done(row_id)
+                          processed += 1
+                          log(f"✓ {yt_id} in {time.time()-t0:.1f}s (total {processed})")
+                      except Exception as e:
+                          mark_failed(row_id, str(e))
+                          failed += 1
+                          log(f"✗ {yt_id} in {time.time()-t0:.1f}s: {str(e)[:150]}")
+                      # Politeness between tracks
+                      time.sleep(random.uniform(0.1, 0.3))
+
+              log(f"DONE — processed={processed} failed={failed} runtime={int(time.time()-start)}s")
+
+          if __name__ == "__main__":
+              main()
+          SCRIPT
+
+      - name: Run queue worker
+        env:
+          SUPABASE_KEY:  ${{ secrets.SUPABASE_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          WORKER:        ${{ matrix.worker }}
+        run: python worker.py
