@@ -43,11 +43,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install deno
+
+      # Install deno — the JS runtime yt-dlp uses to solve YouTube's n-challenge
+      # and signature challenges. Without this, yt-dlp falls back to failure
+      # mode and reports "Only images are available" even on valid tracks.
+      # This is the single missing piece that broke this workflow.
+      - name: Install deno (JS challenge solver runtime)
         run: |
           curl -fsSL https://deno.land/install.sh | sh
           echo "$HOME/.deno/bin" >> $GITHUB_PATH
-          
+
       - name: Start bgutil PoT server
         run: |
           docker run -d --name bgutil --network host \
@@ -66,6 +71,8 @@ jobs:
       - name: Install worker deps
         run: |
           python -m pip install --upgrade pip
+          # yt-dlp-ejs ships the challenge solver scripts that deno executes.
+          # pip + bgutil + ejs + deno = full extraction stack.
           pip install yt-dlp yt-dlp-ejs boto3 requests bgutil-ytdlp-pot-provider
 
       - name: Fetch fresh cookies from VPS bridge
