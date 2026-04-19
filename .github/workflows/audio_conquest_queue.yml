@@ -22,9 +22,11 @@ name: Audio Conquest Queue (warm-polling)
 on:
   workflow_dispatch: {}
   schedule:
-    # Every 4 hours — overlaps the 5h worker run so there's always a
-    # live worker. SKIP LOCKED means concurrent workers don't race.
-    - cron: '0 */4 * * *'
+    # Hourly — each worker runs 5h, so there's always ~5 overlapping
+    # workers alive at any moment, meaning new queue rows are claimed
+    # within ~3s (the POLL_IDLE_SEC in worker.py). Free compute on
+    # a public repo, so we keep coverage high.
+    - cron: '0 * * * *'
 
 jobs:
   drain:
