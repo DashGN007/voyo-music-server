@@ -170,6 +170,7 @@ jobs:
                      "--no-playlist",
                      "--cookies", "/tmp/cookies.txt",
                      "--retries", "2", "--socket-timeout", "30",
+                     "--retries", "2", "--socket-timeout", "30",
                      f"https://www.youtube.com/watch?v={yt_id}"]
               result = subprocess.run(cmd, capture_output=True, timeout=120, text=True)
               if not out.exists():
