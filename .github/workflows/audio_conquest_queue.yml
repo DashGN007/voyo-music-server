@@ -43,7 +43,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
+      - name: Install deno
+        run: |
+          curl -fsSL https://deno.land/install.sh | sh
+          echo "$HOME/.deno/bin" >> $GITHUB_PATH
+          
       - name: Start bgutil PoT server
         run: |
           docker run -d --name bgutil --network host \
@@ -62,7 +66,7 @@ jobs:
       - name: Install worker deps
         run: |
           python -m pip install --upgrade pip
-          pip install yt-dlp boto3 requests bgutil-ytdlp-pot-provider
+          pip install yt-dlp yt-dlp-ejs boto3 requests bgutil-ytdlp-pot-provider
 
       - name: Fetch fresh cookies from VPS bridge
         env:
