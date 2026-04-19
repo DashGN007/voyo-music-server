@@ -128,8 +128,7 @@ name: Audio Conquest Queue (warm-polling)
             def mark_failed(row_id, error_msg):
                 url  = f"{SUPABASE_URL}/rest/v1/voyo_upload_queue?id=eq.{row_id}"
                 cur  = requests.get(f"{url}&select=failure_count", headers=HEADERS, timeout=10)
-                count = (cur.json()[0]['failure_count'] if cur.status_code == 200 and cur.json() else 0) +
-   1
+                count = (cur.json()[0]['failure_count'] if cur.status_code == 200 and cur.json() else 0) + 1
                 new_status = 'failed' if count >= 3 else 'pending'
                 body = {
                     'status':            new_status,
