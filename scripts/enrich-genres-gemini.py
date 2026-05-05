@@ -51,7 +51,7 @@ GENRES = [
     'highlife', 'hiplife', 'rumba', 'kizomba', 'zouk', 'afrohouse', 'gqom',
     'bongo-flava', 'dancehall', 'reggae', 'soca', 'reggaeton', 'mbalax', 'bikutsi',
     'soukous', 'ndombolo', 'makossa', 'gengetone', 'kwaito', 'afrobeat',
-    'afrofusion', 'afrofolk', 'fuji', 'juju',
+    'afrofusion', 'afrofolk', 'fuji', 'juju', 'palmwine',
     'kuduro', 'semba', 'tarraxo', 'benga', 'taarab',
     'rai', 'chaabi', 'gnawa', 'afrosoul',
     'lekompo', 'singeli',
@@ -75,7 +75,7 @@ Rules:
 - Jamaican roots/rocksteady/ska/dub/lovers rock = reggae (Bob Marley, Dennis Brown, Gregory Isaacs, Burning Spear, etc.)
 - Jamaican dancehall (modern, digital) = dancehall (Beenie Man, Bounty Killer, Shaggy, Yellowman)
 - Caribbean party = soca; Latin Caribbean = reggaeton
-- West African acoustic/folk = afrofolk
+- West African acoustic/folk = afrofolk; older palm wine guitar tradition = palmwine
 - Yoruba folk/spiritual = fuji; Yoruba juju music = juju (King Sunny Ade, Ebenezer Obey)
 - Angolan kuduro (fast electronic) = kuduro; Angolan/Cape Verdean kizomba-adjacent = semba; ultra-slow intimate = tarraxo
 - Kenyan/Tanzanian benga guitar = benga; East African Arabic-influenced = taarab
@@ -86,7 +86,7 @@ Rules:
 - American/UK trap or drill = trap or drill (not afrobeats)
 - Non-African/Caribbean/diasporic genres = soul, funk, pop, rock, classical, jazz, electronic
 - If unsure between two African genres = afropop
-- Only use "other" for tracks that genuinely fit NONE of the 52 specific genres above
+- Only use "other" for tracks that genuinely fit NONE of the 53 specific genres above
 
 Return ONLY a JSON array of strings, same order as input, no explanation:
 ["genre1","genre2",...]

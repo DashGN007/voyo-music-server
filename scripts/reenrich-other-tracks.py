@@ -82,6 +82,7 @@ GENRE_VIBES: dict[str, dict] = {
     'benga':      dict(vibe_afro_heat=68, vibe_party_mode=70, vibe_chill_vibes=30, vibe_late_night=45, vibe_workout=60, heat_score=68),
     'taarab':     dict(vibe_afro_heat=48, vibe_party_mode=45, vibe_chill_vibes=62, vibe_late_night=55, vibe_workout=38, heat_score=45),
     'juju':       dict(vibe_afro_heat=65, vibe_party_mode=65, vibe_chill_vibes=38, vibe_late_night=48, vibe_workout=55, heat_score=62),
+    'palmwine':   dict(vibe_afro_heat=50, vibe_party_mode=52, vibe_chill_vibes=58, vibe_late_night=45, vibe_workout=40, heat_score=48),
     'rai':        dict(vibe_afro_heat=55, vibe_party_mode=60, vibe_chill_vibes=42, vibe_late_night=55, vibe_workout=52, heat_score=58),
     'chaabi':     dict(vibe_afro_heat=52, vibe_party_mode=55, vibe_chill_vibes=48, vibe_late_night=50, vibe_workout=48, heat_score=52),
     'gnawa':      dict(vibe_afro_heat=48, vibe_party_mode=45, vibe_chill_vibes=55, vibe_late_night=62, vibe_workout=38, heat_score=45),
@@ -96,7 +97,7 @@ GENRES = [
     'highlife', 'hiplife', 'rumba', 'kizomba', 'zouk', 'afrohouse', 'gqom',
     'bongo-flava', 'dancehall', 'reggae', 'soca', 'reggaeton', 'mbalax', 'bikutsi',
     'soukous', 'ndombolo', 'makossa', 'gengetone', 'kwaito', 'afrobeat',
-    'afrofusion', 'afrofolk', 'fuji', 'juju', 'trap', 'drill', 'grime', 'soul',
+    'afrofusion', 'afrofolk', 'fuji', 'juju', 'palmwine', 'trap', 'drill', 'grime', 'soul',
     'kuduro', 'semba', 'tarraxo', 'benga', 'taarab', 'rai', 'chaabi', 'gnawa',
     'afrosoul', 'lekompo', 'singeli',
     'funk', 'pop', 'rock', 'classical', 'jazz', 'electronic', 'other',
@@ -118,7 +119,7 @@ Rules:
 - Jamaican roots/rocksteady/ska/dub/lovers rock = reggae (Bob Marley, Dennis Brown, Gregory Isaacs, Burning Spear, etc.)
 - Jamaican dancehall (modern, digital) = dancehall (Beenie Man, Bounty Killer, Shaggy, Yellowman)
 - Caribbean party = soca; Latin Caribbean = reggaeton
-- West African acoustic/folk = afrofolk
+- West African acoustic/folk = afrofolk; older palm wine guitar tradition = palmwine
 - Yoruba folk/spiritual = fuji; Yoruba juju music = juju (King Sunny Ade, Ebenezer Obey)
 - Angolan kuduro (fast electronic afrobeats) = kuduro; Angolan/Cape Verdean slow kizomba-adjacent = semba; ultra-slow intimate Angola = tarraxo
 - Kenyan/Tanzanian benga guitar = benga; East African taarab (Arabic-influenced) = taarab
@@ -128,7 +129,7 @@ Rules:
 - American/UK trap or drill = trap or drill (not afrobeats)
 - Non-African/Caribbean/diasporic genres = soul, funk, pop, rock, classical, jazz, electronic
 - If unsure between two African genres = afropop
-- Only use "other" for tracks that genuinely fit NONE of the 50 specific genres above
+- Only use "other" for tracks that genuinely fit NONE of the 51 specific genres above
 
 Return ONLY a JSON array of strings, same order as input, no explanation:
 ["genre1","genre2",...]
