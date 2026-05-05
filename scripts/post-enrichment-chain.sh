@@ -32,4 +32,9 @@ log "=== Step 3: reenrich-other-tracks.py ==="
 PYTHONUNBUFFERED=1 nohup python3 -u scripts/reenrich-other-tracks.py >> /tmp/voyo_reenrich_other.log 2>&1 &
 log "Re-enrichment of 'other' tracks started in background (PID: $!). Watch: tail -f /tmp/voyo_reenrich_other.log"
 
+# Step 4: Targeted r2_cached genre enrichment (fills playable catalog gaps)
+log "=== Step 4: enrich-r2-priority.py --also-other ==="
+PYTHONUNBUFFERED=1 nohup python3 -u scripts/enrich-r2-priority.py --also-other >> /tmp/voyo_r2_priority.log 2>&1 &
+log "R2 priority enrichment started in background (PID: $!). Watch: tail -f /tmp/voyo_r2_priority.log"
+
 log "Post-enrichment chain complete."
