@@ -141,6 +141,8 @@ def generate_queries():
         "afrobeats", "amapiano", "naija", "bongo flava", "highlife", "juju",
         "fuji", "afro soul", "afro pop", "afro house", "gqom", "kwaito",
         "rumba", "ndombolo", "coupé décalé", "mbalax", "soukous",
+        "kuduro", "kizomba", "semba", "tarraxo", "singeli", "taarab", "benga",
+        "lekompo", "palm wine", "rai", "chaabi", "gnawa",
         "hip hop", "rap", "trap", "drill", "r&b", "rnb", "soul", "neo soul",
         "reggae", "dancehall", "soca", "funk", "gospel", "worship",
         "afro trap", "afroswing", "uk rap", "grime",
@@ -159,6 +161,7 @@ def generate_queries():
     regions = [
         "african", "nigerian", "ghana", "south african", "kenyan", "tanzanian",
         "congolese", "senegalese", "ethiopian", "ugandan", "zimbabwe",
+        "angolan", "moroccan", "algerian", "mozambique",
         "american", "uk", "caribbean", "jamaican", "brazilian",
     ]
 
