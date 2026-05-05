@@ -57,7 +57,14 @@ GENRE_TO_TAGS: dict[str, list[str]] = {
     'trap':        ['usa', 'diaspora'],
     'soul':        ['diaspora'],
     'soca':        ['caribbean', 'diaspora'],
+    'reggaeton':   ['caribbean', 'latin'],
     'funk':        ['diaspora'],
+    'kwaito':      ['south-africa', 'mzansi'],
+    'fuji':        ['nigeria', 'west-africa'],
+    'afrojuju':    ['nigeria', 'west-africa'],
+    'afrobeat':    ['nigeria', 'west-africa'],
+    'afrofusion':  ['diaspora', 'west-africa'],
+    'afrofolk':    ['west-africa'],
 }
 
 PAGE = 200
