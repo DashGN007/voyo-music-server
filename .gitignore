@@ -33,3 +33,5 @@ dist-ssr
 data/canonized_*.json
 data/artists_*_v5_*.json
 cookies.txt
+__pycache__/
+*.pyc
