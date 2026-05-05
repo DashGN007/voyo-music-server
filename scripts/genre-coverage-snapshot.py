@@ -68,14 +68,14 @@ def fetch_genre_distribution() -> list[tuple[str, int]]:
                f'?primary_genre=eq.{g_enc}&select=youtube_id')
         hdrs = {**HEADERS, 'Prefer': 'count=exact', 'Range-Unit': 'items', 'Range': '0-0'}
         try:
-            r = requests.get(url, headers=hdrs, timeout=10)
+            r = requests.get(url, headers=hdrs, timeout=20)
             cr = r.headers.get('Content-Range', '')
             if '/' in cr:
                 n = int(cr.split('/')[1])
                 if n > 0:
                     counts[genre] = n
-        except Exception:
-            pass
+        except Exception as e:
+            print(f'  [skip] {genre}: {e}', flush=True)
     return counts.most_common(15)
 
 
