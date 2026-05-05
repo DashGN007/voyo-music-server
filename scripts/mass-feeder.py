@@ -94,6 +94,9 @@ BULK_QUERIES = [
     "south african house music", "gqom music", "kwaito music",
     "highlife music ghana", "juju music nigeria", "fuji music",
     "afro soul music", "african r&b", "afro pop music",
+    "kuduro angola music", "kizomba 2024", "semba angola",
+    "singeli music tanzania", "taarab swahili music", "benga music kenya",
+    "lekompo limpopo music", "rai music algerie", "chaabi music", "gnawa morocco",
 
     # Mood/Activity playlists
     "african chill music", "african love songs", "african slow jams",
