@@ -104,6 +104,7 @@ DOMAINS = {
             "amapiano 2024", "amapiano 2023", "amapiano mix", "south african house",
             "gqom music", "kwaito music", "south african hip hop", "mzansi music",
             "amapiano dance", "piano hub", "sa music 2024",
+            "lekompo music limpopo", "lekompo south africa",
         ]
     },
     "francophone_africa": {
@@ -133,6 +134,21 @@ DOMAINS = {
             "bongo flava 2024", "bongo flava mix", "tanzanian music", "kenyan music 2024",
             "gengetone music", "ugandan music", "east african hits", "swahili songs",
             "bongo love songs", "kenyan gospel", "rwandan music",
+            "singeli music tanzania", "taarab music swahili", "benga music kenya",
+            "east africa underground music",
+        ]
+    },
+    "lusophone_africa": {
+        "artists": [
+            "Burna Boy Angola collab", "C4 Pedro", "Dog Murras", "Edgar Domingos",
+            "Paulo Flores", "Yola Semedo", "Noite e Dia", "Matias Damasio",
+            "Calema", "Nelson Freitas", "Djodje", "Elji Beatzkilla",
+            "Pérola", "Sérgio Nzonzing", "Anselmo Ralph",
+        ],
+        "queries": [
+            "kuduro angola music", "kizomba 2024", "semba angola music",
+            "tarraxo music angola", "tarraxinha angola", "angolan music 2024",
+            "lusophone african music", "cabo verde music", "mozambique music 2024",
         ]
     },
     "north_african_arabic": {
@@ -147,6 +163,7 @@ DOMAINS = {
             "arabic music 2024", "rai music", "mahraganat music", "egyptian pop",
             "moroccan music", "algerian music", "khaliji music", "arabic hits",
             "arabic wedding songs", "arabic party mix",
+            "chaabi music north africa", "gnawa music morocco", "rai algérien 2024",
         ]
     },
     "african_legends": {
@@ -162,6 +179,7 @@ DOMAINS = {
             "african classics", "afrobeat classics", "african throwback",
             "old school african music", "african jazz", "african reggae",
             "highlife classics", "rumba classics", "african soul",
+            "palm wine music ghana", "juju music nigeria classic",
         ]
     },
     "afro_global_collabs": {
