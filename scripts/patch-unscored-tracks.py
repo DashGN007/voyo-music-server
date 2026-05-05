@@ -79,12 +79,14 @@ GENRE_VIBES: dict[str, dict] = {
 CHUNK = 400
 
 
-def fetch_unscored_chunk(genre: str, after_id: str = '') -> list[str]:
-    """Fetch youtube_ids with this genre that still have heat_score=0."""
+NULL_GENRE_DEFAULT_SCORE = 45  # heat_score set by populate-vibe-scores.py for null-genre rows
+
+def fetch_unscored_chunk(genre: str, after_id: str = '', score_filter: str = 'eq.0') -> list[str]:
+    """Fetch youtube_ids with this genre that still have heat_score unset or at null-genre default."""
     g_enc = urllib.parse.quote(genre)
     url = (f'{SUPABASE_URL}/rest/v1/video_intelligence'
            f'?primary_genre=eq.{g_enc}'
-           f'&heat_score=eq.0'
+           f'&heat_score={score_filter}'
            f'&select=youtube_id'
            f'&order=youtube_id.asc'
            f'&limit={CHUNK}')
@@ -114,17 +116,25 @@ def process_genre(genre: str, vibes: dict) -> int:
         'workout':    vibes['vibe_workout'],
     }
     total = 0
-    after_id = ''
-    while True:
-        ids = fetch_unscored_chunk(genre, after_id)
-        if not ids:
-            break
-        status = patch_ids(ids, vibes, vibe_scores_json)
-        if status not in (200, 204):
-            print(f'    {genre} chunk error: {status}', flush=True)
-        total += len(ids)
-        after_id = ids[-1]
-        time.sleep(0.2)
+    expected_score = vibes['heat_score']
+    # Two passes: catch heat_score=0 (never scored) AND heat_score=45 (null-genre default
+    # that got enriched — these tracks were scored as neutral before genre was known).
+    filters = ['eq.0', f'eq.{NULL_GENRE_DEFAULT_SCORE}']
+    # Skip the null-default pass if this genre's correct score IS the default (no-op)
+    if expected_score == NULL_GENRE_DEFAULT_SCORE:
+        filters = ['eq.0']
+    for score_filter in filters:
+        after_id = ''
+        while True:
+            ids = fetch_unscored_chunk(genre, after_id, score_filter)
+            if not ids:
+                break
+            status = patch_ids(ids, vibes, vibe_scores_json)
+            if status not in (200, 204):
+                print(f'    {genre} chunk error: {status}', flush=True)
+            total += len(ids)
+            after_id = ids[-1]
+            time.sleep(0.2)
     return total
 
 
