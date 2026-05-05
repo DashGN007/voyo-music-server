@@ -100,6 +100,31 @@ GENRE_VIBES: dict[str, dict] = {
 CHUNK = 500  # rows per PATCH — stays well under statement_timeout
 
 
+def _safe_get(url: str, label: str) -> list[str]:
+    """GET with one retry; returns [] on any error."""
+    for attempt in range(2):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=20)
+            if resp.status_code >= 500:
+                if attempt == 0:
+                    time.sleep(2)
+                    continue
+                print(f'  [warn] {label} HTTP {resp.status_code}')
+                return []
+            data = resp.json()
+            if not isinstance(data, list):
+                print(f'  [warn] {label} unexpected: {str(data)[:80]}')
+                return []
+            return [r['youtube_id'] for r in data]
+        except Exception as e:
+            if attempt == 0:
+                time.sleep(2)
+                continue
+            print(f'  [warn] {label} error: {e}')
+            return []
+    return []
+
+
 def fetch_ids_chunk(genre: str, after_id: str = '') -> list[str]:
     """Fetch a page of youtube_ids for a genre (cursor-based)."""
     g_enc = urllib.parse.quote(genre)
@@ -110,12 +135,7 @@ def fetch_ids_chunk(genre: str, after_id: str = '') -> list[str]:
            f'&limit={CHUNK}')
     if after_id:
         url += f'&youtube_id=gt.{urllib.parse.quote(after_id)}'
-    resp = requests.get(url, headers=HEADERS, timeout=20)
-    data = resp.json()
-    if not isinstance(data, list):
-        print(f'  [warn] unexpected response for genre fetch: {str(data)[:80]}')
-        return []
-    return [r['youtube_id'] for r in data]
+    return _safe_get(url, f'fetch genre={genre}')
 
 
 def fetch_null_ids_chunk(after_id: str = '') -> list[str]:
@@ -126,21 +146,27 @@ def fetch_null_ids_chunk(after_id: str = '') -> list[str]:
            f'&limit={CHUNK}')
     if after_id:
         url += f'&youtube_id=gt.{urllib.parse.quote(after_id)}'
-    resp = requests.get(url, headers=HEADERS, timeout=20)
-    data = resp.json()
-    if not isinstance(data, list):
-        print(f'  [warn] unexpected response for null fetch: {str(data)[:80]}')
-        return []
-    return [r['youtube_id'] for r in data]
+    return _safe_get(url, 'fetch null-genre')
 
 
 def patch_ids(ids: list[str], vibes: dict, vibe_scores_json: dict) -> int:
-    """PATCH a specific list of youtube_ids using IN filter."""
+    """PATCH a specific list of youtube_ids using IN filter. One retry on 5xx."""
     id_list = ','.join(urllib.parse.quote(i) for i in ids)
     url = f'{SUPABASE_URL}/rest/v1/video_intelligence?youtube_id=in.({id_list})'
     body = {**vibes, 'vibe_scores': vibe_scores_json}
-    resp = requests.patch(url, headers=HEADERS, json=body, timeout=30)
-    return resp.status_code
+    for attempt in range(2):
+        try:
+            resp = requests.patch(url, headers=HEADERS, json=body, timeout=30)
+            if resp.status_code >= 500 and attempt == 0:
+                time.sleep(2)
+                continue
+            return resp.status_code
+        except Exception:
+            if attempt == 0:
+                time.sleep(2)
+                continue
+            return 0
+    return 0
 
 
 def process_genre(genre: str, vibes: dict) -> int:
