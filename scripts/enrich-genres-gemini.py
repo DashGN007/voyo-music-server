@@ -68,11 +68,16 @@ Rules:
 - Tanzanian/Kenyan = bongo-flava; Kenyan street = gengetone
 - Cameroonian = bikutsi or makossa
 - Senegalese = mbalax
-- Caribbean = dancehall or soca or reggaeton
+- Jamaican roots/rocksteady/ska/dub/lovers rock = reggae (Bob Marley, Dennis Brown, Gregory Isaacs, Burning Spear, etc.)
+- Jamaican dancehall (modern, digital) = dancehall (Beenie Man, Bounty Killer, Shaggy, Yellowman)
+- Caribbean party = soca; Latin Caribbean = reggaeton
 - West African acoustic/folk = afrofolk
 - Yoruba folk/spiritual = fuji
 - Gospel rap = gospel (faith > rap)
-- If unsure = afropop
+- American/UK trap or drill = trap or drill (not afrobeats)
+- Non-African/Caribbean/diasporic genres = soul, funk, pop, rock, classical, jazz, electronic
+- If unsure between two African genres = afropop
+- Only use "other" for tracks that genuinely fit NONE of the 39 specific genres above
 
 Return ONLY a JSON array of strings, same order as input, no explanation:
 ["genre1","genre2",...]
