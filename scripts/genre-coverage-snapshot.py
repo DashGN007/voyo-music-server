@@ -50,18 +50,32 @@ def fetch_count(filter_qs: str) -> int:
 
 
 def fetch_genre_distribution() -> list[tuple[str, int]]:
-    # Fetch up to 40 genre rows, grouped by primary_genre via Supabase aggregation workaround:
-    # fetch distinct genres, then count each
-    url = (f'{SUPABASE_URL}/rest/v1/video_intelligence'
-           f'?primary_genre=not.is.null'
-           f'&select=primary_genre'
-           f'&limit=5000')  # sample for distribution
-    resp = requests.get(url, headers=HEADERS, timeout=20)
-    rows = resp.json()
-    if not isinstance(rows, list):
-        return []
+    # Count each genre directly — one HEAD request per genre, avoiding Supabase 1K row limit
     from collections import Counter
-    counts = Counter(r['primary_genre'] for r in rows if r.get('primary_genre'))
+    GENRES = [
+        'afrobeats', 'amapiano', 'hiphop', 'rnb', 'afropop', 'gospel',
+        'highlife', 'hiplife', 'rumba', 'kizomba', 'zouk', 'afrohouse',
+        'afro-house', 'gqom', 'bongo-flava', 'dancehall', 'reggae', 'soca',
+        'reggaeton', 'mbalax', 'bikutsi', 'soukous', 'ndombolo', 'makossa',
+        'gengetone', 'kwaito', 'afrobeat', 'afrofusion', 'afrofolk', 'fuji',
+        'trap', 'drill', 'grime', 'soul', 'funk', 'pop', 'rock', 'classical',
+        'jazz', 'electronic', 'other', 'congolese',
+    ]
+    counts: Counter = Counter()
+    for genre in GENRES:
+        g_enc = urllib.parse.quote(genre)
+        url = (f'{SUPABASE_URL}/rest/v1/video_intelligence'
+               f'?primary_genre=eq.{g_enc}&select=youtube_id')
+        hdrs = {**HEADERS, 'Prefer': 'count=exact', 'Range-Unit': 'items', 'Range': '0-0'}
+        try:
+            r = requests.get(url, headers=hdrs, timeout=10)
+            cr = r.headers.get('Content-Range', '')
+            if '/' in cr:
+                n = int(cr.split('/')[1])
+                if n > 0:
+                    counts[genre] = n
+        except Exception:
+            pass
     return counts.most_common(15)
 
 
