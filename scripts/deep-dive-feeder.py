@@ -166,6 +166,7 @@ NICHE_QUERIES = [
     "taarab music", "benga music kenya", "rhumba modern",
     "soukous guitar", "makossa modern", "bikutsi modern",
     "kizomba 2024", "semba music", "kuduro 2024",
+    "lekompo music limpopo", "tarraxo music angola", "tarraxinha angola",
     "pantsula music", "mapantsula dance music",
 
     # TikTok/Viral specific

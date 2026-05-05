@@ -42,6 +42,16 @@ GENRE_MAP = {
     'coupé-décalé': 'coupe-decale', 'lekompo': 'lekompo', 'singeli': 'singeli',
     'afrojuju': 'afrojuju', 'fuji': 'fuji', 'juju': 'juju',
     'makossa': 'makossa', 'soukous': 'soukous',
+    # Lusophone Africa
+    'semba': 'semba', 'tarraxo': 'tarraxo', 'tarraxinha': 'tarraxo',
+    # East Africa
+    'benga': 'benga', 'taarab': 'taarab',
+    # North Africa
+    'rai': 'rai', 'raï': 'rai', 'chaabi': 'chaabi', 'chaâbi': 'chaabi', 'gnawa': 'gnawa',
+    # West Africa
+    'palm wine': 'palmwine', 'palmwine': 'palmwine', 'palm-wine': 'palmwine',
+    # Diaspora
+    'afrosoul': 'afrosoul', 'afro-soul': 'afrosoul', 'afro soul': 'afrosoul',
 }
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
