@@ -100,7 +100,7 @@ def fetch_unscored_chunk(genre: str, after_id: str = '', score_filter: str = 'eq
         url += f'&youtube_id=gt.{urllib.parse.quote(after_id)}'
     resp = requests.get(url, headers=HEADERS, timeout=20)
     data = resp.json()
-    if isinstance(data, dict):
+    if not isinstance(data, list):
         return []
     return [r['youtube_id'] for r in data]
 
