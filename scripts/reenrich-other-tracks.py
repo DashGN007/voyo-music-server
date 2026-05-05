@@ -32,6 +32,53 @@ BATCH_SIZE  = 100
 CONCURRENCY = 3
 FETCH_PAGE  = 500
 
+# Mirrors patch-unscored-tracks.py — vibe columns to set alongside primary_genre
+GENRE_VIBES: dict[str, dict] = {
+    'afrobeats':  dict(vibe_afro_heat=85, vibe_party_mode=80, vibe_chill_vibes=20, vibe_late_night=45, vibe_workout=60, heat_score=85),
+    'afrohouse':  dict(vibe_afro_heat=80, vibe_party_mode=82, vibe_chill_vibes=18, vibe_late_night=60, vibe_workout=70, heat_score=80),
+    'afro-house': dict(vibe_afro_heat=80, vibe_party_mode=82, vibe_chill_vibes=18, vibe_late_night=60, vibe_workout=70, heat_score=80),
+    'gqom':       dict(vibe_afro_heat=82, vibe_party_mode=85, vibe_chill_vibes=10, vibe_late_night=70, vibe_workout=75, heat_score=82),
+    'ndombolo':   dict(vibe_afro_heat=78, vibe_party_mode=82, vibe_chill_vibes=15, vibe_late_night=55, vibe_workout=65, heat_score=78),
+    'soukous':    dict(vibe_afro_heat=74, vibe_party_mode=72, vibe_chill_vibes=25, vibe_late_night=48, vibe_workout=62, heat_score=72),
+    'congolese':  dict(vibe_afro_heat=70, vibe_party_mode=68, vibe_chill_vibes=30, vibe_late_night=50, vibe_workout=58, heat_score=68),
+    'bikutsi':    dict(vibe_afro_heat=72, vibe_party_mode=72, vibe_chill_vibes=22, vibe_late_night=50, vibe_workout=62, heat_score=70),
+    'makossa':    dict(vibe_afro_heat=68, vibe_party_mode=68, vibe_chill_vibes=30, vibe_late_night=48, vibe_workout=58, heat_score=66),
+    'mbalax':     dict(vibe_afro_heat=74, vibe_party_mode=74, vibe_chill_vibes=22, vibe_late_night=45, vibe_workout=62, heat_score=72),
+    'dancehall':  dict(vibe_afro_heat=74, vibe_party_mode=80, vibe_chill_vibes=18, vibe_late_night=65, vibe_workout=72, heat_score=76),
+    'afrobeat':   dict(vibe_afro_heat=80, vibe_party_mode=70, vibe_chill_vibes=25, vibe_late_night=45, vibe_workout=58, heat_score=78),
+    'afrofusion': dict(vibe_afro_heat=65, vibe_party_mode=62, vibe_chill_vibes=42, vibe_late_night=48, vibe_workout=50, heat_score=62),
+    'reggaeton':  dict(vibe_afro_heat=45, vibe_party_mode=80, vibe_chill_vibes=20, vibe_late_night=62, vibe_workout=70, heat_score=68),
+    'kwaito':     dict(vibe_afro_heat=72, vibe_party_mode=72, vibe_chill_vibes=40, vibe_late_night=60, vibe_workout=60, heat_score=68),
+    'amapiano':   dict(vibe_afro_heat=72, vibe_party_mode=76, vibe_chill_vibes=32, vibe_late_night=62, vibe_workout=65, heat_score=72),
+    'afropop':    dict(vibe_afro_heat=62, vibe_party_mode=64, vibe_chill_vibes=38, vibe_late_night=42, vibe_workout=54, heat_score=62),
+    'bongo-flava':dict(vibe_afro_heat=70, vibe_party_mode=68, vibe_chill_vibes=32, vibe_late_night=45, vibe_workout=56, heat_score=68),
+    'highlife':   dict(vibe_afro_heat=66, vibe_party_mode=72, vibe_chill_vibes=38, vibe_late_night=45, vibe_workout=56, heat_score=64),
+    'hiphop':     dict(vibe_afro_heat=62, vibe_party_mode=72, vibe_chill_vibes=28, vibe_late_night=55, vibe_workout=72, heat_score=65),
+    'trap':       dict(vibe_afro_heat=66, vibe_party_mode=74, vibe_chill_vibes=22, vibe_late_night=62, vibe_workout=74, heat_score=68),
+    'drill':      dict(vibe_afro_heat=68, vibe_party_mode=76, vibe_chill_vibes=18, vibe_late_night=62, vibe_workout=78, heat_score=70),
+    'pop':        dict(vibe_afro_heat=50, vibe_party_mode=62, vibe_chill_vibes=45, vibe_late_night=48, vibe_workout=55, heat_score=52),
+    'kizomba':    dict(vibe_afro_heat=35, vibe_party_mode=30, vibe_chill_vibes=78, vibe_late_night=82, vibe_workout=18, heat_score=30),
+    'zouk':       dict(vibe_afro_heat=32, vibe_party_mode=32, vibe_chill_vibes=76, vibe_late_night=80, vibe_workout=18, heat_score=28),
+    'rnb':        dict(vibe_afro_heat=42, vibe_party_mode=45, vibe_chill_vibes=68, vibe_late_night=68, vibe_workout=32, heat_score=42),
+    'soul':       dict(vibe_afro_heat=35, vibe_party_mode=38, vibe_chill_vibes=72, vibe_late_night=65, vibe_workout=28, heat_score=35),
+    'gospel':     dict(vibe_afro_heat=28, vibe_party_mode=22, vibe_chill_vibes=64, vibe_late_night=30, vibe_workout=38, heat_score=22),
+    'jazz':       dict(vibe_afro_heat=22, vibe_party_mode=28, vibe_chill_vibes=78, vibe_late_night=72, vibe_workout=22, heat_score=22),
+    'afrofolk':   dict(vibe_afro_heat=38, vibe_party_mode=32, vibe_chill_vibes=65, vibe_late_night=58, vibe_workout=28, heat_score=35),
+    'fuji':       dict(vibe_afro_heat=65, vibe_party_mode=65, vibe_chill_vibes=35, vibe_late_night=48, vibe_workout=52, heat_score=62),
+    'afrojuju':   dict(vibe_afro_heat=62, vibe_party_mode=60, vibe_chill_vibes=40, vibe_late_night=45, vibe_workout=45, heat_score=58),
+    'reggae':     dict(vibe_afro_heat=45, vibe_party_mode=52, vibe_chill_vibes=60, vibe_late_night=55, vibe_workout=40, heat_score=45),
+    'electronic': dict(vibe_afro_heat=45, vibe_party_mode=68, vibe_chill_vibes=35, vibe_late_night=65, vibe_workout=60, heat_score=60),
+    'rock':       dict(vibe_afro_heat=20, vibe_party_mode=50, vibe_chill_vibes=48, vibe_late_night=45, vibe_workout=42, heat_score=42),
+    'classical':  dict(vibe_afro_heat=10, vibe_party_mode=12, vibe_chill_vibes=82, vibe_late_night=60, vibe_workout=12, heat_score=12),
+    'grime':      dict(vibe_afro_heat=65, vibe_party_mode=72, vibe_chill_vibes=20, vibe_late_night=60, vibe_workout=68, heat_score=68),
+    'hiplife':    dict(vibe_afro_heat=68, vibe_party_mode=70, vibe_chill_vibes=30, vibe_late_night=45, vibe_workout=66, heat_score=66),
+    'gengetone':  dict(vibe_afro_heat=72, vibe_party_mode=76, vibe_chill_vibes=25, vibe_late_night=58, vibe_workout=70, heat_score=70),
+    'soca':       dict(vibe_afro_heat=75, vibe_party_mode=82, vibe_chill_vibes=18, vibe_late_night=55, vibe_workout=74, heat_score=74),
+    'funk':       dict(vibe_afro_heat=68, vibe_party_mode=78, vibe_chill_vibes=30, vibe_late_night=55, vibe_workout=68, heat_score=68),
+    'rumba':      dict(vibe_afro_heat=68, vibe_party_mode=65, vibe_chill_vibes=30, vibe_late_night=52, vibe_workout=65, heat_score=65),
+    'other':      dict(vibe_afro_heat=55, vibe_party_mode=55, vibe_chill_vibes=45, vibe_late_night=50, vibe_workout=50, heat_score=50),
+}
+
 GENRES = [
     'afrobeats', 'amapiano', 'hiphop', 'rnb', 'afropop', 'gospel',
     'highlife', 'hiplife', 'rumba', 'kizomba', 'zouk', 'afrohouse', 'gqom',
@@ -129,9 +176,18 @@ def sb_fetch_other_page(after_id: str = '') -> list[dict]:
         return []
 
 def sb_patch_genre(yt_id: str, genre: str) -> bool:
+    vibes = GENRE_VIBES.get(genre, GENRE_VIBES['other'])
+    vibe_scores_json = {
+        'afro_heat': vibes['vibe_afro_heat'],
+        'party':     vibes['vibe_party_mode'],
+        'chill':     vibes['vibe_chill_vibes'],
+        'late_night':vibes['vibe_late_night'],
+        'workout':   vibes['vibe_workout'],
+    }
+    body = {'primary_genre': genre, **vibes, 'vibe_scores': vibe_scores_json}
     url = f'{SUPABASE_URL}/rest/v1/video_intelligence?youtube_id=eq.{urllib.parse.quote(yt_id)}'
     req = urllib.request.Request(url,
-        data=json.dumps({'primary_genre': genre}).encode(),
+        data=json.dumps(body).encode(),
         headers={
             'apikey': SERVICE_KEY, 'Authorization': f'Bearer {SERVICE_KEY}',
             'Content-Type': 'application/json', 'Prefer': 'return=minimal',
