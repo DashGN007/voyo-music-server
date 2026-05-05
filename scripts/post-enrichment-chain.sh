@@ -3,7 +3,7 @@
 # Watches for enrich-genres-gemini.py to finish, then runs the completion chain.
 # Usage: nohup bash scripts/post-enrichment-chain.sh > /tmp/voyo_post_chain.log 2>&1 &
 
-set -e
+set -eo pipefail
 cd "$(dirname "$0")/.."
 
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
@@ -19,12 +19,12 @@ log "Enrichment complete. Starting post-chain..."
 
 # Step 1: Populate vibe scores from newly-classified genres
 log "=== Step 1: populate-vibe-scores.py ==="
-python3 scripts/populate-vibe-scores.py 2>&1
+python3 scripts/populate-vibe-scores.py 2>&1 || log "WARN: vibe scores exited non-zero, continuing"
 log "Vibe scores done."
 
 # Step 2: Enrich moment cultural tags with newly-available genres
 log "=== Step 2: enrich-moment-genre-tags.py ==="
-python3 scripts/enrich-moment-genre-tags.py 2>&1
+python3 scripts/enrich-moment-genre-tags.py 2>&1 || log "WARN: moment genre tags exited non-zero, continuing"
 log "Moment genre tags done."
 
 # Step 3: Re-enrich tracks classified as 'other'
