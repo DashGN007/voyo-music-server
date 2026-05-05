@@ -91,7 +91,11 @@ def fetch_ids_chunk(genre: str, after_id: str = '') -> list[str]:
     if after_id:
         url += f'&youtube_id=gt.{urllib.parse.quote(after_id)}'
     resp = requests.get(url, headers=HEADERS, timeout=20)
-    return [r['youtube_id'] for r in resp.json()]
+    data = resp.json()
+    if not isinstance(data, list):
+        print(f'  [warn] unexpected response for genre fetch: {str(data)[:80]}')
+        return []
+    return [r['youtube_id'] for r in data]
 
 
 def fetch_null_ids_chunk(after_id: str = '') -> list[str]:
@@ -103,7 +107,11 @@ def fetch_null_ids_chunk(after_id: str = '') -> list[str]:
     if after_id:
         url += f'&youtube_id=gt.{urllib.parse.quote(after_id)}'
     resp = requests.get(url, headers=HEADERS, timeout=20)
-    return [r['youtube_id'] for r in resp.json()]
+    data = resp.json()
+    if not isinstance(data, list):
+        print(f'  [warn] unexpected response for null fetch: {str(data)[:80]}')
+        return []
+    return [r['youtube_id'] for r in data]
 
 
 def patch_ids(ids: list[str], vibes: dict, vibe_scores_json: dict) -> int:
