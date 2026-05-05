@@ -15,7 +15,7 @@ Usage:
     python3 scripts/enrich-genres-gemini.py --backend openrouter-haiku  # paid fallback
 """
 
-import json, os, sys, time, urllib.request, urllib.error, re, threading
+import json, os, sys, time, urllib.request, urllib.parse, urllib.error, re, threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import cycle
 
@@ -48,10 +48,11 @@ BACKEND     = 'openrouter-free'   # 'openrouter-free' | 'openrouter-haiku'
 # Canonical genre labels
 GENRES = [
     'afrobeats', 'amapiano', 'hiphop', 'rnb', 'afropop', 'gospel',
-    'highlife', 'rumba', 'kizomba', 'zouk', 'afrohouse', 'gqom',
-    'bongo-flava', 'dancehall', 'reggae', 'mbalax', 'bikutsi',
-    'soukous', 'ndombolo', 'makossa', 'drill', 'grime', 'funk',
-    'pop', 'rock', 'classical', 'jazz', 'electronic', 'other',
+    'highlife', 'hiplife', 'rumba', 'kizomba', 'zouk', 'afrohouse', 'gqom',
+    'bongo-flava', 'dancehall', 'reggae', 'soca', 'reggaeton', 'mbalax', 'bikutsi',
+    'soukous', 'ndombolo', 'makossa', 'gengetone', 'kwaito', 'afrobeat',
+    'afrofusion', 'afrofolk', 'fuji', 'trap', 'drill', 'grime', 'soul',
+    'funk', 'pop', 'rock', 'classical', 'jazz', 'electronic', 'other',
 ]
 
 PROMPT_TMPL = """You are a music genre expert specialising in African and global music.
@@ -59,10 +60,17 @@ For each track below, return ONLY the primary genre from this list:
 {genres}
 
 Rules:
-- Nigerian/Ghanaian pop = afrobeats (unless clearly amapiano/highlife)
+- Nigerian/Ghanaian pop = afrobeats (unless clearly amapiano/highlife/hiplife)
+- Fela Kuti style = afrobeat (not afrobeats)
 - South African house = amapiano or afrohouse
+- South African township = kwaito or gqom
 - Congolese = rumba or soukous or ndombolo
-- Tanzanian/Kenyan = bongo-flava or afropop
+- Tanzanian/Kenyan = bongo-flava; Kenyan street = gengetone
+- Cameroonian = bikutsi or makossa
+- Senegalese = mbalax
+- Caribbean = dancehall or soca or reggaeton
+- West African acoustic/folk = afrofolk
+- Yoruba folk/spiritual = fuji
 - Gospel rap = gospel (faith > rap)
 - If unsure = afropop
 
@@ -125,13 +133,16 @@ def load_env():
 
 # ─── Supabase helpers ─────────────────────────────────────────────────────────
 
-def sb_fetch_page(offset: int) -> list[dict]:
+def sb_fetch_page(after_id: str = '') -> list[dict]:
+    # Cursor-based pagination via youtube_id.gt — avoids Supabase offset ceiling (~66K rows)
     url = (f'{SUPABASE_URL}/rest/v1/video_intelligence'
            f'?select=youtube_id,title,artist'
            f'&primary_genre=is.null'
            f'&title=not.is.null'
            f'&order=youtube_id.asc'
-           f'&limit={FETCH_PAGE}&offset={offset}')
+           f'&limit={FETCH_PAGE}')
+    if after_id:
+        url += f'&youtube_id=gt.{urllib.parse.quote(after_id)}'
     req = urllib.request.Request(url, headers={
         'apikey': SERVICE_KEY, 'Authorization': f'Bearer {SERVICE_KEY}',
     })
@@ -278,12 +289,12 @@ def main():
 
     print('Fetching untagged rows from video_intelligence...')
     all_rows: list[dict] = []
-    offset = 0
+    last_id = ''
     while True:
-        batch = sb_fetch_page(offset)
+        batch = sb_fetch_page(last_id)
         if not batch: break
         all_rows.extend(batch)
-        offset += FETCH_PAGE
+        last_id = batch[-1]['youtube_id']
         print(f'  {len(all_rows):,} fetched...', end='\r')
         if len(batch) < FETCH_PAGE: break
         if limit and len(all_rows) >= limit: break
