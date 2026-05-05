@@ -160,10 +160,22 @@ def find_track(title: str, artist: str) -> tuple[str | None, float]:
 
     title_clean = _clean_title(title)
     ta_clean    = _meaningful_tokens(set(title_clean.split()))
-    ta_orig_len = len(_norm(title).split())
-    artist_words = _norm(artist).split()
-    # Use first meaningful word from artist (TikTok handles are long/weird)
-    artist_key   = artist_words[0][:30] if artist_words else ''
+    # Strip feat-parentheticals before counting raw words — avoids false skip for
+    # "Infinity (feat. Omah Lay)" which normalises to 4 raw tokens but only 1 clean.
+    ta_orig_len = len(_FEAT_PARENS.sub('', _norm(title)).split())
+    # Preserve hyphens in artist key — _norm("Berri-Tiga") → "berritiga" which
+    # doesn't ilike-match "Berri-Tiga" in the DB. Split on whitespace only.
+    artist_words_raw = _re.split(r'\s+', artist.strip())
+    # Skip generic 2-char prefixes (dj, mc) and use next word instead
+    if artist_words_raw and len(artist_words_raw[0]) <= 2 and len(artist_words_raw) > 1:
+        artist_key = artist_words_raw[1][:30].lower()
+    else:
+        artist_key = artist_words_raw[0][:30].lower() if artist_words_raw else ''
+    # Strip emoji + punctuation — TikTok handles often have emoji suffixes
+    artist_key = _re.sub(r'[^\w\-]', '', artist_key, flags=_re.UNICODE)
+    # Re-strip if entire key was emoji/punct
+    if not _re.search(r'[a-z]', artist_key):
+        artist_key = ''
 
     # 1. Artist search
     if artist_key:
@@ -178,7 +190,7 @@ def find_track(title: str, artist: str) -> tuple[str | None, float]:
                 return yt_id, score
 
     # 2. Title keyword fallback — use cleaned title's first meaningful word
-    # Skip if original had ≥3 words but cleaning stripped to ≤1 meaningful token:
+    # Skip if original had ≥3 words (excl. feat-parens) but cleaning stripped to ≤1:
     # "Na money challenge" → 3 words → 1 token = stripped too aggressively to trust
     if ta_orig_len >= 3 and len(ta_clean) <= 1:
         return None, 0.0
