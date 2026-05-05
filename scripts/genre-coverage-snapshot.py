@@ -60,6 +60,10 @@ def fetch_genre_distribution() -> list[tuple[str, int]]:
         'gengetone', 'kwaito', 'afrobeat', 'afrofusion', 'afrofolk', 'fuji',
         'trap', 'drill', 'grime', 'soul', 'funk', 'pop', 'rock', 'classical',
         'jazz', 'electronic', 'other', 'congolese',
+        # New catalog genres (added 2026-05-05)
+        'kuduro', 'semba', 'tarraxo', 'benga', 'taarab', 'singeli',
+        'lekompo', 'palmwine', 'rai', 'chaabi', 'gnawa', 'afrosoul',
+        'juju',
     ]
     counts: Counter = Counter()
     for genre in GENRES:
