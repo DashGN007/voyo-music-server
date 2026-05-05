@@ -79,6 +79,26 @@ GENRE_VIBES: dict[str, dict] = {
     'soca':         dict(vibe_afro_heat=75, vibe_party_mode=82, vibe_chill_vibes=18, vibe_late_night=55, vibe_workout=74, heat_score=74),
     'funk':         dict(vibe_afro_heat=68, vibe_party_mode=78, vibe_chill_vibes=30, vibe_late_night=55, vibe_workout=68, heat_score=68),
     'rumba':        dict(vibe_afro_heat=68, vibe_party_mode=65, vibe_chill_vibes=30, vibe_late_night=52, vibe_workout=65, heat_score=65),
+    # Lusophone African genres
+    'kuduro':       dict(vibe_afro_heat=78, vibe_party_mode=82, vibe_chill_vibes=15, vibe_late_night=65, vibe_workout=72, heat_score=78),
+    'semba':        dict(vibe_afro_heat=65, vibe_party_mode=62, vibe_chill_vibes=40, vibe_late_night=48, vibe_workout=52, heat_score=62),
+    'tarraxo':      dict(vibe_afro_heat=42, vibe_party_mode=38, vibe_chill_vibes=72, vibe_late_night=80, vibe_workout=22, heat_score=38),
+    # East African
+    'benga':        dict(vibe_afro_heat=68, vibe_party_mode=70, vibe_chill_vibes=30, vibe_late_night=45, vibe_workout=60, heat_score=68),
+    'taarab':       dict(vibe_afro_heat=48, vibe_party_mode=45, vibe_chill_vibes=62, vibe_late_night=55, vibe_workout=38, heat_score=45),
+    # West African
+    'juju':         dict(vibe_afro_heat=65, vibe_party_mode=65, vibe_chill_vibes=38, vibe_late_night=48, vibe_workout=55, heat_score=62),
+    'palmwine':     dict(vibe_afro_heat=50, vibe_party_mode=52, vibe_chill_vibes=58, vibe_late_night=45, vibe_workout=40, heat_score=48),
+    # North African
+    'rai':          dict(vibe_afro_heat=55, vibe_party_mode=60, vibe_chill_vibes=42, vibe_late_night=55, vibe_workout=52, heat_score=58),
+    'chaabi':       dict(vibe_afro_heat=52, vibe_party_mode=55, vibe_chill_vibes=48, vibe_late_night=50, vibe_workout=48, heat_score=52),
+    'gnawa':        dict(vibe_afro_heat=48, vibe_party_mode=45, vibe_chill_vibes=55, vibe_late_night=62, vibe_workout=38, heat_score=45),
+    # SA underground
+    'lekompo':      dict(vibe_afro_heat=72, vibe_party_mode=76, vibe_chill_vibes=22, vibe_late_night=58, vibe_workout=70, heat_score=70),
+    # East African underground
+    'singeli':      dict(vibe_afro_heat=78, vibe_party_mode=82, vibe_chill_vibes=12, vibe_late_night=68, vibe_workout=75, heat_score=75),
+    # Cross-regional
+    'afrosoul':     dict(vibe_afro_heat=45, vibe_party_mode=42, vibe_chill_vibes=68, vibe_late_night=62, vibe_workout=32, heat_score=42),
     'other':        dict(vibe_afro_heat=55, vibe_party_mode=55, vibe_chill_vibes=45, vibe_late_night=50, vibe_workout=50, heat_score=50),
 }
 

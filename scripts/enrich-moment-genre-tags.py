@@ -61,10 +61,28 @@ GENRE_TO_TAGS: dict[str, list[str]] = {
     'funk':        ['diaspora'],
     'kwaito':      ['south-africa', 'mzansi'],
     'fuji':        ['nigeria', 'west-africa'],
+    'juju':        ['nigeria', 'west-africa'],
     'afrojuju':    ['nigeria', 'west-africa'],
     'afrobeat':    ['nigeria', 'west-africa'],
     'afrofusion':  ['diaspora', 'west-africa'],
     'afrofolk':    ['west-africa'],
+    'palmwine':    ['ghana', 'west-africa'],
+    # Lusophone Africa
+    'kuduro':      ['angola', 'lusophone-africa'],
+    'semba':       ['angola', 'lusophone-africa'],
+    'tarraxo':     ['angola', 'lusophone-africa'],
+    # East Africa
+    'benga':       ['kenya', 'east-africa'],
+    'taarab':      ['east-africa', 'tanzania'],
+    'singeli':     ['tanzania', 'east-africa'],
+    # SA underground
+    'lekompo':     ['south-africa', 'mzansi'],
+    # North Africa
+    'rai':         ['algeria', 'north-africa'],
+    'chaabi':      ['algeria', 'north-africa'],
+    'gnawa':       ['morocco', 'north-africa'],
+    # Cross-regional
+    'afrosoul':    ['diaspora'],
 }
 
 PAGE = 200

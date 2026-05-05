@@ -51,7 +51,11 @@ GENRES = [
     'highlife', 'hiplife', 'rumba', 'kizomba', 'zouk', 'afrohouse', 'gqom',
     'bongo-flava', 'dancehall', 'reggae', 'soca', 'reggaeton', 'mbalax', 'bikutsi',
     'soukous', 'ndombolo', 'makossa', 'gengetone', 'kwaito', 'afrobeat',
-    'afrofusion', 'afrofolk', 'fuji', 'trap', 'drill', 'grime', 'soul',
+    'afrofusion', 'afrofolk', 'fuji', 'juju',
+    'kuduro', 'semba', 'tarraxo', 'benga', 'taarab',
+    'rai', 'chaabi', 'gnawa', 'afrosoul',
+    'lekompo', 'singeli',
+    'trap', 'drill', 'grime', 'soul',
     'funk', 'pop', 'rock', 'classical', 'jazz', 'electronic', 'other',
 ]
 
@@ -72,12 +76,17 @@ Rules:
 - Jamaican dancehall (modern, digital) = dancehall (Beenie Man, Bounty Killer, Shaggy, Yellowman)
 - Caribbean party = soca; Latin Caribbean = reggaeton
 - West African acoustic/folk = afrofolk
-- Yoruba folk/spiritual = fuji
+- Yoruba folk/spiritual = fuji; Yoruba juju music = juju (King Sunny Ade, Ebenezer Obey)
+- Angolan kuduro (fast electronic) = kuduro; Angolan/Cape Verdean kizomba-adjacent = semba; ultra-slow intimate = tarraxo
+- Kenyan/Tanzanian benga guitar = benga; East African Arabic-influenced = taarab
+- Algerian/North African folk-pop = rai or chaabi; Gnawa spiritual = gnawa
+- Smooth Afro R&B crossover = afrosoul (Adekunle Gold ballads, Tems slow songs, soft Davido)
+- SA Limpopo township folk-electronic (Limpopo, Mapacha style) = lekompo; Tanzanian hyper-speed urban = singeli
 - Gospel rap = gospel (faith > rap)
 - American/UK trap or drill = trap or drill (not afrobeats)
 - Non-African/Caribbean/diasporic genres = soul, funk, pop, rock, classical, jazz, electronic
 - If unsure between two African genres = afropop
-- Only use "other" for tracks that genuinely fit NONE of the 39 specific genres above
+- Only use "other" for tracks that genuinely fit NONE of the 52 specific genres above
 
 Return ONLY a JSON array of strings, same order as input, no explanation:
 ["genre1","genre2",...]
