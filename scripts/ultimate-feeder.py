@@ -191,6 +191,7 @@ ULTIMATE_DOMAINS = {
             "kenyan music 2024", "gengetone music", "arbantone music",
             "ugandan music 2024", "kadongo kamu", "east african hits",
             "ethiopian music 2024", "ethio jazz", "swahili songs",
+            "singeli music tanzania", "taarab swahili coast music", "benga music kenya classic",
         ]
     },
 
@@ -220,6 +221,7 @@ ULTIMATE_DOMAINS = {
             "south african house", "gqom music", "kwaito music",
             "south african hip hop", "mzansi hits", "sa music 2024",
             "zimbabwe music 2024", "zim dancehall", "chimurenga music",
+            "lekompo music limpopo", "lekompo south africa",
         ]
     },
 
@@ -245,6 +247,7 @@ ULTIMATE_DOMAINS = {
             "rai music", "moroccan music 2024", "algerian music",
             "arabic pop hits", "khaliji music", "arabic trap",
             "arabic wedding songs", "arabic party mix",
+            "chaabi music north africa", "gnawa music morocco", "rai algérien 2024",
         ]
     },
 
