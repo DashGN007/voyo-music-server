@@ -49,7 +49,15 @@ GENRE_TO_TAGS: dict[str, list[str]] = {
     'mbalax':      ['senegal', 'west-africa'],
     'gqom':        ['south-africa', 'mzansi'],
     'afrohouse':   ['south-africa'],
+    'afro-house':  ['south-africa'],
     'zouk':        ['lusophone-africa'],
+    'hiplife':     ['ghana', 'west-africa'],
+    'gengetone':   ['kenya', 'east-africa'],
+    'congolese':   ['congo', 'central-africa'],
+    'trap':        ['usa', 'diaspora'],
+    'soul':        ['diaspora'],
+    'soca':        ['caribbean', 'diaspora'],
+    'funk':        ['diaspora'],
 }
 
 PAGE = 200
@@ -183,6 +191,7 @@ def main():
 
         if dry_run:
             print(f'  [DRY] {m["id"][:8]} genre={genre} → tags={new_tags}')
+            enriched += 1  # count would-be enrichments
         else:
             ok = sb_patch('voyo_moments',
                 {'id': f'eq.{m["id"]}'},
@@ -192,7 +201,6 @@ def main():
                 enriched += 1
             else:
                 skipped += 1
-        if not dry_run:
             pct = (enriched + skipped) / len(moments) * 100
             print(f'  {pct:5.1f}% | {enriched} enriched | {skipped} skipped', end='\r')
 
