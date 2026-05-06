@@ -1,0 +1,407 @@
+{
+  "extracted_at": "2026-05-06T12:27:18.712433+00:00",
+  "count": 34,
+  "note": "Distinct creator handles surfaced from existing siphon rows. Use as discovery seeds for catalogs/<lane>.json builds.",
+  "creators": [
+    {
+      "handle": "ichievoodoo",
+      "platform": "tiktok",
+      "reel_count": 262,
+      "total_views": 46694163,
+      "avg_virality": 18674.393129770993,
+      "top_tags": [
+        "africa",
+        "algeria",
+        "congo",
+        "diaspora",
+        "drc",
+        "east-africa",
+        "france",
+        "ghana",
+        "jamaica",
+        "lusophone-africa",
+        "mzansi",
+        "naija",
+        "nigeria",
+        "south africa",
+        "south-africa",
+        "spiritual",
+        "uk",
+        "usa",
+        "west-africa"
+      ]
+    },
+    {
+      "handle": "yuridacunhaoficial",
+      "platform": "youtube",
+      "reel_count": 18,
+      "total_views": 12038710,
+      "avg_virality": 668.1111111111111,
+      "top_tags": [
+        "ao",
+        "pt"
+      ]
+    },
+    {
+      "handle": "djpapson",
+      "platform": "youtube",
+      "reel_count": 18,
+      "total_views": 49818,
+      "avg_virality": 2.2222222222222223,
+      "top_tags": [
+        "fr"
+      ]
+    },
+    {
+      "handle": "perolaoficial",
+      "platform": "youtube",
+      "reel_count": 2,
+      "total_views": 936,
+      "avg_virality": 0.0,
+      "top_tags": [
+        "ao",
+        "pt"
+      ]
+    },
+    {
+      "handle": "heavycoficial",
+      "platform": "youtube",
+      "reel_count": 8,
+      "total_views": 0,
+      "avg_virality": 0.0,
+      "top_tags": [
+        "ao",
+        "pt"
+      ]
+    },
+    {
+      "handle": "khaligraph_jones",
+      "platform": "instagram",
+      "reel_count": 4,
+      "total_views": 0,
+      "avg_virality": 12371.0,
+      "top_tags": [
+        "diaspora",
+        "uk"
+      ]
+    },
+    {
+      "handle": "kiffnobeat",
+      "platform": "instagram",
+      "reel_count": 4,
+      "total_views": 0,
+      "avg_virality": 7798.0,
+      "top_tags": [
+        "diaspora",
+        "france"
+      ]
+    },
+    {
+      "handle": "korraobidi",
+      "platform": "instagram",
+      "reel_count": 2,
+      "total_views": 0,
+      "avg_virality": 83438.0,
+      "top_tags": [
+        "naija",
+        "nigeria"
+      ]
+    },
+    {
+      "handle": "korty_eo",
+      "platform": "instagram",
+      "reel_count": 4,
+      "total_views": 0,
+      "avg_virality": 31300.5,
+      "top_tags": [
+        "diaspora",
+        "uk"
+      ]
+    },
+    {
+      "handle": "lasisielenu",
+      "platform": "instagram",
+      "reel_count": 5,
+      "total_views": 0,
+      "avg_virality": 3.0,
+      "top_tags": [
+        "algeria",
+        "nigeria",
+        "west-africa"
+      ]
+    },
+    {
+      "handle": "only1daddyess",
+      "platform": "instagram",
+      "reel_count": 58,
+      "total_views": 0,
+      "avg_virality": 10029.396551724138,
+      "top_tags": [
+        "algeria",
+        "nigeria",
+        "spiritual",
+        "west-africa"
+      ]
+    },
+    {
+      "handle": "realwarripikin",
+      "platform": "instagram",
+      "reel_count": 3,
+      "total_views": 0,
+      "avg_virality": 35533.0,
+      "top_tags": [
+        "africa",
+        "diaspora",
+        "usa"
+      ]
+    },
+    {
+      "handle": "sammy_vimz",
+      "platform": "instagram",
+      "reel_count": 1,
+      "total_views": 0,
+      "avg_virality": 13612.0,
+      "top_tags": [
+        "ghana"
+      ]
+    },
+    {
+      "handle": "sayrahchips",
+      "platform": "instagram",
+      "reel_count": 23,
+      "total_views": 0,
+      "avg_virality": 11687.608695652174,
+      "top_tags": [
+        "algeria",
+        "diaspora",
+        "naija",
+        "nigeria",
+        "uk"
+      ]
+    },
+    {
+      "handle": "cleyton_milionario",
+      "platform": "instagram",
+      "reel_count": 26,
+      "total_views": 0,
+      "avg_virality": 3088.3846153846152,
+      "top_tags": [
+        "angola",
+        "diaspora",
+        "france",
+        "lusophone-africa",
+        "mozambique"
+      ]
+    },
+    {
+      "handle": "seben_story",
+      "platform": "instagram",
+      "reel_count": 1,
+      "total_views": 0,
+      "avg_virality": 486.0,
+      "top_tags": [
+        "africa"
+      ]
+    },
+    {
+      "handle": "sempre_sarah",
+      "platform": "instagram",
+      "reel_count": 2,
+      "total_views": 0,
+      "avg_virality": 1310.0,
+      "top_tags": [
+        "naija",
+        "nigeria"
+      ]
+    },
+    {
+      "handle": "skrrrtttsaid",
+      "platform": "instagram",
+      "reel_count": 1,
+      "total_views": 0,
+      "avg_virality": 3.0,
+      "top_tags": [
+        "cameroon"
+      ]
+    },
+    {
+      "handle": "softmadeit",
+      "platform": "instagram",
+      "reel_count": 21,
+      "total_views": 0,
+      "avg_virality": 4215.571428571428,
+      "top_tags": [
+        "africa",
+        "naija",
+        "nigeria",
+        "west-africa"
+      ]
+    },
+    {
+      "handle": "solfestafrica",
+      "platform": "instagram",
+      "reel_count": 1,
+      "total_views": 0,
+      "avg_virality": 6047.0,
+      "top_tags": [
+        "algeria"
+      ]
+    },
+    {
+      "handle": "soraiaramosoficial",
+      "platform": "youtube",
+      "reel_count": 2,
+      "total_views": 0,
+      "avg_virality": 0.0,
+      "top_tags": [
+        "cv",
+        "pt"
+      ]
+    },
+    {
+      "handle": "south__africa__amapiano",
+      "platform": "instagram",
+      "reel_count": 2,
+      "total_views": 0,
+      "avg_virality": 5878.0,
+      "top_tags": [
+        "south-africa",
+        "southern-africa"
+      ]
+    },
+    {
+      "handle": "sylviathemodel",
+      "platform": "instagram",
+      "reel_count": 2,
+      "total_views": 0,
+      "avg_virality": 160.0,
+      "top_tags": [
+        "caribbean",
+        "jamaica"
+      ]
+    },
+    {
+      "handle": "tenor_officiel",
+      "platform": "instagram",
+      "reel_count": 2,
+      "total_views": 0,
+      "avg_virality": 177.0,
+      "top_tags": [
+        "cameroon"
+      ]
+    },
+    {
+      "handle": "the_csb_band",
+      "platform": "instagram",
+      "reel_count": 6,
+      "total_views": 0,
+      "avg_virality": 744.6666666666666,
+      "top_tags": [
+        "algeria",
+        "north-africa"
+      ]
+    },
+    {
+      "handle": "the_originalsdc",
+      "platform": "instagram",
+      "reel_count": 2,
+      "total_views": 0,
+      "avg_virality": 3.0,
+      "top_tags": [
+        "ghana",
+        "west-africa"
+      ]
+    },
+    {
+      "handle": "thekiffness",
+      "platform": "instagram",
+      "reel_count": 8,
+      "total_views": 0,
+      "avg_virality": 725431.75,
+      "top_tags": [
+        "diaspora",
+        "usa"
+      ]
+    },
+    {
+      "handle": "thekingkaka",
+      "platform": "instagram",
+      "reel_count": 2,
+      "total_views": 0,
+      "avg_virality": 646.0,
+      "top_tags": [
+        "east-africa",
+        "kenya"
+      ]
+    },
+    {
+      "handle": "veshashaillan",
+      "platform": "instagram",
+      "reel_count": 2,
+      "total_views": 0,
+      "avg_virality": 2385.0,
+      "top_tags": [
+        "east-africa",
+        "kenya"
+      ]
+    },
+    {
+      "handle": "vocalisthub",
+      "platform": "instagram",
+      "reel_count": 2,
+      "total_views": 0,
+      "avg_virality": 1038.0,
+      "top_tags": [
+        "diaspora",
+        "uk"
+      ]
+    },
+    {
+      "handle": "scotts_maphuma",
+      "platform": "instagram",
+      "reel_count": 2,
+      "total_views": 0,
+      "avg_virality": 16513.0,
+      "top_tags": [
+        "south-africa",
+        "southern-africa"
+      ]
+    },
+    {
+      "handle": "djmauriceprocrossdj",
+      "platform": "instagram",
+      "reel_count": 10,
+      "total_views": 0,
+      "avg_virality": 1343.4,
+      "top_tags": [
+        "diaspora",
+        "east-africa",
+        "uganda",
+        "usa"
+      ]
+    },
+    {
+      "handle": "eddiebutita",
+      "platform": "instagram",
+      "reel_count": 1,
+      "total_views": 0,
+      "avg_virality": 2424.0,
+      "top_tags": [
+        "africa"
+      ]
+    },
+    {
+      "handle": "elijahsolo1",
+      "platform": "instagram",
+      "reel_count": 15,
+      "total_views": 0,
+      "avg_virality": 1440.2666666666667,
+      "top_tags": [
+        "algeria",
+        "diaspora",
+        "uk",
+        "usa"
+      ]
+    }
+  ]
+}

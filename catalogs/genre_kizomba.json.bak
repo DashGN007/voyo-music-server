@@ -1,0 +1,190 @@
+{
+  "_schema_version": "1.0",
+  "lane": "genre/kizomba",
+  "discovered_at": "2026-05-06T20:30:00+00:00",
+  "discovered_by": "claude-opus-4-7+websearch",
+  "verified": false,
+  "notes": "Hand-built catalog from web research. Each handle verified from a current public source (Wikipedia, official websites, verified social profiles). 'lanes' is multi-valued — Angolan kizomba artists also feed travel/angola. YouTube identifiers may be either @handle (e.g. 'AnselmoRalph12') or UC...channel ID (e.g. 'UCof2kvJ2iHtdPJyPfS2lcxw'); ingest worker detects and routes accordingly.",
+  "entries": [
+    {
+      "name": "Yuri da Cunha",
+      "lanes": ["genre/kizomba", "travel/angola"],
+      "platforms": {"youtube": "yuridacunhaoficial", "instagram": "yuridacunha"},
+      "region": "AO", "language": "pt", "role": "singer",
+      "subgenres": ["semba", "kizomba"], "tier": null,
+      "rationale": "Iconic Angolan singer of Semba/Kizomba; 'The Show Man'. Validated via pilot (9 vids ingested).",
+      "sources": ["https://en.wikipedia.org/wiki/Yuri_da_Cunha", "https://www.yuridacunhamusic.com/"]
+    },
+    {
+      "name": "Anselmo Ralph",
+      "lanes": ["genre/kizomba", "travel/angola"],
+      "platforms": {"youtube": "AnselmoRalph12", "instagram": "anselmoralph"},
+      "region": "AO", "language": "pt", "role": "singer",
+      "subgenres": ["kizomba", "afrofusion"], "tier": null,
+      "rationale": "Major Angolan R&B/Kizomba singer-songwriter, household name in Lusophone Africa.",
+      "sources": ["https://en.wikipedia.org/wiki/Anselmo_Ralph", "https://www.instagram.com/anselmoralph/"]
+    },
+    {
+      "name": "Matias Damásio",
+      "lanes": ["genre/kizomba", "travel/angola"],
+      "platforms": {"youtube": "UCof2kvJ2iHtdPJyPfS2lcxw", "instagram": "matias_damasio_oficial"},
+      "region": "AO", "language": "pt", "role": "singer",
+      "subgenres": ["kizomba", "afrofusion"], "tier": null,
+      "rationale": "Angolan singer-songwriter; Por Amor (2016) #4 + Augusta #1 on Portuguese charts. 986K IG.",
+      "sources": ["https://en.wikipedia.org/wiki/Matias_Dam%C3%A1sio", "https://www.instagram.com/matias_damasio_oficial/"]
+    },
+    {
+      "name": "C4 Pedro",
+      "lanes": ["genre/kizomba", "travel/angola"],
+      "platforms": {"youtube": "UC9SXqBYyI73z-OjYJJHA6dw", "instagram": "c4pedro_official"},
+      "region": "AO", "language": "pt", "role": "singer",
+      "subgenres": ["kizomba", "afrofusion"], "tier": null,
+      "rationale": "Angolan singer-producer-guitarist fusing Kizomba/R&B/Afro-pop. UNAIDS Goodwill Ambassador for Angola.",
+      "sources": ["https://en.wikipedia.org/wiki/C4_Pedro", "https://www.instagram.com/c4pedro_official/"]
+    },
+    {
+      "name": "Calema",
+      "lanes": ["genre/kizomba"],
+      "platforms": {"youtube": "UCJWmyTbE_--mvTkrH7qSNZQ"},
+      "region": "ST", "language": "pt", "role": "singer",
+      "subgenres": ["zouk-love", "kizomba"], "tier": null,
+      "rationale": "São Toméan brother duo (António + Fradique), Portugal-based. Zouk Love + Kizomba-infused pop.",
+      "sources": ["https://en.wikipedia.org/wiki/Calema"]
+    },
+    {
+      "name": "Heavy C",
+      "lanes": ["genre/kizomba", "travel/angola"],
+      "platforms": {"youtube": "heavycoficial", "instagram": "sr.heavyc_official"},
+      "region": "AO", "language": "pt", "role": "singer",
+      "subgenres": ["kizomba", "zouk-love"], "tier": null,
+      "rationale": "Veteran Angolan singer; Kizomba/Zouk pioneer. YT validated via pilot (4 vids).",
+      "sources": ["https://www.viberate.com/artist/heavy-c/", "https://www.instagram.com/sr.heavyc_official/"]
+    },
+    {
+      "name": "Eddy Tussa",
+      "lanes": ["genre/kizomba", "travel/angola"],
+      "platforms": {"youtube": "edgartussa100", "instagram": "eddytussa_official"},
+      "region": "AO", "language": "pt", "role": "singer",
+      "subgenres": ["kizomba", "semba"], "tier": null,
+      "rationale": "Angolan singer (Conceição António); fuses contemporary rhythms with traditional Angolan music. 213K IG.",
+      "sources": ["https://www.instagram.com/eddytussa_official/", "https://www.youtube.com/user/edgartussa100"]
+    },
+    {
+      "name": "Pérola",
+      "lanes": ["genre/kizomba", "travel/angola"],
+      "platforms": {"youtube": "tvperola", "instagram": "perola_pearl"},
+      "region": "AO", "language": "pt", "role": "singer",
+      "subgenres": ["kizomba"], "tier": null,
+      "rationale": "Angolan R&B/Kizomba singer (Jandira Sassinguith). Hits 'Diz a Ela', 'Goddess', 'Última Chamada'.",
+      "sources": ["https://www.youtube.com/tvperola", "https://www.instagram.com/perola_pearl/"]
+    },
+    {
+      "name": "Soraia Ramos",
+      "lanes": ["genre/kizomba"],
+      "platforms": {"youtube": "UCetdIAmfyt-ZobwrGjHowrQ", "instagram": "soraiaramoss"},
+      "region": "CV", "language": "pt", "role": "singer",
+      "subgenres": ["kizomba", "afrofusion"], "tier": null,
+      "rationale": "Cape Verdean singer; 2020 AFRIMMA Best Female Artist Central Africa. 1M IG followers.",
+      "sources": ["https://en.wikipedia.org/wiki/Soraia_Ramos", "https://www.instagram.com/soraiaramoss/"]
+    },
+    {
+      "name": "Mika Mendes",
+      "lanes": ["genre/kizomba"],
+      "platforms": {"youtube": "mikamendes3773", "instagram": "mikamendesofficial"},
+      "region": "diaspora-FR", "language": "pt", "role": "singer",
+      "subgenres": ["ghetto-zouk", "kizomba"], "tier": null,
+      "rationale": "Cape Verdean-French Ghetto-Zouk singer. 'Mágico' anthem 25M+ YT views; 150M+ cumulative.",
+      "sources": ["https://en.wikipedia.org/wiki/Mika_Mendes", "https://www.instagram.com/mikamendesofficial/"]
+    },
+    {
+      "name": "Kaysha",
+      "lanes": ["genre/kizomba"],
+      "platforms": {"youtube": "UCmomWwkDKT5yd9ijSS-SLTQ"},
+      "region": "diaspora-FR", "language": "fr", "role": "producer",
+      "subgenres": ["ghetto-zouk", "kizomba", "zouk-love"], "tier": null,
+      "rationale": "Kinshasa-born French producer/singer; founded Sushiraw label, central to Ghetto-Zouk + Kizomba scene.",
+      "sources": ["https://en.wikipedia.org/wiki/Kaysha", "https://music.youtube.com/channel/UCmomWwkDKT5yd9ijSS-SLTQ"]
+    },
+    {
+      "name": "Nelson Freitas",
+      "lanes": ["genre/kizomba"],
+      "platforms": {"youtube": "NelsonFreitasVEVO", "instagram": "iamnelsonfreitas"},
+      "region": "diaspora-NL", "language": "pt", "role": "singer",
+      "subgenres": ["ghetto-zouk", "kizomba"], "tier": null,
+      "rationale": "Cape Verdean-Dutch Ghetto-Zouk singer-producer. 'Break of Dawn' kizomba+reggae fusion hit.",
+      "sources": ["https://en.wikipedia.org/wiki/Nelson_Freitas", "https://www.youtube.com/user/NelsonFreitasVEVO"]
+    },
+    {
+      "name": "Bonga",
+      "lanes": ["genre/kizomba", "travel/angola"],
+      "platforms": {"youtube": "UCG2NJWDrqPVWhccUWG2pLpg", "instagram": "kwendabonga"},
+      "region": "AO", "language": "pt", "role": "singer",
+      "subgenres": ["semba"], "tier": null,
+      "rationale": "Legendary Angolan Semba/folk singer; foundational figure of the genre.",
+      "sources": ["https://en.wikipedia.org/wiki/Bonga_(musician)", "https://www.instagram.com/kwendabonga/"]
+    },
+    {
+      "name": "Loony Johnson",
+      "lanes": ["genre/kizomba"],
+      "platforms": {"instagram": "loonyjohnson"},
+      "region": "diaspora-PT", "language": "pt", "role": "singer",
+      "subgenres": ["ghetto-zouk", "kizomba"], "tier": null,
+      "rationale": "Cape Verdean Zouk/Kizomba singer-producer. 'Mocinho' (2022) album notable. 127K IG.",
+      "sources": ["https://www.instagram.com/loonyjohnson/"]
+    },
+    {
+      "name": "Albir Rojas",
+      "lanes": ["genre/kizomba", "trends/dance"],
+      "platforms": {"youtube": "AlbirRojas", "instagram": "albirrojas"},
+      "region": "ES", "language": "es", "role": "dancer",
+      "subgenres": ["kizomba"], "tier": null,
+      "rationale": "International kizomba instructor + dancer. Founder of MKIZ. One of the most-admired kizomba teachers.",
+      "sources": ["https://albirrojas.com/", "https://www.instagram.com/albirrojas/"]
+    },
+    {
+      "name": "Sara López",
+      "lanes": ["genre/kizomba", "trends/dance"],
+      "platforms": {"youtube": "UCnkB37UCrAXVmYfqavACSZA", "instagram": "saralopezofficial"},
+      "region": "ES", "language": "es", "role": "dancer",
+      "subgenres": ["kizomba"], "tier": null,
+      "rationale": "World-famous kizomba dancer; 286K IG. 20+ years experience, kizomba ambassador.",
+      "sources": ["https://kizombaembassy.com/ambassador/sara-lopez/", "https://www.instagram.com/saralopezofficial/"]
+    },
+    {
+      "name": "Yola Araújo",
+      "lanes": ["genre/kizomba", "travel/angola"],
+      "platforms": {"youtube": "UCIMP_grwHwm-ese-YXuRVug", "instagram": "yolaaraujo_official"},
+      "region": "AO", "language": "pt", "role": "singer",
+      "subgenres": ["kizomba", "semba"], "tier": null,
+      "rationale": "Angolan kizomba/semba singer. 2M IG followers. Hits 'Quadradinha', 'Não é justo não'.",
+      "sources": ["https://en.wikipedia.org/wiki/Yola_Ara%C3%BAjo", "https://www.instagram.com/yolaaraujo_official/"]
+    },
+    {
+      "name": "Bruna Tatiana",
+      "lanes": ["genre/kizomba", "travel/angola"],
+      "platforms": {"youtube": "UCJW2a9UzBZRP5gme-XyjcCQ", "instagram": "brunatatiana_"},
+      "region": "AO", "language": "pt", "role": "singer",
+      "subgenres": ["kizomba", "afrofusion"], "tier": null,
+      "rationale": "Angolan singer; 1M+ IG. Hits 'Te Quero Bue', 'Não Há', 'Prometo Mudar'.",
+      "sources": ["https://www.instagram.com/brunatatiana_/", "https://www.viberate.com/artist/bruna-tatiana/"]
+    },
+    {
+      "name": "Cef Tanzy",
+      "lanes": ["genre/kizomba", "travel/angola"],
+      "platforms": {"youtube": "CefTanzy", "instagram": "ceftanzy"},
+      "region": "AO", "language": "pt", "role": "singer",
+      "subgenres": ["kizomba", "afrotrap"], "tier": null,
+      "rationale": "Angolan Kizomba/R&B/trap singer-producer. Created 'trap-zouk' genre. 700K IG, 330K YT subs.",
+      "sources": ["https://www.youtube.com/@CefTanzy"]
+    },
+    {
+      "name": "DJ Papson",
+      "lanes": ["genre/kizomba", "travel/angola"],
+      "platforms": {"youtube": "djpapson"},
+      "region": "AO", "language": "pt", "role": "dj",
+      "subgenres": ["kizomba", "afro-house"], "tier": null,
+      "rationale": "Angolan DJ in the urban-kizomba scene. YT validated via pilot (9 vids).",
+      "sources": ["https://www.youtube.com/@djpapson"]
+    }
+  ]
+}

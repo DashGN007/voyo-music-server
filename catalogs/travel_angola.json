@@ -1,0 +1,1568 @@
+{
+  "_schema_version": "1.0",
+  "lane": "travel/angola",
+  "discovered_at": "2026-05-06T21:00:00+00:00",
+  "discovered_by": "claude-opus-4-7",
+  "verified": false,
+  "notes": "Hand-built Angola catalog — kuduro/afro-house, comedy, lifestyle, fashion, rap, legacy. AVOIDS duplicate of all 12 Angolan artists already tagged travel/angola in genre_kizomba.json (Yuri da Cunha, Anselmo Ralph, Matias Damásio, C4 Pedro, Heavy C, Eddy Tussa, Pérola, Bonga, Yola Araújo, Bruna Tatiana, Cef Tanzy, DJ Papson). Handles to be programmatically verified by verify_handles.py before ingest.",
+  "entries": [
+    {
+      "name": "Os Kuduristas",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "oskuduristas",
+        "youtube": "oskuduristas"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "dancer",
+      "subgenres": ["kuduro"],
+      "tier": "rising",
+      "rationale": "Kuduro collective who took the genre global. Founders of the modern kuduro export wave from Luanda.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Kuduro",
+        "https://www.instagram.com/oskuduristas/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "DJ Vado Più",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "djvadopiu",
+        "youtube": "djvadopiu"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "dj",
+      "subgenres": ["kuduro", "afro-house"],
+      "tier": "rising",
+      "rationale": "Veteran Angolan kuduro/afro-house DJ. Pillar of the Luanda club circuit.",
+      "sources": [
+        "https://www.instagram.com/djvadopiu/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "DJ Helder",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "djhelderoficial",
+        "youtube": "djhelder"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "dj",
+      "subgenres": ["afro-house", "kuduro"],
+      "tier": "rising",
+      "rationale": "Angolan DJ-producer central to afro-house movement.",
+      "sources": [
+        "https://www.instagram.com/djhelderoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Buraka Som Sistema",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "burakasomsistema",
+        "youtube": "burakasomsistema"
+      },
+      "region": "diaspora-PT",
+      "language": "pt",
+      "role": "producer",
+      "subgenres": ["kuduro", "afro-house"],
+      "tier": "major",
+      "rationale": "Portuguese-Angolan group that broke kuduro internationally with 'Sound of Kuduro'. Foundational export act.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Buraka_Som_Sistema",
+        "https://www.instagram.com/burakasomsistema/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Coreon Du",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "coreondu",
+        "youtube": "coreondu"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["afro-house", "kuduro", "afrofusion"],
+      "tier": "rising",
+      "rationale": "Angolan singer-songwriter (José Eduardo Paulino dos Santos). Eurovision representative for Azerbaijan 2013.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Coreon_Du",
+        "https://www.instagram.com/coreondu/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Don Kikas",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "donkikasoficial",
+        "youtube": "donkikasoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop", "afrotrap"],
+      "tier": "rising",
+      "rationale": "Angolan rapper-singer crossing hip-hop and Lusophone urban sounds.",
+      "sources": [
+        "https://www.instagram.com/donkikasoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Puto Português",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "putoportuguesoficial",
+        "youtube": "putoportuguesoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop", "afrotrap"],
+      "tier": "rising",
+      "rationale": "Angolan rapper, prominent figure of Angolan hip-hop scene.",
+      "sources": [
+        "https://www.instagram.com/putoportuguesoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Paulo Flores",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "pauloflores_oficial",
+        "youtube": "pauloflores"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba", "kizomba"],
+      "tier": "icon",
+      "rationale": "Legendary Angolan semba singer-songwriter. Generational reference of contemporary Angolan music.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Paulo_Flores",
+        "https://www.instagram.com/pauloflores_oficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Filho Único",
+      "lanes": ["travel/angola", "trends/comedy"],
+      "platforms": {
+        "instagram": "filhounicoangola",
+        "youtube": "filhounico"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "comedian",
+      "subgenres": [],
+      "tier": "rising",
+      "rationale": "Angolan comedy creator; observational and skit content rooted in Luanda culture.",
+      "sources": [
+        "https://www.instagram.com/filhounicoangola/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Bushiri Angola",
+      "lanes": ["travel/angola", "trends/comedy"],
+      "platforms": {
+        "instagram": "bushiriangola"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "comedian",
+      "subgenres": [],
+      "tier": "niche",
+      "rationale": "Angolan comedy/parody creator referencing prophet Bushiri archetype; viral skit format.",
+      "sources": [
+        "https://www.instagram.com/bushiriangola/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Mwangolé",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "mwangole",
+        "youtube": "mwangoletv"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "lifestyle",
+      "subgenres": [],
+      "tier": "rising",
+      "rationale": "Angolan lifestyle/culture media platform — fashion, music, urban lifestyle from Luanda.",
+      "sources": [
+        "https://www.instagram.com/mwangole/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Titica",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "titicaangola",
+        "youtube": "titicakuduro"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kuduro"],
+      "tier": "major",
+      "rationale": "Angolan kuduro singer; UNAIDS Goodwill Ambassador. Trans icon and kuduro mainstay.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Titica",
+        "https://www.instagram.com/titicaangola/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Cabo Snoop",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "cabosnoop",
+        "youtube": "cabosnoopofficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kuduro", "afrofusion"],
+      "tier": "rising",
+      "rationale": "Angolan kuduro/afro-pop artist. 'Windeck' was a continental hit.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Cabo_Snoop",
+        "https://www.instagram.com/cabosnoop/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "DJ Znobia",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "djznobia",
+        "youtube": "djznobia"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "producer",
+      "subgenres": ["kuduro", "afro-house"],
+      "tier": "rising",
+      "rationale": "Angolan kuduro producer, key architect of progressive kuduro sound.",
+      "sources": [
+        "https://www.instagram.com/djznobia/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Nagrelha",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "nagrelhanagrelha",
+        "youtube": "nagrelha"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kuduro"],
+      "tier": "rising",
+      "rationale": "Angolan kuduro star, member of Os Lambas. Foundational kuduro voice.",
+      "sources": [
+        "https://www.instagram.com/nagrelhanagrelha/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Os Lambas",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "oslambasoficial",
+        "youtube": "oslambas"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kuduro"],
+      "tier": "rising",
+      "rationale": "Pioneering Angolan kuduro group from Sambizanga, Luanda.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Os_Lambas"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Dog Murras",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "dogmurras",
+        "youtube": "dogmurrasoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kuduro", "afrofusion"],
+      "tier": "rising",
+      "rationale": "Angolan singer-songwriter, fusion of kuduro, semba, and Angolan pop.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Dog_Murras"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Big Nelo",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "bignelo",
+        "youtube": "bignelo"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop", "afrofusion"],
+      "tier": "rising",
+      "rationale": "Angolan rapper, founding member of Forças Armadas. Veteran of Angolan hip-hop.",
+      "sources": [
+        "https://www.instagram.com/bignelo/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "NGA",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "ngaoficial",
+        "youtube": "ngaoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop", "afrotrap"],
+      "tier": "rising",
+      "rationale": "Angolan rapper, one of the most influential voices in Angolan hip-hop.",
+      "sources": [
+        "https://www.instagram.com/ngaoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Prodígio",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "prodigio_oficial",
+        "youtube": "prodigiooficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop", "afrotrap"],
+      "tier": "rising",
+      "rationale": "Angolan rapper, member of Forças Armadas. Sharp lyricist.",
+      "sources": [
+        "https://www.instagram.com/prodigio_oficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Phay Grande",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "phaygrande"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop", "afrotrap"],
+      "tier": "niche",
+      "rationale": "Angolan rapper, Forças Armadas member.",
+      "sources": [
+        "https://www.instagram.com/phaygrande/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Yannick Afroman",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "yannickafroman",
+        "youtube": "yannickafroman"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop"],
+      "tier": "rising",
+      "rationale": "Angolan rapper-singer, social-commentary lyricism.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Yannick_Afroman"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "MC K",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "mck_proibido_ouvir_isto"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop"],
+      "tier": "rising",
+      "rationale": "Angolan rapper, conscious hip-hop veteran. Album 'Proibido Ouvir Isto' is Angolan hip-hop canon.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/MCK"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Lil Saint",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "lilsaintoficial",
+        "youtube": "lilsaintoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kizomba", "afrofusion"],
+      "tier": "rising",
+      "rationale": "Angolan singer-songwriter blending kizomba and contemporary R&B.",
+      "sources": [
+        "https://www.instagram.com/lilsaintoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Edmázia Mayembe",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "edmaziamayembe",
+        "youtube": "edmaziamayembe"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba", "afrofusion"],
+      "tier": "rising",
+      "rationale": "Angolan singer, Voice of Angola winner. Fusion of semba and Angolan urban pop.",
+      "sources": [
+        "https://www.instagram.com/edmaziamayembe/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Ary",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "aryoficial",
+        "youtube": "aryoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kizomba", "afrofusion"],
+      "tier": "rising",
+      "rationale": "Angolan singer; fado-meets-kizomba blend, hits with Anselmo Ralph.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Ary_(singer)"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Aline Frazão",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "alinefrazao",
+        "youtube": "alinefrazao"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba", "afrofusion"],
+      "tier": "rising",
+      "rationale": "Angolan singer-songwriter, contemporary jazz-folk-semba fusion. Critically respected.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Aline_Fraz%C3%A3o"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Ihaka Lord",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "ihakalord"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop", "afrotrap"],
+      "tier": "niche",
+      "rationale": "Angolan rapper rising in the new-school trap scene.",
+      "sources": [
+        "https://www.instagram.com/ihakalord/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Lil Bana O Africano",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "lilbana_oafricano"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["afrotrap", "hiphop"],
+      "tier": "niche",
+      "rationale": "Angolan trap voice, popular among new generation.",
+      "sources": [
+        "https://www.instagram.com/lilbana_oafricano/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "DJ Malvado",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "djmalvadooficial",
+        "youtube": "djmalvado"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "dj",
+      "subgenres": ["afro-house", "kuduro"],
+      "tier": "rising",
+      "rationale": "Angolan-Portuguese DJ-producer, afro-house pioneer for Lusophone scene.",
+      "sources": [
+        "https://www.instagram.com/djmalvadooficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "DJ Maboku",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "djmabokuoficial",
+        "youtube": "djmaboku"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "dj",
+      "subgenres": ["afro-house"],
+      "tier": "rising",
+      "rationale": "Angolan DJ-producer in afro-house circuit.",
+      "sources": [
+        "https://www.instagram.com/djmabokuoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "DJ Silyvi",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "djsilyvi"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "dj",
+      "subgenres": ["afro-house"],
+      "tier": "niche",
+      "rationale": "Angolan female DJ rising in afro-house scene.",
+      "sources": [
+        "https://www.instagram.com/djsilyvi/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Preto Show",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "pretoshow",
+        "youtube": "pretoshow"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kuduro", "afro-house"],
+      "tier": "rising",
+      "rationale": "Angolan singer; viral 'Para Ficar Bem' hit. Kuduro/afro-house crossover.",
+      "sources": [
+        "https://www.instagram.com/pretoshow/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Landrick",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "landrickoficial",
+        "youtube": "landrickoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kizomba", "zouk-love"],
+      "tier": "rising",
+      "rationale": "Angolan kizomba/zouk singer; popular romantic vocalist.",
+      "sources": [
+        "https://www.instagram.com/landrickoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Os Banah",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "osbanahoficial",
+        "youtube": "osbanahoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kizomba", "zouk-love"],
+      "tier": "niche",
+      "rationale": "Angolan duo (Yola Semedo's brothers), kizomba/zouk romantic style.",
+      "sources": [
+        "https://www.instagram.com/osbanahoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Yola Semedo",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "yolasemedoficial",
+        "youtube": "yolasemedoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba", "kizomba", "afrofusion"],
+      "tier": "major",
+      "rationale": "Iconic Angolan singer; semba, kizomba, jazz-fusion. Generational vocalist.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Yola_Semedo"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Puto Lilas",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "putolilasoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kuduro"],
+      "tier": "niche",
+      "rationale": "Angolan kuduro voice, urban Luanda sound.",
+      "sources": [
+        "https://www.instagram.com/putolilasoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Hochi Fu",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "hochifu"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kuduro"],
+      "tier": "niche",
+      "rationale": "Angolan kuduro/urban act in the Luanda new-wave scene.",
+      "sources": [
+        "https://www.instagram.com/hochifu/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Liloca",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "liloca_oficial",
+        "youtube": "lilocaoficial"
+      },
+      "region": "MZ",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kizomba", "afrofusion"],
+      "tier": "rising",
+      "rationale": "Mozambican singer with strong Angolan crossover audience; kizomba and lusophone pop.",
+      "sources": [
+        "https://www.instagram.com/liloca_oficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Mariza",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "marizaoficial",
+        "youtube": "marizaoficial"
+      },
+      "region": "diaspora-PT",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": [],
+      "tier": "major",
+      "rationale": "Mozambique-born Portuguese fado icon with Lusophone cultural reach incl. Angola.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Mariza"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Eva Rapdiva",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "evarapdiva",
+        "youtube": "evarapdiva"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop", "afrotrap"],
+      "tier": "rising",
+      "rationale": "Angolan female rapper, leading voice in the women's rap movement.",
+      "sources": [
+        "https://www.instagram.com/evarapdiva/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Filipe Mukenga",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "filipemukenga"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba"],
+      "tier": "rising",
+      "rationale": "Angolan singer, semba and traditional Angolan music. Cultural reference.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Filipe_Mukenga"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Waldemar Bastos",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "waldemarbastos"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba"],
+      "tier": "icon",
+      "rationale": "Late legendary Angolan singer; international ambassador of Angolan music.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Waldemar_Bastos"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Halison Paixão",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "halisonpaixaooficial",
+        "youtube": "halisonpaixao"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kizomba", "zouk-love"],
+      "tier": "rising",
+      "rationale": "Angolan kizomba/zouk singer; romantic ballad genre.",
+      "sources": [
+        "https://www.instagram.com/halisonpaixaooficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Baixinho da Costa",
+      "lanes": ["travel/angola", "trends/comedy"],
+      "platforms": {
+        "instagram": "baixinhodacosta_oficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "comedian",
+      "subgenres": [],
+      "tier": "niche",
+      "rationale": "Angolan comedy creator, social media skits.",
+      "sources": [
+        "https://www.instagram.com/baixinhodacosta_oficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Tony Amado",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "tonyamadooficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kuduro"],
+      "tier": "rising",
+      "rationale": "Angolan kuduro pioneer, credited as one of the inventors of the genre in early 90s Luanda.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Tony_Amado"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Sebem",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "sebemoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kuduro"],
+      "tier": "rising",
+      "rationale": "Angolan kuduro pioneer; co-founder of the kuduro movement with Tony Amado.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Sebem"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Nayma Sanches",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "naymasanches"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "lifestyle",
+      "subgenres": [],
+      "tier": "rising",
+      "rationale": "Angolan lifestyle/fashion creator; Luanda urban scene.",
+      "sources": [
+        "https://www.instagram.com/naymasanches/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Cláudia Ramos",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "claudiaramosoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "lifestyle",
+      "subgenres": [],
+      "tier": "rising",
+      "rationale": "Angolan-Portuguese model and lifestyle creator; fashion + culture.",
+      "sources": [
+        "https://www.instagram.com/claudiaramosoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Tekassa",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "tekassa_oficial",
+        "youtube": "tekassa"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kuduro"],
+      "tier": "niche",
+      "rationale": "Angolan kuduro/urban act.",
+      "sources": [
+        "https://www.instagram.com/tekassa_oficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Teo No Beat",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "teonobeatoficial",
+        "youtube": "teonobeatoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "producer",
+      "subgenres": ["afro-house", "kuduro"],
+      "tier": "rising",
+      "rationale": "Angolan producer-singer; afro-house hits with major Lusophone artists.",
+      "sources": [
+        "https://www.instagram.com/teonobeatoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Nerú Americano",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "neruamericano",
+        "youtube": "neruamericano"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "producer",
+      "subgenres": ["afro-house", "kuduro"],
+      "tier": "rising",
+      "rationale": "Angolan DJ-producer; afro-house mainstay.",
+      "sources": [
+        "https://www.instagram.com/neruamericano/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Lil Maro",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "lilmaro_oficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["afrotrap", "hiphop"],
+      "tier": "niche",
+      "rationale": "Angolan trap/hip-hop rising voice.",
+      "sources": [
+        "https://www.instagram.com/lilmaro_oficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Soldier G",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "soldierg_oficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop", "afrotrap"],
+      "tier": "niche",
+      "rationale": "Angolan rapper; new-school trap voice.",
+      "sources": [
+        "https://www.instagram.com/soldierg_oficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Filipe Sambado",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "filipesambado"
+      },
+      "region": "diaspora-PT",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba"],
+      "tier": "rising",
+      "rationale": "Portuguese-Angolan singer-songwriter, semba-influenced indie pop.",
+      "sources": [
+        "https://www.instagram.com/filipesambado/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Kelson Most Wanted",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "kelsonmostwanted"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop", "afrotrap"],
+      "tier": "rising",
+      "rationale": "Angolan rapper; central figure of contemporary Angolan hip-hop.",
+      "sources": [
+        "https://www.instagram.com/kelsonmostwanted/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Conjunto Ngonguenha",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "conjuntongonguenha"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba"],
+      "tier": "niche",
+      "rationale": "Angolan semba ensemble preserving traditional Luanda sound.",
+      "sources": [
+        "https://www.instagram.com/conjuntongonguenha/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Maya Cool",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "mayacooloficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kuduro"],
+      "tier": "niche",
+      "rationale": "Angolan kuduro/afro-pop voice.",
+      "sources": [
+        "https://www.instagram.com/mayacooloficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "DJ Naps",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "djnapsoficial",
+        "youtube": "djnaps"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "dj",
+      "subgenres": ["afro-house", "kuduro"],
+      "tier": "rising",
+      "rationale": "Angolan-Portuguese DJ, afro-house circuit regular.",
+      "sources": [
+        "https://www.instagram.com/djnapsoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Banda Maravilha",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "bandamaravilha"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba"],
+      "tier": "rising",
+      "rationale": "Iconic Angolan band; pillar of contemporary semba.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Banda_Maravilha"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Ary Pulsar",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "arypulsar"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop"],
+      "tier": "niche",
+      "rationale": "Angolan rapper, member of Forças Armadas hip-hop collective.",
+      "sources": [
+        "https://www.instagram.com/arypulsar/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Forças Armadas",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "forcasarmadasoficial",
+        "youtube": "forcasarmadasoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop"],
+      "tier": "rising",
+      "rationale": "Iconic Angolan hip-hop collective (Big Nelo, Prodígio, etc).",
+      "sources": [
+        "https://www.instagram.com/forcasarmadasoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Yola D'arte",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "yoladarte"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "fashion",
+      "subgenres": [],
+      "tier": "niche",
+      "rationale": "Angolan stylist and fashion creator.",
+      "sources": [
+        "https://www.instagram.com/yoladarte/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Estela Carlton",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "estelacarlton"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "fashion",
+      "subgenres": [],
+      "tier": "niche",
+      "rationale": "Angolan fashion designer; African luxury fashion presence.",
+      "sources": [
+        "https://www.instagram.com/estelacarlton/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Tekson",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "teksonoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kuduro", "afrofusion"],
+      "tier": "niche",
+      "rationale": "Angolan urban singer-rapper, Luanda new wave.",
+      "sources": [
+        "https://www.instagram.com/teksonoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Ary's Cabelo",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "aryscabelo"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "lifestyle",
+      "subgenres": [],
+      "tier": "niche",
+      "rationale": "Angolan beauty/hair lifestyle creator.",
+      "sources": [
+        "https://www.instagram.com/aryscabelo/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Ary Shulla",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "aryshulla"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "lifestyle",
+      "subgenres": [],
+      "tier": "niche",
+      "rationale": "Angolan lifestyle/comedy creator.",
+      "sources": [
+        "https://www.instagram.com/aryshulla/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "DJ Buda",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "djbudaoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "dj",
+      "subgenres": ["afro-house"],
+      "tier": "niche",
+      "rationale": "Angolan DJ in afro-house circuit.",
+      "sources": [
+        "https://www.instagram.com/djbudaoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "DJ Vado Poster",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "djvadoposter"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "dj",
+      "subgenres": ["afro-house"],
+      "tier": "niche",
+      "rationale": "Angolan DJ-producer afro-house.",
+      "sources": [
+        "https://www.instagram.com/djvadoposter/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Kyaku Kyadaff",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "kyakukyadaff"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba"],
+      "tier": "rising",
+      "rationale": "Angolan semba/folk singer-songwriter; conscious lyrics.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Kyaku_Kyadaff"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Yola Nogueira",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "yolanogueira"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "lifestyle",
+      "subgenres": [],
+      "tier": "niche",
+      "rationale": "Angolan lifestyle and fashion creator.",
+      "sources": [
+        "https://www.instagram.com/yolanogueira/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "MestreDJ",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "mestredj_oficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "dj",
+      "subgenres": ["afro-house"],
+      "tier": "niche",
+      "rationale": "Angolan DJ, afro-house DJ circuit.",
+      "sources": [
+        "https://www.instagram.com/mestredj_oficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "DJ Joker",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "djjokerangola"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "dj",
+      "subgenres": ["afro-house", "kuduro"],
+      "tier": "niche",
+      "rationale": "Angolan DJ in club circuit.",
+      "sources": [
+        "https://www.instagram.com/djjokerangola/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Tia Lúcia",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "tialuciaoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "lifestyle",
+      "subgenres": [],
+      "tier": "niche",
+      "rationale": "Angolan food creator; traditional Angolan cuisine.",
+      "sources": [
+        "https://www.instagram.com/tialuciaoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Kelvin Momo",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "kelvinmomosa"
+      },
+      "region": "ZA",
+      "language": "en",
+      "role": "producer",
+      "subgenres": ["amapiano", "afro-house"],
+      "tier": "major",
+      "rationale": "SA amapiano producer crossing into AO afro-house circuit.",
+      "sources": [
+        "https://www.instagram.com/kelvinmomosa/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Calo Pascoal",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "calopascoaloficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba"],
+      "tier": "niche",
+      "rationale": "Angolan semba singer-songwriter.",
+      "sources": [
+        "https://www.instagram.com/calopascoaloficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Ouro Negro",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "ouronegrooficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba"],
+      "tier": "rising",
+      "rationale": "Iconic Angolan band; semba foundational reference.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Ouro_Negro"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Pérola Helena",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "perola.helena"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "lifestyle",
+      "subgenres": [],
+      "tier": "niche",
+      "rationale": "Angolan beauty / lifestyle creator.",
+      "sources": [
+        "https://www.instagram.com/perola.helena/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Yannick Kalado",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "yannickkalado"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["kizomba", "afrofusion"],
+      "tier": "niche",
+      "rationale": "Angolan singer; kizomba and contemporary R&B.",
+      "sources": [
+        "https://www.instagram.com/yannickkalado/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "DJ Khalifa",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "djkhalifaoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "dj",
+      "subgenres": ["afro-house"],
+      "tier": "niche",
+      "rationale": "Angolan DJ in afro-house circuit.",
+      "sources": [
+        "https://www.instagram.com/djkhalifaoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Master Jake",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "masterjakeoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "rapper",
+      "subgenres": ["hiphop", "afrotrap"],
+      "tier": "rising",
+      "rationale": "Angolan rapper; trap-leaning new-gen voice.",
+      "sources": [
+        "https://www.instagram.com/masterjakeoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Toty Sa'med",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "totysamed"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba", "afrofusion"],
+      "tier": "rising",
+      "rationale": "Angolan singer-songwriter; soul-folk-semba blend.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Toty_Sa%27Med"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Baba Maria",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "babamariaoficial"
+      },
+      "region": "AO",
+      "language": "pt",
+      "role": "singer",
+      "subgenres": ["semba", "kizomba"],
+      "tier": "rising",
+      "rationale": "Angolan singer; semba/kizomba contemporary.",
+      "sources": [
+        "https://www.instagram.com/babamariaoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    },
+    {
+      "name": "Bruno M",
+      "lanes": ["travel/angola"],
+      "platforms": {
+        "instagram": "brunomoficial"
+      },
+      "region": "MZ",
+      "language": "pt",
+      "role": "producer",
+      "subgenres": ["afro-house"],
+      "tier": "rising",
+      "rationale": "Mozambican producer with strong AO afro-house crossover.",
+      "sources": [
+        "https://www.instagram.com/brunomoficial/"
+      ],
+      "follower_counts": {},
+      "verified_at": null
+    }
+  ],
+  "verified_at": null
+}

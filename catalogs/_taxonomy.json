@@ -1,0 +1,86 @@
+{
+  "version": "1.0",
+  "updated_at": "2026-05-06",
+  "purpose": "Canonical tag vocabulary across every catalog. ANY entry in any catalogs/<lane>.json file MUST use values from these enums (or NULL). The verifier rejects unknown tags. The feed filters/ranks on these.",
+
+  "lanes": {
+    "trends": ["dance", "comedy", "fashion"],
+    "travel": ["nigeria", "angola", "algeria", "ghana", "senegal", "south-africa", "west-africa"],
+    "genre":  ["afrobeats", "kizomba", "hiphop", "north-africa", "bongo-flava", "gospel", "amapiano"]
+  },
+
+  "platforms": ["youtube", "instagram", "tiktok"],
+
+  "regions": {
+    "_note": "ISO-3166-1 alpha-2 country codes for primary base. Diaspora artists use 'diaspora-XX' where XX = current base country.",
+    "examples": [
+      "NG", "GH", "SN", "ML", "CI", "BF", "TG", "BJ", "NE", "MR",
+      "AO", "ST", "MZ", "GW", "CV",
+      "ZA", "ZM", "ZW", "BW", "NA",
+      "KE", "TZ", "UG", "RW", "ET",
+      "DZ", "MA", "TN", "EG", "LY", "SD",
+      "CD", "CG", "CM", "CF", "GA",
+      "diaspora-FR", "diaspora-PT", "diaspora-UK", "diaspora-NL", "diaspora-US", "diaspora-CA",
+      "ES", "BR"
+    ]
+  },
+
+  "languages": {
+    "_note": "ISO-639-1 codes for the artist's primary performance language. Multi-lingual artists pick their dominant.",
+    "common": ["pt", "en", "fr", "ar", "sw", "es", "yo", "ig", "ha", "wo", "am", "tw", "ln", "kg"]
+  },
+
+  "roles": {
+    "singer":     "vocalist; primary performer of songs",
+    "producer":   "beats and arrangements; may or may not perform",
+    "dj":         "club + festival circuit; may produce as well",
+    "rapper":     "rap-first; distinct from melodic singer",
+    "dancer":     "choreographer / performer; often crosses into instruction",
+    "instructor": "teaches a style; school owner / festival circuit",
+    "comedian":   "comedy creator; skits, observational, podcast",
+    "curator":    "tastemaker / mix-show host / playlist builder",
+    "label":      "label-run channel; aggregator of multiple artists",
+    "fashion":    "stylist / designer / fit-creator",
+    "lifestyle":  "broad creator (food/travel/culture) tied to lane region"
+  },
+
+  "subgenres": {
+    "_note": "Optional finer label. Helps cross-tag a creator that fits multiple lanes (e.g. afrobeats + amapiano crossover).",
+    "afrobeats":      ["afrobeats", "afrofusion", "alté", "street-pop", "naija-pop"],
+    "kizomba":        ["kizomba", "semba", "tarraxinha", "ghetto-zouk", "zouk-love", "kuduro", "afro-house"],
+    "hiphop":         ["hiphop", "trap", "drill", "afrotrap", "uk-drill", "afroswing"],
+    "north-africa":   ["raï", "chaabi", "gnawa", "algerian-rap", "moroccan-pop", "egyptian-shaabi"],
+    "bongo-flava":    ["bongo-flava", "singeli", "taarab", "benga", "gengetone"],
+    "gospel":         ["gospel", "afrogospel", "spiritual", "praise"],
+    "amapiano":       ["amapiano", "gqom", "kwaito", "log-drum"],
+    "ghana":          ["highlife", "hiplife", "azonto"],
+    "soukous":        ["soukous", "rumba", "ndombolo", "makossa"],
+    "francophone":    ["coupé-décalé", "zouglou"]
+  },
+
+  "tier": {
+    "_note": "Followers + cultural weight tier. Set by verifier from platform-reported follower count; defaults to null until verified.",
+    "values": {
+      "icon":     ">= 5,000,000 followers OR generational status",
+      "major":    ">= 500,000 followers",
+      "rising":   ">= 50,000 followers",
+      "niche":    ">= 5,000 followers",
+      "scene":    "< 5,000 (only include for cultural-thread relevance)"
+    }
+  },
+
+  "entry_schema": {
+    "name":         "canonical full name",
+    "lanes":        "array of one or more lane keys (e.g. ['genre/kizomba','travel/angola'])",
+    "platforms":    "object mapping platform → canonical handle string (no @, no URL). YT can be @handle or UC...channel ID.",
+    "region":       "regions enum",
+    "language":     "languages enum",
+    "role":         "roles enum",
+    "subgenres":    "array of subgenre tags from this taxonomy",
+    "tier":         "tier value (null until verified)",
+    "rationale":    "≤ 25-word reason this artist matters in their lanes",
+    "sources":      "array of 1-3 verification source URLs",
+    "verified_at":  "ISO 8601 UTC timestamp set by verifier",
+    "follower_counts": "object mapping platform → follower count (set by verifier)"
+  }
+}
